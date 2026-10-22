@@ -1,0 +1,883 @@
+import Phaser from "phaser";
+import { skillById } from "@/lib/skills";
+import { SKILL_WINDOW, progressAt, type RaceHorse, type RaceResult, type SkillCutin } from "@/lib/race";
+import {
+  FOCUS_ZOOM,
+  HORSE_UNIT,
+  INTRO,
+  PAYOFF_HOLD,
+  ZOOM_IN,
+  ZOOM_OUT,
+  beatAt,
+  type ShowBeat,
+} from "@/game/skillShow";
+import { cutPose, laneRadius, poseAt, poseOnRadius, sampleRadius, viewBounds, type TrackPose } from "@/game/track";
+
+const FRAME_WIDTH = 213;
+const FRAME_HEIGHT = 211;
+const HORSE_HEIGHT = 96;
+const VIEW_HEIGHT = 560;
+const HELMETS = [
+  { x: 136, y: 43 },
+  { x: 137, y: 42 },
+  { x: 132, y: 41 },
+  { x: 129, y: 42 },
+  { x: 129, y: 45 },
+  { x: 126, y: 45 },
+];
+
+const SILKS = [
+  "/horses/silk-red.png",
+  "/horses/silk-teal.png",
+  "/horses/silk-gold.png",
+  "/horses/silk-violet.png",
+];
+
+export type RankRow = {
+  id: string;
+  name: string;
+  place: number;
+  color: string;
+};
+
+type Hooks = {
+  onComment: (message: string) => void;
+  onCutin: (cutin: SkillCutin | null) => void;
+  onRanks: (ranks: RankRow[]) => void;
+  onComplete: () => void;
+};
+
+type Actor = {
+  horse: RaceHorse;
+  container: Phaser.GameObjects.Container;
+  sprite: Phaser.GameObjects.Sprite;
+  face: Phaser.GameObjects.Image;
+  lines: Phaser.GameObjects.Graphics;
+  dust: Phaser.GameObjects.Graphics;
+  body: Phaser.GameObjects.Graphics;
+  shadow: Phaser.GameObjects.Ellipse;
+  number: Phaser.GameObjects.Text;
+  stamp: Phaser.GameObjects.Text;
+  progress: number;
+};
+
+function sheetFor(horse: RaceHorse) {
+  return SILKS[(horse.number - 1) % SILKS.length] ?? SILKS[0];
+}
+
+function drawOval(graphics: Phaser.GameObjects.Graphics, lanes: number) {
+  const outerLane = Math.max(1, lanes);
+  const outer = sampleRadius(laneRadius(outerLane) + 28, 140);
+  const inner = sampleRadius(Math.max(70, laneRadius(1) - 34), 140);
+  const railOut = sampleRadius(laneRadius(outerLane) + 28, 140);
+  const railIn = sampleRadius(Math.max(70, laneRadius(1) - 34), 140);
+
+  graphics.fillStyle(0xc4a06a, 1);
+  graphics.beginPath();
+  graphics.moveTo(outer[0]?.x ?? 0, outer[0]?.y ?? 0);
+  for (const point of outer) graphics.lineTo(point.x, point.y);
+  graphics.closePath();
+  graphics.fillPath();
+
+  graphics.fillStyle(0x176b3c, 1);
+  graphics.beginPath();
+  graphics.moveTo(inner[0]?.x ?? 0, inner[0]?.y ?? 0);
+  for (const point of inner) graphics.lineTo(point.x, point.y);
+  graphics.closePath();
+  graphics.fillPath();
+
+  graphics.lineStyle(5, 0xf7f4ee, 1);
+  graphics.beginPath();
+  graphics.moveTo(railOut[0]?.x ?? 0, railOut[0]?.y ?? 0);
+  for (const point of railOut) graphics.lineTo(point.x, point.y);
+  graphics.closePath();
+  graphics.strokePath();
+  graphics.beginPath();
+  graphics.moveTo(railIn[0]?.x ?? 0, railIn[0]?.y ?? 0);
+  for (const point of railIn) graphics.lineTo(point.x, point.y);
+  graphics.closePath();
+  graphics.strokePath();
+
+  const heads = [0xe23b3b, 0xf0c14d, 0x1f8a84, 0x7c5cbf, 0xf6f1e7, 0x2a6f9a, 0xc47a4a];
+  const crowd = sampleRadius(laneRadius(outerLane) + 78, 90);
+  crowd.forEach((point, index) => {
+    graphics.fillStyle(heads[index % heads.length] ?? 0xf6f1e7, 1);
+    graphics.fillCircle(point.x, point.y, 7);
+  });
+
+  const near = poseOnRadius(0, laneRadius(1) - 20);
+  const far = poseOnRadius(0, laneRadius(outerLane) + 24);
+  const steps = 12;
+  for (let index = 0; index < steps; index += 1) {
+    const from = index / steps;
+    const to = (index + 1) / steps;
+    graphics.lineStyle(12, index % 2 === 0 ? 0x161616 : 0xf7f7f7, 1);
+    graphics.lineBetween(
+      near.x + (far.x - near.x) * from,
+      near.y + (far.y - near.y) * from,
+      near.x + (far.x - near.x) * to,
+      near.y + (far.y - near.y) * to,
+    );
+  }
+}
+
+export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hooks) {
+  const actors: Actor[] = [];
+  const bounds = viewBounds(race.horses.length);
+  let raceTime = 0;
+  let wallClock = 0;
+  let finished = false;
+  let zoom = 1;
+  let skillFocusNumber = 0;
+  let showStart = -1;
+  let showSkillTime = 0;
+  let beat: ShowBeat | "idle" = "idle";
+  let skillLive = false;
+  let announced = false;
+  let sparked = false;
+  let sparkWave = -1;
+  let marks: Phaser.GameObjects.Graphics | null = null;
+  let cutPath: Phaser.GameObjects.Graphics | null = null;
+  let brakeSkid: Phaser.GameObjects.Graphics | null = null;
+  let brakeHaze: Phaser.GameObjects.Graphics | null = null;
+  let activeCutin: SkillCutin | null = null;
+  let crack: Phaser.GameObjects.Graphics | null = null;
+  let crackPlate: Phaser.GameObjects.Image | null = null;
+  let crackPlateWidth = 1;
+  let crackPlateHeight = 1;
+  const ghosts: Phaser.GameObjects.Image[] = [];
+  let ribbon: Phaser.GameObjects.Image | null = null;
+  let muzzle: Phaser.GameObjects.Image | null = null;
+  let tracer: Phaser.GameObjects.Image | null = null;
+  let beam: Phaser.GameObjects.Image | null = null;
+  let crownMark: Phaser.GameObjects.Image | null = null;
+  let slash: Phaser.GameObjects.Image | null = null;
+  let sparks: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
+  let rankKey = "";
+  let lastComment = "";
+  const fired = new Set<number>();
+  const cutinQueue: SkillCutin[] = [];
+
+  class RaceScene extends Phaser.Scene {
+    constructor() {
+      super("race");
+    }
+
+    preload() {
+      for (const horse of race.horses) {
+        this.load.spritesheet(horse.id, sheetFor(horse), {
+          frameWidth: FRAME_WIDTH,
+          frameHeight: FRAME_HEIGHT,
+        });
+        this.load.image(`portrait-${horse.id}`, horse.portrait);
+      }
+      this.load.image("crack-plate", "/fx/screen-crack.jpg");
+    }
+
+    create() {
+      this.cameras.main.setBackgroundColor("#145c34");
+      const track = this.add.graphics().setDepth(1);
+      drawOval(track, race.horses.length);
+
+      for (const horse of race.horses) {
+        const key = `gallop-${horse.id}`;
+        this.anims.create({
+          key,
+          frames: this.anims.generateFrameNumbers(horse.id, { start: 0, end: 5 }),
+          frameRate: 10,
+          repeat: -1,
+        });
+
+        const canvas = this.textures.createCanvas(`face-${horse.id}`, 64, 64);
+        if (canvas) {
+          const context = canvas.getContext();
+          const source = this.textures.get(`portrait-${horse.id}`).getSourceImage() as CanvasImageSource;
+          context.save();
+          context.beginPath();
+          context.arc(32, 32, 30, 0, Math.PI * 2);
+          context.clip();
+          context.drawImage(source, 0, 0, 64, 64);
+          context.restore();
+          context.strokeStyle = horse.color;
+          context.lineWidth = 6;
+          context.beginPath();
+          context.arc(32, 32, 28, 0, Math.PI * 2);
+          context.stroke();
+          canvas.refresh();
+        }
+
+        const sprite = this.add.sprite(0, 0, horse.id, 0).setOrigin(0.5, 0.9);
+        sprite.play(key);
+        const faceKey = this.textures.exists(`face-${horse.id}`) ? `face-${horse.id}` : `portrait-${horse.id}`;
+        const face = this.add.image(0, 0, faceKey).setDisplaySize(52, 52);
+        const lines = this.add.graphics();
+        const dust = this.add.graphics();
+        const body = this.add.graphics();
+        const shadow = this.add.ellipse(6, -2, 168, 28, 0x3a2414, 0.32);
+        const number = this.add
+          .text(24, -78, String(horse.number), {
+            fontFamily: "sans-serif",
+            fontSize: "22px",
+            color: "#fffaf2",
+            fontStyle: "bold",
+            stroke: "#24180f",
+            strokeThickness: 4,
+          })
+          .setOrigin(0.5);
+        const name = this.add
+          .text(0, -FRAME_HEIGHT * 0.72, horse.name, {
+            fontFamily: "Apple SD Gothic Neo, sans-serif",
+            fontSize: "22px",
+            color: "#24180f",
+            stroke: "#fff8ea",
+            strokeThickness: 5,
+          })
+          .setOrigin(0.5, 1);
+        const stamp = this.add
+          .text(0, -168, "", {
+            fontFamily: "sans-serif",
+            fontSize: "32px",
+            color: "#fffaf2",
+            fontStyle: "bold",
+            stroke: "#24180f",
+            strokeThickness: 6,
+          })
+          .setOrigin(0.5);
+        const container = this.add.container(0, 0);
+        container.add([shadow, dust, lines, body, sprite, face, number, name, stamp]);
+        container.setScale(HORSE_HEIGHT / FRAME_HEIGHT);
+        actors.push({ horse, container, sprite, face, lines, dust, body, shadow, number, stamp, progress: 0 });
+      }
+      this.paintFxTextures();
+
+      for (let index = 0; index < 6; index += 1) {
+        ghosts.push(this.add.image(0, 0, race.horses[0]?.id ?? "").setVisible(false).setDepth(3400));
+      }
+      ribbon = this.add.image(0, 0, "fx-ribbon").setVisible(false).setDepth(3450).setBlendMode(Phaser.BlendModes.ADD);
+      muzzle = this.add.image(0, 0, "fx-muzzle").setVisible(false).setDepth(3600).setBlendMode(Phaser.BlendModes.ADD);
+      tracer = this.add.image(0, 0, "fx-muzzle").setVisible(false).setDepth(3600).setBlendMode(Phaser.BlendModes.ADD);
+      beam = this.add.image(0, 0, "fx-beam").setVisible(false).setDepth(3600).setBlendMode(Phaser.BlendModes.ADD);
+      crownMark = this.add.image(0, 0, "fx-crown").setVisible(false).setDepth(3600);
+      slash = this.add.image(0, 0, "fx-slash").setVisible(false).setDepth(3550).setBlendMode(Phaser.BlendModes.ADD);
+      sparks = this.add.particles(0, 0, "fx-grain", {
+        lifespan: 420,
+        speed: { min: 40, max: 220 },
+        scale: { start: 1, end: 0 },
+        quantity: 0,
+        blendMode: Phaser.BlendModes.ADD,
+        emitting: false,
+      });
+      sparks.setDepth(3650);
+      marks = this.add.graphics().setDepth(3480);
+      cutPath = this.add.graphics().setDepth(4);
+      brakeSkid = this.add.graphics().setDepth(3);
+      brakeHaze = this.add.graphics().setDepth(30);
+      crack = this.add.graphics().setScrollFactor(0).setDepth(4200);
+      const plateSource = this.textures.get("crack-plate").getSourceImage() as CanvasImageSource & {
+        width: number;
+        height: number;
+      };
+      crackPlateWidth = plateSource.width;
+      crackPlateHeight = plateSource.height;
+      const plateCanvas = this.textures.createCanvas("crack-glass", plateSource.width, plateSource.height);
+      if (plateCanvas) {
+        const context = plateCanvas.getContext();
+        context.drawImage(plateSource, 0, 0);
+        const pixels = context.getImageData(0, 0, plateSource.width, plateSource.height);
+        const data = pixels.data;
+        for (let index = 0; index < data.length; index += 4) {
+          const lum = Math.max(data[index] ?? 0, data[index + 1] ?? 0, data[index + 2] ?? 0);
+          const lift = lum < 26 ? 0 : Math.min(255, ((lum - 26) / 180) ** 0.72 * 300);
+          data[index] = 255;
+          data[index + 1] = 255;
+          data[index + 2] = 255;
+          data[index + 3] = lift;
+        }
+        context.putImageData(pixels, 0, 0);
+        plateCanvas.refresh();
+      }
+      crackPlate = this.add
+        .image(0, 0, plateCanvas ? "crack-glass" : "crack-plate")
+        .setScrollFactor(0)
+        .setOrigin(0.5)
+        .setDepth(4250)
+        .setVisible(false);
+
+      hooks.onComment(race.events[0]?.message ?? "게이트가 열렸습니다.");
+      this.placeHorses();
+      this.frameCamera(true);
+      this.publishRanks();
+    }
+
+    update(_time: number, delta: number) {
+      const wall = Math.min(delta, 40) / 1000;
+      wallClock += wall;
+      const age = showStart >= 0 ? wallClock - showStart : -1;
+      beat = beatAt(age);
+      const payoffAge = age - INTRO;
+      skillLive = beat === "payoff" && zoom <= 1.08;
+      const shotStop =
+        skillLive && activeCutin?.skillName === "따발총" && activeCutin.hit && payoffAge > 0.16 && payoffAge < 0.22;
+      const holding = beat === "focus" || beat === "announce" || beat === "release" || (beat === "payoff" && !skillLive);
+      if (holding) {
+        raceTime = Math.max(0, showSkillTime - 0.1);
+      } else if (!shotStop) {
+        if (beat === "payoff" && raceTime < showSkillTime) raceTime = showSkillTime;
+        raceTime += wall;
+      }
+      if (beat === "announce" && !announced && activeCutin) {
+        announced = true;
+        hooks.onCutin(activeCutin);
+      }
+      if (announced && beat !== "announce" && beat !== "focus") {
+        announced = false;
+        hooks.onCutin(null);
+      }
+      if (beat === "idle" && showStart >= 0 && age >= INTRO + PAYOFF_HOLD) {
+        showStart = -1;
+        skillFocusNumber = 0;
+        activeCutin = null;
+      }
+
+      for (const event of race.events) {
+        if (!event.cutin || fired.has(event.time)) continue;
+        if (raceTime + 0.0001 < event.time) continue;
+        fired.add(event.time);
+        cutinQueue.push(event.cutin);
+        hooks.onComment(event.message);
+      }
+      if (showStart < 0 && cutinQueue.length > 0) {
+        const next = cutinQueue.shift();
+        if (next) {
+          activeCutin = next;
+          announced = false;
+          skillFocusNumber = next.number;
+          showSkillTime = race.events.find((event) => event.cutin === next)?.time ?? raceTime;
+          showStart = wallClock;
+          sparked = false;
+          sparkWave = -1;
+          beat = "focus";
+          raceTime = Math.max(0, showSkillTime - 0.1);
+        }
+      }
+
+      if (beat === "payoff" || beat === "idle") {
+        let latest = "";
+        for (const event of race.events) {
+          if (event.time <= raceTime + 0.0001) latest = event.message;
+        }
+        if (latest && latest !== lastComment) {
+          lastComment = latest;
+          hooks.onComment(latest);
+        }
+      }
+
+      this.placeHorses();
+      this.publishRanks();
+      this.frameCamera(false);
+
+      if (!finished && raceTime >= race.duration) {
+        finished = true;
+        hooks.onCutin(null);
+        hooks.onComplete();
+      }
+    }
+
+    placeHorses() {
+      for (const actor of actors) {
+        actor.progress = progressAt(actor.horse.samples, raceTime);
+        const kind = skillById(actor.horse.skillId).kind;
+        const since = raceTime - actor.horse.skillTime;
+        const casting = actor.horse.skillHit && since >= 0 && since < SKILL_WINDOW;
+        const missed = !actor.horse.skillHit && since >= 0 && since < 0.8;
+        const onFoot = raceTime >= actor.horse.footFrom && raceTime < actor.horse.footUntil;
+        const stopped = raceTime >= actor.horse.stopFrom && raceTime < actor.horse.stopUntil;
+        const swapping = actor.horse.swapUntil > 0 && raceTime >= actor.horse.swapUntil - 0.6 && raceTime < actor.horse.swapUntil;
+        const payoffAge = Math.max(0, wallClock - showStart - INTRO);
+        const castingNow = actor.horse.number === skillFocusNumber && skillLive;
+        const cutting =
+          actor.horse.skillHit &&
+          actor.horse.cutUntil > actor.horse.skillTime &&
+          raceTime >= actor.horse.skillTime &&
+          raceTime < actor.horse.cutUntil;
+        const cutBlend = cutting ? (raceTime - actor.horse.skillTime) / (actor.horse.cutUntil - actor.horse.skillTime) : 0;
+        let pose = poseAt(actor.progress, actor.horse.number);
+        if (cutting) {
+          pose = cutPose(actor.horse.cutFrom, actor.horse.cutTo, actor.horse.number, cutBlend);
+        } else if (swapping) {
+          const blend = 1 - (actor.horse.swapUntil - raceTime) / 0.6;
+          const previous = poseAt(actor.horse.swapFrom, actor.horse.number);
+          pose = {
+            ...pose,
+            x: previous.x + (pose.x - previous.x) * blend,
+            y: previous.y + (pose.y - previous.y) * blend,
+          };
+        }
+        actor.container.setPosition(pose.x, pose.y);
+        if (castingNow && kind === "final-burst" && payoffAge < 0.35) {
+          const lunge = Math.sin((payoffAge / 0.35) * Math.PI) * 52;
+          actor.container.x += pose.tangentX * lunge;
+          actor.container.y += pose.tangentY * lunge;
+        }
+        const ahead = actor.progress >= 1 ? progressAt(actor.horse.samples, raceTime + 0.2) - actor.progress : 1;
+        const braking = actor.progress >= 1;
+        const pull = braking ? Math.max(0, Math.min(1, ahead / 0.003)) : 1;
+        const brakeLean = braking ? Math.sin((1 - pull) * Math.PI) * 20 : 0;
+        actor.container.setAngle(pose.lean + brakeLean * (pose.flipX ? 1 : -1));
+        const punch = castingNow && kind === "start" && payoffAge < 0.08 ? 1.08 : 1;
+        actor.container.setScale((HORSE_HEIGHT / FRAME_HEIGHT) * pose.scale * punch);
+        actor.container.setDepth(pose.y);
+        const footAge = raceTime - actor.horse.footFrom;
+        const sucking = onFoot && footAge >= 0 && footAge < 0.4;
+        actor.sprite.setVisible(!onFoot || sucking);
+        actor.shadow.setVisible(!onFoot);
+        actor.sprite.setScale(pose.flipX ? -1 : 1, 1);
+        const recoil = castingNow && kind === "shot" && payoffAge < 0.45 && payoffAge % 0.08 < 0.05;
+        actor.sprite.setX(recoil ? (pose.flipX ? 14 : -14) : 0);
+        actor.sprite.setY(sucking ? (-footAge / 0.4) * 420 : 0);
+        actor.sprite.setAlpha(sucking ? 1 - footAge / 0.4 : 1);
+        actor.face.setAlpha(sucking ? 1 - footAge / 0.4 : 1);
+        const stumbling = raceTime >= actor.horse.slowFrom && raceTime < actor.horse.slowUntil;
+        const flash =
+          (stopped && raceTime - actor.horse.stopFrom < 0.15) ||
+          (stumbling && raceTime - actor.horse.slowFrom < 0.15);
+        if (flash) actor.sprite.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
+        else actor.sprite.clearTint();
+        actor.sprite.setAngle(missed || stopped || stumbling ? Math.sin(raceTime * 26) * 8 : 0);
+        actor.sprite.anims.timeScale = braking
+          ? pull
+          : onFoot
+            ? 0.55
+            : casting && (kind === "start" || kind === "final-burst")
+              ? 1.9
+              : 1;
+        actor.body.clear();
+        actor.lines.clear();
+        actor.dust.clear();
+        const dir = pose.flipX ? 1 : -1;
+        const puff = (raceTime * 10 + actor.horse.number) % 1;
+        if (onFoot && !sucking) {
+          const swing = Math.sin(raceTime * 16 + actor.horse.number) * 14;
+          actor.body.lineStyle(5, 0x24180f, 1);
+          actor.body.lineBetween(0, -78, 0, -36);
+          actor.body.lineBetween(0, -36, -12 + swing, 4);
+          actor.body.lineBetween(0, -36, 12 - swing, 4);
+          actor.body.lineStyle(4, 0x24180f, 1);
+          actor.body.lineBetween(0, -62, -16, -46);
+          actor.body.lineBetween(0, -62, 16, -46);
+          actor.face.setDisplaySize(34, 34);
+          actor.face.setPosition(0, -86);
+          actor.dust.fillStyle(0xc4a06a, 0.7);
+          actor.dust.fillCircle(dir * 10, 2, 4);
+        } else {
+          const frame = actor.sprite.anims.currentFrame?.index ?? 0;
+          const helmet = HELMETS[frame] ?? HELMETS[0];
+          actor.face.setDisplaySize(52, 52);
+          actor.face.setPosition((pose.flipX ? -1 : 1) * (helmet.x - FRAME_WIDTH * 0.5), helmet.y - FRAME_HEIGHT * 0.9);
+          if (!braking && pull > 0.15) {
+            actor.dust.fillStyle(0xf6ead2, 0.7);
+            actor.dust.fillCircle(dir * (36 + puff * 34), -4, 7 - puff * 5);
+            actor.dust.fillCircle(dir * (58 + puff * 20), -1, 4);
+          }
+        }
+        actor.number.setX((pose.flipX ? -1 : 1) * 24);
+        if (castingNow && kind === "jaywalk" && !actor.horse.skillHit) {
+          actor.sprite.setAngle(Math.sin(payoffAge * 30) * 18);
+        }
+        const word =
+          casting && (kind === "start" || kind === "final-burst")
+            ? "가속"
+            : onFoot
+              ? "도보"
+              : stopped
+                ? "정지"
+                : stumbling
+                  ? "감속"
+                  : kind === "crown" && since >= 0 && since < 2
+                    ? actor.horse.skillHit
+                      ? "선두"
+                      : "유지"
+                    : cutting
+                      ? "지름길"
+                      : kind === "jaywalk" && missed
+                        ? "울타리"
+                        : "";
+        actor.stamp.setText(word).setVisible(word.length > 0);
+      }
+      this.paintPayoff();
+      this.paintShortcut();
+      this.paintBrake();
+    }
+
+    paintShortcut() {
+      cutPath?.clear();
+      if (!cutPath) return;
+      for (const actor of actors) {
+        const horse = actor.horse;
+        if (!horse.skillHit || horse.cutUntil <= horse.skillTime) continue;
+        const age = raceTime - horse.skillTime;
+        const span = horse.cutUntil - horse.skillTime;
+        if (age < 0 || age > span + 0.8) continue;
+        const fade = age <= span ? 1 : 1 - (age - span) / 0.8;
+        const points: TrackPose[] = [];
+        for (let step = 0; step <= 16; step += 1) {
+          points.push(cutPose(horse.cutFrom, horse.cutTo, horse.number, step / 16));
+        }
+        const stroke = (width: number, color: number, alpha: number) => {
+          cutPath?.lineStyle(width, color, alpha * fade);
+          const first = points[0];
+          if (!first) return;
+          cutPath?.beginPath();
+          cutPath?.moveTo(first.x, first.y);
+          for (const point of points) cutPath?.lineTo(point.x, point.y);
+          cutPath?.strokePath();
+        };
+        stroke(46, 0x2f6b3a, 0.95);
+        stroke(24, 0xe7d7a8, 1);
+        cutPath.lineStyle(8, 0xcbb98a, 0.9 * fade);
+        for (let index = 1; index < points.length - 1; index += 2) {
+          const point = points[index];
+          if (!point) continue;
+          cutPath.lineBetween(point.x - point.tangentY * 16, point.y + point.tangentX * 16, point.x + point.tangentY * 16, point.y - point.tangentX * 16);
+        }
+      }
+    }
+
+    paintBrake() {
+      brakeHaze?.clear();
+      for (const actor of actors) {
+        if (actor.progress < 1) continue;
+        const ahead = progressAt(actor.horse.samples, raceTime + 0.2) - actor.progress;
+        const pull = Math.max(0, Math.min(1, ahead / 0.003));
+        if (pull < 0.08) continue;
+        const pose = poseAt(actor.progress, actor.horse.number);
+        const backX = -pose.tangentX;
+        const backY = -pose.tangentY;
+        brakeHaze?.fillStyle(0xf7f4ee, 0.34 + pull * 0.4);
+        brakeHaze?.fillCircle(pose.x + backX * 26, pose.y + backY * 16, 14 + pull * 12);
+        brakeHaze?.fillStyle(0xd7d2c8, 0.28 + pull * 0.25);
+        brakeHaze?.fillCircle(pose.x + backX * 56, pose.y + backY * 24, 20 + pull * 16);
+        brakeHaze?.fillCircle(pose.x + backX * 86, pose.y + backY * 18, 16 + pull * 10);
+        if (!brakeSkid || pull < 0.15) continue;
+        brakeSkid.fillStyle(0x6e675d, 0.22);
+        brakeSkid.fillCircle(pose.x + backX * 18, pose.y + backY * 12, 5);
+      }
+    }
+
+    paintFxTextures() {
+      this.drawFx("fx-grain", 16, 16, (ctx) => {
+        const ink = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
+        ink.addColorStop(0, "rgba(255,255,255,1)");
+        ink.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = ink;
+        ctx.fillRect(0, 0, 16, 16);
+      });
+      this.drawFx("fx-ribbon", 256, 48, (ctx) => {
+        const ink = ctx.createLinearGradient(0, 0, 256, 0);
+        ink.addColorStop(0, "rgba(255,255,255,0)");
+        ink.addColorStop(0.2, "rgba(255,250,230,0.95)");
+        ink.addColorStop(1, "rgba(255,255,255,0)");
+        ctx.fillStyle = ink;
+        ctx.beginPath();
+        ctx.moveTo(8, 24);
+        ctx.quadraticCurveTo(90, 2, 250, 20);
+        ctx.quadraticCurveTo(90, 46, 8, 24);
+        ctx.fill();
+      });
+      this.drawFx("fx-muzzle", 160, 160, (ctx) => {
+        ctx.translate(80, 80);
+        for (let ray = 0; ray < 14; ray += 1) {
+          ctx.rotate((Math.PI * 2) / 14);
+          const length = 28 + (ray % 3) * 24;
+          const ink = ctx.createLinearGradient(0, 0, length, 0);
+          ink.addColorStop(0, "rgba(255,255,255,1)");
+          ink.addColorStop(1, "rgba(255,214,120,0)");
+          ctx.fillStyle = ink;
+          ctx.beginPath();
+          ctx.moveTo(0, -4);
+          ctx.lineTo(length, 0);
+          ctx.lineTo(0, 4);
+          ctx.fill();
+        }
+      });
+      this.drawFx("fx-beam", 320, 40, (ctx) => {
+        const ink = ctx.createLinearGradient(0, 0, 0, 40);
+        ink.addColorStop(0, "rgba(226,59,59,0)");
+        ink.addColorStop(0.32, "rgba(226,59,59,0.9)");
+        ink.addColorStop(0.5, "rgba(255,255,255,1)");
+        ink.addColorStop(0.68, "rgba(226,59,59,0.9)");
+        ink.addColorStop(1, "rgba(226,59,59,0)");
+        ctx.fillStyle = ink;
+        ctx.fillRect(0, 0, 320, 40);
+      });
+      this.drawFx("fx-crown", 96, 72, (ctx) => {
+        ctx.fillStyle = "#f0c14d";
+        ctx.beginPath();
+        ctx.moveTo(8, 62);
+        ctx.lineTo(8, 28);
+        ctx.lineTo(28, 46);
+        ctx.lineTo(48, 10);
+        ctx.lineTo(68, 46);
+        ctx.lineTo(88, 28);
+        ctx.lineTo(88, 62);
+        ctx.closePath();
+        ctx.fill();
+        ctx.fillStyle = "#fff4c2";
+        ctx.fillRect(10, 50, 76, 8);
+      });
+      this.drawFx("fx-slash", 280, 80, (ctx) => {
+        ctx.lineCap = "round";
+        ctx.strokeStyle = "rgba(240,193,77,0.95)";
+        ctx.lineWidth = 14;
+        ctx.beginPath();
+        ctx.moveTo(18, 62);
+        ctx.quadraticCurveTo(140, 8, 262, 22);
+        ctx.stroke();
+        ctx.strokeStyle = "rgba(255,255,255,0.95)";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+      });
+    }
+
+    drawFx(key: string, width: number, height: number, paint: (ctx: CanvasRenderingContext2D) => void) {
+      const canvas = this.textures.createCanvas(key, width, height);
+      if (!canvas) return;
+      const ctx = canvas.getContext();
+      ctx.clearRect(0, 0, width, height);
+      paint(ctx);
+      canvas.refresh();
+    }
+
+    paintPayoff() {
+      for (const ghost of ghosts) ghost.setVisible(false);
+      ribbon?.setVisible(false);
+      muzzle?.setVisible(false);
+      tracer?.setVisible(false);
+      beam?.clearTint()?.setVisible(false);
+      crownMark?.setVisible(false);
+      slash?.setVisible(false);
+      crackPlate?.setVisible(false);
+      crack?.clear();
+      marks?.clear();
+      if (!skillLive) return;
+      const caster = actors.find((actor) => actor.horse.number === skillFocusNumber);
+      if (!caster) return;
+      const kind = skillById(caster.horse.skillId).kind;
+      const age = Math.max(0, wallClock - showStart - INTRO);
+      const pose = poseAt(caster.progress, caster.horse.number);
+      const backX = -pose.tangentX;
+      const backY = -pose.tangentY;
+      const frame = caster.sprite.frame.name;
+      const horseScale = HORSE_HEIGHT / FRAME_HEIGHT;
+      const burst = (x: number, y: number, count: number) => {
+        if (sparked || age > 0.05) return;
+        sparks?.explode(count, x, y);
+        sparked = true;
+      };
+      const showGhosts = (count: number, gap: number) => {
+        for (let index = 0; index < count; index += 1) {
+          const ghost = ghosts[index];
+          if (!ghost) continue;
+          const along = (index + 1) * gap;
+          ghost
+            .setTexture(caster.horse.id, frame)
+            .setPosition(caster.container.x + backX * along, caster.container.y + backY * along)
+            .setScale(horseScale * (pose.flipX ? -1 : 1) * (1 - index * 0.05), horseScale)
+            .setAlpha(0.5 - index * 0.06)
+            .setBlendMode(Phaser.BlendModes.ADD)
+            .setVisible(true)
+            .setDepth(caster.container.depth - 1);
+        }
+      };
+      const layRibbon = (length: number, tint: number) => {
+        ribbon
+          ?.setPosition(caster.container.x + backX * length * 0.5, caster.container.y + backY * length * 0.5)
+          .setRotation(Math.atan2(backY, backX))
+          .setDisplaySize(length, 46)
+          .setTint(tint)
+          .setAlpha(0.92)
+          .setVisible(true);
+      };
+      if (kind === "start") {
+        showGhosts(6, 54);
+        layRibbon(HORSE_UNIT * 6, 0xffffff);
+        burst(caster.container.x + backX * 30, caster.container.y, 22);
+      } else if (kind === "final-burst") {
+        const along = (axis: number) => {
+          const slow = axis * 140;
+          const fast = axis * 340;
+          return { min: Math.min(slow, fast), max: Math.max(slow, fast) };
+        };
+        sparks?.setParticleTint(0xff6a2a);
+        sparks?.setRadial(false);
+        sparks?.updateConfig({ speedX: along(pose.tangentX), speedY: along(pose.tangentY) });
+        const wave = Math.floor(age / 0.08);
+        if (age < 0.36 && wave < 4 && wave !== sparkWave) {
+          sparkWave = wave;
+          for (let step = 1; step <= 3; step += 1) {
+            sparks?.explode(
+              5,
+              caster.container.x + pose.tangentX * (28 + 46 * step),
+              caster.container.y + pose.tangentY * (28 + 46 * step),
+            );
+          }
+        }
+        sparks?.setRadial(true);
+        sparks?.updateConfig({ speed: { min: 40, max: 220 } });
+      } else if (kind === "recall" && marks) {
+        marks.lineStyle(7, 0x7ec8ff, 0.9);
+        for (let ring = 0; ring < 3; ring += 1) {
+          const radius = 78 + ring * 34;
+          const start = age * 2.2 + ring * 0.8;
+          marks.beginPath();
+          marks.arc(caster.container.x, caster.container.y, radius, start, start + 1.5, false);
+          marks.strokePath();
+        }
+        burst(caster.container.x, caster.container.y - 20, 16);
+      } else if (kind === "shot") {
+        const shot = Math.floor(age / 0.08);
+        const shotAge = age - shot * 0.08;
+        const firing = shot < 5 && age < 0.45;
+        const noseX = caster.container.x + pose.tangentX * 40;
+        const noseY = caster.container.y + pose.tangentY * 40 - 24;
+        const target = actors.find((actor) => actor.horse.id === caster.horse.skillTargetId);
+        const aimX = target ? target.container.x : caster.container.x + pose.tangentX * HORSE_UNIT * 4;
+        const aimY = target ? target.container.y : caster.container.y + pose.tangentY * HORSE_UNIT * 4;
+        if (firing && shotAge < 0.05) {
+          muzzle?.setPosition(noseX, noseY).setDisplaySize(HORSE_UNIT * 0.7, HORSE_UNIT * 0.7).setVisible(true);
+        }
+        if (firing) {
+          const flight = Math.min(1, shotAge / 0.07);
+          const endX = noseX + (aimX - noseX) * flight;
+          const endY = noseY + (aimY - noseY) * flight;
+          beam
+            ?.setPosition((noseX + endX) / 2, (noseY + endY) / 2)
+            .setRotation(Math.atan2(endY - noseY, endX - noseX))
+            .setDisplaySize(Math.max(8, Math.hypot(endX - noseX, endY - noseY)), 8)
+            .setTint(0xfff4c2)
+            .setVisible(true);
+          tracer?.setPosition(endX, endY).setDisplaySize(28, 28).setVisible(true);
+        }
+        if (firing && shot === 2 && shotAge < 0.04 && !sparked) {
+          sparks?.setParticleTint(0xfff4c2);
+          sparks?.explode(10, aimX, aimY);
+          sparked = true;
+        }
+      } else if (kind === "glare") {
+        const target = actors.find((actor) => actor.horse.id === caster.horse.skillTargetId);
+        const reach = caster.horse.skillHit ? 1 : 0.5;
+        const fromY = caster.container.y - 36;
+        const aimX = target ? target.container.x : caster.container.x + pose.tangentX * HORSE_UNIT * 5;
+        const aimY = target ? target.container.y : caster.container.y + pose.tangentY * HORSE_UNIT * 5;
+        const endX = caster.container.x + (aimX - caster.container.x) * reach;
+        const endY = fromY + (aimY - fromY) * reach;
+        beam
+          ?.setPosition((caster.container.x + endX) / 2, (fromY + endY) / 2)
+          .setRotation(Math.atan2(endY - fromY, endX - caster.container.x))
+          .setDisplaySize(Math.max(8, Math.hypot(endX - caster.container.x, endY - fromY)), 26)
+          .setVisible(true);
+        if (!caster.horse.skillHit && !sparked && age > 0.12) {
+          sparks?.explode(12, endX, endY);
+          sparked = true;
+        }
+      } else if (kind === "crown") {
+        const target = actors.find((actor) => actor.horse.id === caster.horse.skillTargetId);
+        if (caster.horse.skillHit && age < 0.22 && target) {
+          slash
+            ?.setPosition((caster.container.x + target.container.x) / 2, (caster.container.y + target.container.y) / 2)
+            .setDisplaySize(240, 72)
+            .setVisible(true);
+        }
+        crownMark
+          ?.setPosition(caster.container.x, caster.container.y - 82)
+          .setDisplaySize(56, 42)
+          .setVisible(true)
+          .setDepth(caster.container.depth + 4);
+        showGhosts(3, 24);
+        burst(caster.container.x, caster.container.y - 70, 18);
+      } else if (kind === "crack" && crackPlate) {
+        const camera = this.cameras.main;
+        const zoomNow = camera.zoom || 1;
+        const screenX = (caster.container.x - camera.scrollX - camera.width / 2) * zoomNow + camera.width / 2;
+        const screenY = (caster.container.y - camera.scrollY - camera.height / 2) * zoomNow + camera.height / 2;
+        const cover = Math.max(camera.width / crackPlateWidth, camera.height / crackPlateHeight) * 1.35;
+        const fade = age < 0.75 ? 1 : 1 - (age - 0.75) / 0.35;
+        crackPlate.setPosition(screenX, screenY).setScale(cover).setAlpha(Math.max(0, fade)).setVisible(true);
+        if (age < 0.08 && crack) {
+          crack.fillStyle(0xffffff, 0.72);
+          crack.fillRect(0, 0, camera.width, camera.height);
+        }
+      }
+    }
+
+
+    frameCamera(immediate: boolean) {
+      const ordered = [...actors].sort((a, b) => b.progress - a.progress);
+      const leader = ordered[0];
+      const second = ordered[1] ?? leader;
+      if (!leader || !second) return;
+      const leadPose = poseAt(leader.progress, leader.horse.number);
+      let focusX = (leader.container.x + second.container.x) / 2 + leadPose.tangentX * 70;
+      let focusY = (leader.container.y + second.container.y) / 2 + leadPose.tangentY * 70;
+      let targetZoom = 1;
+      const showing = beat === "focus" || beat === "announce";
+      const skillHorse = showing ? actors.find((actor) => actor.horse.number === skillFocusNumber) : undefined;
+      const leaderCrossed = leader.progress >= 1;
+      if (skillHorse) {
+        targetZoom = FOCUS_ZOOM;
+        focusX = skillHorse.container.x;
+        focusY = skillHorse.container.y;
+      } else if (leaderCrossed) {
+        const inner = poseAt(1, 1);
+        const outer = poseAt(1, race.horses.length);
+        focusX = (inner.x + outer.x) / 2;
+        focusY = (inner.y + outer.y) / 2;
+      }
+      const zoomStep = targetZoom > zoom ? ZOOM_IN : ZOOM_OUT;
+      zoom += (targetZoom - zoom) * (immediate ? 1 : zoomStep);
+      const camera = this.cameras.main;
+      const viewW = camera.width / zoom;
+      const viewH = camera.height / zoom;
+      const halfW = camera.width / 2;
+      const halfH = camera.height / 2;
+      const desiredX =
+        viewW >= bounds.width
+          ? bounds.x + bounds.width / 2 - halfW
+          : Phaser.Math.Clamp(focusX - halfW, bounds.x + viewW / 2 - halfW, bounds.x + bounds.width - viewW / 2 - halfW);
+      const desiredY =
+        viewH >= bounds.height
+          ? bounds.y + bounds.height / 2 - halfH
+          : Phaser.Math.Clamp(focusY - halfH, bounds.y + viewH / 2 - halfH, bounds.y + bounds.height - viewH / 2 - halfH);
+      const blend = immediate ? 1 : showing ? 0.45 : leader.progress >= 1 ? 0.4 : 0.2;
+      camera.setZoom(zoom);
+      camera.scrollX += (desiredX - camera.scrollX) * blend;
+      camera.scrollY += (desiredY - camera.scrollY) * blend;
+    }
+
+    publishRanks() {
+      const ordered = [...actors].sort((a, b) => b.progress - a.progress);
+      const nextKey = ordered.map((actor) => actor.horse.id).join(">");
+      if (nextKey === rankKey) return;
+      rankKey = nextKey;
+      hooks.onRanks(
+        ordered.map((actor, index) => ({
+          id: actor.horse.id,
+          name: actor.horse.name,
+          place: index + 1,
+          color: actor.horse.color,
+        })),
+      );
+    }
+  }
+
+  return new Phaser.Game({
+    type: Phaser.AUTO,
+    parent,
+    width: Math.max(320, parent.clientWidth),
+    height: VIEW_HEIGHT,
+    backgroundColor: "#145c34",
+    scene: RaceScene,
+    scale: { mode: Phaser.Scale.RESIZE },
+    banner: false,
+  });
+}
