@@ -8,7 +8,8 @@ export const BEAT_FOCUS = 0.35;
 export const BEAT_ANNOUNCE = 0.65;
 export const BEAT_RELEASE = 0.75;
 export const INTRO = BEAT_FOCUS + BEAT_ANNOUNCE + BEAT_RELEASE;
-export const PAYOFF_HOLD = 1.15;
+export const PAYOFF_HOLD = 1.75;
+export const BANNER_HOLD = 2.6;
 export const SHOW_TOTAL = INTRO + PAYOFF_HOLD;
 
 export type ShowBeat = "focus" | "announce" | "release" | "payoff";

@@ -57,6 +57,7 @@ export type SkillCutin = {
   horseName: string;
   number: number;
   payoff: string;
+  effect: string;
 };
 
 export type RaceEvent = {
@@ -152,7 +153,7 @@ function clamp(value: number, min: number, max: number) {
 function buildStats(biases: HorseStats, random: () => number): HorseStats {
   const stats = {} as HorseStats;
   for (const key of STAT_KEYS) {
-    const condition = (random() - 0.5) * 8;
+    const condition = (random() - 0.5) * 22;
     stats[key] = clamp(Math.round(58 + biases[key] * 4 + condition), 40, 94);
   }
   return stats;
@@ -216,7 +217,7 @@ function skillWindows(kind: SkillKind, stats: HorseStats) {
         (kind === "recall" && progress > 0.18 && progress < 0.72) ||
         (kind === "shot" && progress > 0.12 && progress < 0.82) ||
         (kind === "glare" && progress > 0.35 && progress < 0.7) ||
-        (kind === "crown" && progress > 0.7 && progress < 0.92) ||
+        (kind === "crown" && progress > 0.62 && progress < 0.74) ||
         (kind === "crack" && progress > 0.28 && progress < 0.75));
     if (fits) matches.push(time);
   }
@@ -310,17 +311,20 @@ function applySkill(runners: Runner[], runner: Runner) {
       leader.slowMul = SKILL_SLOW;
     }
   } else if (skill.kind === "crown") {
-    const leader = leaderOf(runners);
+    const ordered = [...runners].sort((a, b) => b.progress - a.progress);
+    const leader = ordered[0];
+    const pack = ordered.find((other) => other.input.id !== runner.input.id && other.input.id !== leader?.input.id);
     hit = Boolean(leader) && leader.input.id !== runner.input.id;
     if (hit && leader) {
       runner.skillTargetId = leader.input.id;
-      const taken = leader.progress;
+      const nose = 0.008;
+      const front = Math.min(leader.progress, (pack?.progress ?? leader.progress) + 0.028);
       leader.swapFrom = leader.progress;
       runner.swapFrom = runner.progress;
       leader.swapUntil = runner.skillTime + 0.6;
       runner.swapUntil = runner.skillTime + 0.6;
-      leader.progress = runner.progress;
-      runner.progress = taken;
+      leader.progress = Math.max(runner.progress, front - nose);
+      runner.progress = front + nose;
     }
   } else if (skill.kind === "crack") {
     const nearby = runners.filter((other) => {
@@ -360,6 +364,7 @@ function skillReady(runner: Runner) {
   const segment = segmentAt(runner.progress);
   if (kind === "final-burst") return segment === "final" || runner.progress >= 0.999;
   if (kind === "jaywalk") return cornerRoom(runner.progress) >= 0.14 || runner.progress >= segmentEnds(1).secondCorner - 0.14;
+  if (kind === "crown") return runner.progress >= 0.6;
   return true;
 }
 
@@ -441,11 +446,13 @@ function buildEvents(horses: RaceHorse[]): RaceEvent[] {
   ];
 
   for (const horse of horses) {
-    const missed = horse.skillHit ? "" : " 빗나갔다.";
+    const skill = skillById(horse.skillId);
+    const effect = horse.skillHit ? skill.effect : skill.miss;
+    const call = horse.skillHit ? "발동" : "빗나감";
     events.push({
       time: horse.skillTime,
       horseId: horse.id,
-      message: `${horse.number}번 ${horse.name}, ${horse.skillShout}${missed}`,
+      message: `${horse.name}이라 ${horse.skillName} ${call}. ${effect}`,
       cutin: {
         skillName: horse.skillName,
         shout: horse.skillShout,
@@ -455,7 +462,8 @@ function buildEvents(horses: RaceHorse[]): RaceEvent[] {
         color: horse.color,
         horseName: horse.name,
         number: horse.number,
-        payoff: payoffWord(skillById(horse.skillId).kind, horse.skillHit),
+        payoff: payoffWord(skill.kind, horse.skillHit),
+        effect,
       },
     });
   }

@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "얼굴 경주마",
-  description: "목업 출전마 네 마리의 10초 경주",
+  title: "어떤 관상이 1등일까",
+  description: "관상 여덟이 한 바퀴를 달리고, 어떤 얼굴이 1등인지 보는 경주",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

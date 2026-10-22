@@ -44,19 +44,40 @@ export function RaceGame({ race, onComplete }: Props) {
 
   return (
     <section className="flex flex-col gap-3">
-      <p aria-live="polite" className="min-h-14 rounded-2xl bg-[#24180f] px-4 py-3 text-base leading-6">
+      <p
+        aria-live="polite"
+        className="min-h-14 border-4 border-[#5ce1ff] bg-[#1b1030] px-4 py-3 text-sm leading-6 sm:text-base"
+      >
         {comment}
       </p>
-      <ol className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+      <ol className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         {ranks.map((row) => (
-          <li key={row.id} className="flex items-center gap-2 rounded-2xl bg-[#1b2a22] px-3 py-2">
-            <span className="w-5 font-bold text-[#f0c14d]">{row.place}</span>
-            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: row.color }} />
-            <span className="truncate text-sm">{row.name}</span>
+          <li
+            key={row.id}
+            className="flex min-w-0 items-center gap-2 border-2 bg-[#1b1030] px-2 py-2"
+            style={{
+              borderColor: row.place === 1 ? "#ffe14a" : "#ff4fd8",
+              boxShadow: row.place === 1 ? "3px 3px 0 #ffe14a" : "3px 3px 0 #5ce1ff",
+            }}
+          >
+            <span
+              className="w-9 shrink-0 text-center text-xs font-black sm:text-sm"
+              style={{ color: placeColor(row.place) }}
+            >
+              {row.place}등
+            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={row.portrait}
+              alt=""
+              className="h-8 w-8 shrink-0 border-2 object-cover"
+              style={{ borderColor: row.color }}
+            />
+            <span className="min-w-0 truncate text-xs font-bold sm:text-sm">{row.name}</span>
           </li>
         ))}
       </ol>
-      <div className="relative overflow-hidden rounded-3xl border border-[#f6f1e7]/15">
+      <div className="relative overflow-hidden border-4 border-[#ffe14a] shadow-[6px_6px_0_#ff4fd8]">
         <div ref={hostRef} className="w-full" />
         {cutin ? <SkillCutinBanner key={`${cutin.number}-${cutin.skillName}`} cutin={cutin} /> : null}
       </div>
@@ -64,28 +85,34 @@ export function RaceGame({ race, onComplete }: Props) {
   );
 }
 
+function placeColor(place: number) {
+  if (place === 1) return "#ffe14a";
+  if (place === 2) return "#d5dbe6";
+  if (place === 3) return "#e0a15a";
+  return "#5ce1ff";
+}
+
 function SkillCutinBanner({ cutin }: { cutin: SkillCutin }) {
   return (
-    <div className="pointer-events-none absolute bottom-4 left-4 z-10">
+    <div className="pointer-events-none absolute inset-x-2 bottom-2 z-10 sm:inset-x-4 sm:bottom-4">
       <div
-        className="flex items-center gap-4 rounded-3xl bg-[#1c140c]/90 px-4 py-3 text-white"
+        className="flex items-center gap-3 border-4 border-[#ffe14a] bg-[#12081c]/94 px-3 py-3 shadow-[4px_4px_0_#ff4fd8] sm:gap-4 sm:px-4"
         style={{ animation: "skill-in 220ms ease-out" }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={cutin.portrait}
           alt=""
-          className="h-24 w-24 rounded-full object-cover"
-          style={{ boxShadow: `0 0 0 4px ${cutin.color}` }}
+          className="h-16 w-16 shrink-0 border-4 object-cover sm:h-20 sm:w-20"
+          style={{ borderColor: cutin.color }}
         />
-        <div>
-          <p className="text-sm text-[#f3d7a1]">
-            {cutin.number}번 {cutin.horseName}
+        <div className="min-w-0">
+          <p className="text-xs font-black tracking-widest text-[#5ce1ff]">{cutin.number}번 관상</p>
+          <p className="truncate text-lg font-black text-[#ffe14a] sm:text-2xl">{cutin.horseName}</p>
+          <p className="text-sm font-bold text-white sm:text-base">
+            {cutin.skillName} {cutin.hit ? "발동" : "빗나감"}
           </p>
-          <p className="text-3xl font-black leading-none" style={{ textShadow: `0 3px 0 ${cutin.color}` }}>
-            {cutin.shout}
-          </p>
-          <p className="mt-1 text-lg font-bold text-[#fff6d8]">{cutin.payoff}</p>
+          <p className="text-sm leading-5 text-[#fff6ea] sm:text-base">{cutin.effect}</p>
         </div>
       </div>
     </div>

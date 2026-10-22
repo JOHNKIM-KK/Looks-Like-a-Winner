@@ -4,8 +4,8 @@ import type { SkillId } from "./skills";
 export const mockHorses: HorseInput[] = [
   {
     id: "sprinter",
-    name: "직선마",
-    title: "승부상",
+    name: "직선적인 관상",
+    title: "앞만 보는 눈",
     color: "#e23b3b",
     portrait: "/mock/sprinter.jpg",
     skillId: "start-dash" satisfies SkillId,
@@ -17,8 +17,8 @@ export const mockHorses: HorseInput[] = [
   },
   {
     id: "corner",
-    name: "스마트마",
-    title: "스마트형",
+    name: "눈치 보는 관상",
+    title: "남을 읽는 눈",
     color: "#1f8a84",
     portrait: "/mock/corner.jpg",
     skillId: "horse-recall" satisfies SkillId,
@@ -30,8 +30,8 @@ export const mockHorses: HorseInput[] = [
   },
   {
     id: "stamina",
-    name: "지구마",
-    title: "잠잠한 얼굴",
+    name: "잠잠한 관상",
+    title: "끝까지 가는 얼굴",
     color: "#d4a017",
     portrait: "/mock/stamina.jpg",
     skillId: "final-spurt" satisfies SkillId,
@@ -43,8 +43,8 @@ export const mockHorses: HorseInput[] = [
   },
   {
     id: "luck",
-    name: "얌체마",
-    title: "얍삽이상",
+    name: "얍삽한 관상",
+    title: "지름길만 보는 눈",
     color: "#7c5cbf",
     portrait: "/mock/luck.jpg",
     skillId: "jaywalk" satisfies SkillId,
@@ -56,8 +56,8 @@ export const mockHorses: HorseInput[] = [
   },
   {
     id: "shot",
-    name: "발포마",
-    title: "범죄자상",
+    name: "범죄자상",
+    title: "비뚤어진 입꼬리",
     color: "#8c3a3a",
     portrait: "/mock/shot.jpg",
     skillId: "gunshot" satisfies SkillId,
@@ -69,8 +69,8 @@ export const mockHorses: HorseInput[] = [
   },
   {
     id: "glare",
-    name: "눈총마",
-    title: "노려보는 눈",
+    name: "노려보는 관상",
+    title: "좁은 미간",
     color: "#2a6f9a",
     portrait: "/mock/glare.jpg",
     skillId: "glare" satisfies SkillId,
@@ -82,8 +82,8 @@ export const mockHorses: HorseInput[] = [
   },
   {
     id: "crown",
-    name: "왕마",
-    title: "왕이 될 관상",
+    name: "왕이 될 상",
+    title: "자리를 맡은 얼굴",
     color: "#c9842a",
     portrait: "/mock/crown.jpg",
     skillId: "crown" satisfies SkillId,
@@ -95,15 +95,15 @@ export const mockHorses: HorseInput[] = [
   },
   {
     id: "crack",
-    name: "균열마",
-    title: "강한 눈빛",
+    name: "깨뜨리는 관상",
+    title: "금 가는 눈빛",
     color: "#d4537e",
     portrait: "/mock/crack.jpg",
     skillId: "screen-crack" satisfies SkillId,
     biases: { start: -1, accel: 3, stamina: 0, corner: 1, mental: 4, luck: 0 },
     reasons: [
-      "눈빛이 세서 근처가 움찔한다",
-      "한 번 터지면 화면까지 금이 간다",
+      "눈빛이 세서 근처 말이 움찔한다",
+      "터지면 주변이 느려지고 화면에 금이 간다",
     ],
   },
 ];

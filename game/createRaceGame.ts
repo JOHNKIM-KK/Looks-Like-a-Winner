@@ -2,6 +2,8 @@ import Phaser from "phaser";
 import { skillById } from "@/lib/skills";
 import { SKILL_WINDOW, progressAt, type RaceHorse, type RaceResult, type SkillCutin } from "@/lib/race";
 import {
+  BANNER_HOLD,
+  BEAT_FOCUS,
   FOCUS_ZOOM,
   HORSE_UNIT,
   INTRO,
@@ -38,6 +40,7 @@ export type RankRow = {
   name: string;
   place: number;
   color: string;
+  portrait: string;
 };
 
 type Hooks = {
@@ -59,6 +62,7 @@ type Actor = {
   number: Phaser.GameObjects.Text;
   stamp: Phaser.GameObjects.Text;
   progress: number;
+  shown: number;
 };
 
 function sheetFor(horse: RaceHorse) {
@@ -227,7 +231,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const name = this.add
           .text(0, -FRAME_HEIGHT * 0.72, horse.name, {
             fontFamily: "Apple SD Gothic Neo, sans-serif",
-            fontSize: "22px",
+            fontSize: "16px",
             color: "#24180f",
             stroke: "#fff8ea",
             strokeThickness: 5,
@@ -246,7 +250,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const container = this.add.container(0, 0);
         container.add([shadow, dust, lines, body, sprite, face, number, name, stamp]);
         container.setScale(HORSE_HEIGHT / FRAME_HEIGHT);
-        actors.push({ horse, container, sprite, face, lines, dust, body, shadow, number, stamp, progress: 0 });
+        actors.push({ horse, container, sprite, face, lines, dust, body, shadow, number, stamp, progress: 0, shown: 0 });
       }
       this.paintFxTextures();
 
@@ -329,7 +333,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         announced = true;
         hooks.onCutin(activeCutin);
       }
-      if (announced && beat !== "announce" && beat !== "focus") {
+      if (announced && (beat === "idle" || age >= BEAT_FOCUS + BANNER_HOLD)) {
         announced = false;
         hooks.onCutin(null);
       }
@@ -393,6 +397,10 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const onFoot = raceTime >= actor.horse.footFrom && raceTime < actor.horse.footUntil;
         const stopped = raceTime >= actor.horse.stopFrom && raceTime < actor.horse.stopUntil;
         const swapping = actor.horse.swapUntil > 0 && raceTime >= actor.horse.swapUntil - 0.6 && raceTime < actor.horse.swapUntil;
+        const swapBlend = swapping ? 1 - (actor.horse.swapUntil - raceTime) / 0.6 : 1;
+        actor.shown = swapping
+          ? actor.horse.swapFrom + (actor.progress - actor.horse.swapFrom) * swapBlend
+          : actor.progress;
         const payoffAge = Math.max(0, wallClock - showStart - INTRO);
         const castingNow = actor.horse.number === skillFocusNumber && skillLive;
         const cutting =
@@ -405,7 +413,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         if (cutting) {
           pose = cutPose(actor.horse.cutFrom, actor.horse.cutTo, actor.horse.number, cutBlend);
         } else if (swapping) {
-          const blend = 1 - (actor.horse.swapUntil - raceTime) / 0.6;
+          const blend = swapBlend;
           const previous = poseAt(actor.horse.swapFrom, actor.horse.number);
           pose = {
             ...pose,
@@ -812,7 +820,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
 
 
     frameCamera(immediate: boolean) {
-      const ordered = [...actors].sort((a, b) => b.progress - a.progress);
+      const ordered = [...actors].sort((a, b) => b.shown - a.shown);
       const leader = ordered[0];
       const second = ordered[1] ?? leader;
       if (!leader || !second) return;
@@ -822,7 +830,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       let targetZoom = 1;
       const showing = beat === "focus" || beat === "announce";
       const skillHorse = showing ? actors.find((actor) => actor.horse.number === skillFocusNumber) : undefined;
-      const leaderCrossed = leader.progress >= 1;
+      const leaderCrossed = actors.some((actor) => actor.progress >= 1);
       if (skillHorse) {
         targetZoom = FOCUS_ZOOM;
         focusX = skillHorse.container.x;
@@ -855,7 +863,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
 
     publishRanks() {
-      const ordered = [...actors].sort((a, b) => b.progress - a.progress);
+      const ordered = [...actors].sort((a, b) => b.shown - a.shown || a.horse.number - b.horse.number);
       const nextKey = ordered.map((actor) => actor.horse.id).join(">");
       if (nextKey === rankKey) return;
       rankKey = nextKey;
@@ -865,6 +873,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           name: actor.horse.name,
           place: index + 1,
           color: actor.horse.color,
+          portrait: actor.horse.portrait,
         })),
       );
     }
