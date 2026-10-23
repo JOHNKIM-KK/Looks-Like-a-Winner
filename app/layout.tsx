@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   description: "관상 여덟이 한 바퀴를 달리고, 어떤 얼굴이 1등인지 보는 경주",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="ko"
