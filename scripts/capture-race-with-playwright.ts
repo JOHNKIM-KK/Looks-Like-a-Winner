@@ -1,5 +1,11 @@
 import { chromium } from 'playwright';
 
+// Export exact simulation times for screenshots
+export const SCREENSHOT_TIMES = {
+  START: 0.0,      // Gate, before race starts
+  FINISH: 36.0,    // Near finish line (adjusted to ensure lead >= 0.9)
+};
+
 async function captureRaceScreenshots() {
   console.log('🎬 레이스 스크린샷 캡처 시작');
   console.log('=====================================');
@@ -57,6 +63,13 @@ async function captureRaceScreenshots() {
 
       console.log('  📸 FINISH 캡처...');
       await page.waitForTimeout(6000);
+      // Enable debug overlay for FINISH
+      await page.goto('http://localhost:3000?debug=1', { 
+        waitUntil: 'domcontentloaded',
+        timeout: 5000,
+      });
+      await page.click('text=출발');
+      await page.waitForTimeout(37500); // 36s + 1.5s initial wait
       await page.screenshot({
         path: `/opt/cursor/artifacts/race-state-FINISH-${viewport.width}x${viewport.height}.png`,
       });
@@ -73,6 +86,9 @@ async function captureRaceScreenshots() {
 
   console.log('\n=====================================');
   console.log('✅ 스크린샷 캡처 완료');
+  console.log(`\n타임스탬프:`);
+  console.log(`  START: ${SCREENSHOT_TIMES.START}s`);
+  console.log(`  FINISH: ${SCREENSHOT_TIMES.FINISH}s`);
 }
 
 captureRaceScreenshots().catch(console.error);
