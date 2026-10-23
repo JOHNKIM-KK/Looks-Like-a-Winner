@@ -1,11 +1,12 @@
-export const STRAIGHT = 760;
-export const INNER_RADIUS = 200;
+export const STRAIGHT = 1712;
+const STRAIGHT_BACK = 1418;
+export const INNER_RADIUS = 256;
 export const LANE_GAP = 58;
-export const CHUTE = 520;
+export const CHUTE = 158;
 export const COAST_END = 1.18;
 export const FAR_SCALE = 0.72;
 
-const GOAL_ALONG = 0.62;
+const GOAL_ALONG = 0.920;
 const CENTER_X = 860;
 const CENTER_Y = 500;
 const REFERENCE_RADIUS = INNER_RADIUS + 3 * LANE_GAP;
@@ -40,15 +41,15 @@ export function laneRadius(lane: number) {
 }
 
 export function referenceDistance() {
-  return CHUTE + STRAIGHT + Math.PI * REFERENCE_RADIUS + GOAL_ALONG * STRAIGHT;
+  return CHUTE + STRAIGHT_BACK + Math.PI * REFERENCE_RADIUS + GOAL_ALONG * STRAIGHT;
 }
 
 export function segmentEnds(): SegmentEnds {
   const total = referenceDistance();
   return {
     pocketEnd: CHUTE / total,
-    backStraightEnd: (CHUTE + STRAIGHT) / total,
-    cornerEnd: (CHUTE + STRAIGHT + Math.PI * REFERENCE_RADIUS) / total,
+    backStraightEnd: (CHUTE + STRAIGHT_BACK) / total,
+    cornerEnd: (CHUTE + STRAIGHT_BACK + Math.PI * REFERENCE_RADIUS) / total,
   };
 }
 
@@ -91,36 +92,42 @@ function logicalFromLoop(loop: number, radius: number): Logical {
 }
 
 function logicalAtDistance(distance: number, radius: number): Logical {
-  const half = STRAIGHT / 2;
+  const halfBack = STRAIGHT_BACK / 2;
+  const halfHome = STRAIGHT / 2;
   const corner = Math.PI * radius;
   let cursor = Math.max(0, distance);
+  
   if (cursor <= CHUTE) {
-    return { x: -half - CHUTE + cursor, y: radius, tx: 1, ty: 0 };
+    return { x: halfBack + CHUTE - cursor, y: -radius, tx: -1, ty: 0 };
   }
   cursor -= CHUTE;
-  if (cursor <= STRAIGHT) {
-    return { x: -half + cursor, y: radius, tx: 1, ty: 0 };
+  
+  if (cursor <= STRAIGHT_BACK) {
+    return { x: halfBack - cursor, y: -radius, tx: -1, ty: 0 };
   }
-  cursor -= STRAIGHT;
+  cursor -= STRAIGHT_BACK;
+  
   if (cursor <= corner) {
-    const theta = Math.PI / 2 - cursor / radius;
+    const theta = -Math.PI / 2 + cursor / radius;
     return {
-      x: half + Math.cos(theta) * radius,
+      x: -halfHome + Math.cos(theta) * radius,
       y: Math.sin(theta) * radius,
-      tx: Math.sin(theta),
-      ty: -Math.cos(theta),
+      tx: -Math.sin(theta),
+      ty: Math.cos(theta),
     };
   }
   cursor -= corner;
-  if (cursor <= STRAIGHT) {
-    return { x: half - cursor, y: -radius, tx: -1, ty: 0 };
+  
+  if (cursor <= GOAL_ALONG * STRAIGHT) {
+    return { x: -halfHome + cursor, y: radius, tx: 1, ty: 0 };
   }
-  const theta = -Math.PI / 2 - (cursor - STRAIGHT) / radius;
+  
+  const theta = Math.PI / 2 + (cursor - GOAL_ALONG * STRAIGHT) / radius;
   return {
-    x: -half + Math.cos(theta) * radius,
+    x: halfHome + Math.cos(theta) * radius,
     y: Math.sin(theta) * radius,
-    tx: Math.sin(theta),
-    ty: -Math.cos(theta),
+    tx: -Math.sin(theta),
+    ty: Math.cos(theta),
   };
 }
 
@@ -128,9 +135,9 @@ function project(logical: Logical): TrackPose {
   const depth = Math.min(1, Math.max(0, (logical.y + REFERENCE_RADIUS) / (2 * REFERENCE_RADIUS)));
   const scale = 1 - (1 - FAR_SCALE) * depth;
   const converge = 0.76 + 0.24 * (1 - depth);
-  const x = CENTER_X + logical.x * converge;
+  const x = CENTER_X - logical.x * converge;
   const y = CENTER_Y - logical.y * 0.72;
-  const tangentX = logical.tx * converge;
+  const tangentX = -logical.tx * converge;
   const tangentY = -logical.ty * 0.72;
   const heading = Math.atan2(tangentY, tangentX);
   const flipX = Math.cos(heading) < 0;
@@ -237,4 +244,20 @@ export function viewBounds(lanes: number) {
   }
   const pad = 420;
   return { x: minX - pad, y: minY - pad, width: maxX - minX + pad * 2, height: maxY - minY + pad * 2 };
+}
+
+export function renderLane(lane: number, progress: number, seed: number): number {
+  const ends = segmentEnds();
+  if (progress < ends.pocketEnd || progress >= 1) return lane;
+  
+  const driftEnd = 0.15;
+  if (progress >= driftEnd) return lane;
+  
+  const blend = (progress - ends.pocketEnd) / (driftEnd - ends.pocketEnd);
+  const eased = blend * blend * (3 - 2 * blend);
+  
+  const hash = ((seed * 9301 + lane * 49297) % 233280) / 233280;
+  const targetLane = Math.max(1, Math.min(lane, 1 + Math.floor(hash * 3)));
+  
+  return lane + (targetLane - lane) * eased;
 }
