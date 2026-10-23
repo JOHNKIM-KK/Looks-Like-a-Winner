@@ -477,39 +477,52 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       const railOut = projectLogicalPoints(railOutLogical, currentCamera);
       const railIn = projectLogicalPoints(railInLogical, currentCamera);
 
+      // Always render, Phaser will clip at canvas bounds
       track.fillStyle(0xc4a06a, 1);
       track.beginPath();
       if (trackOuter[0]) track.moveTo(trackOuter[0].x, trackOuter[0].y);
-      for (const point of trackOuter) track.lineTo(point.x, point.y);
+      for (const point of trackOuter) {
+        if (point) track.lineTo(point.x, point.y);
+      }
       track.closePath();
       track.fillPath();
 
       track.fillStyle(0x176b3c, 1);
       track.beginPath();
       if (trackInner[0]) track.moveTo(trackInner[0].x, trackInner[0].y);
-      for (const point of trackInner) track.lineTo(point.x, point.y);
+      for (const point of trackInner) {
+        if (point) track.lineTo(point.x, point.y);
+      }
       track.closePath();
       track.fillPath();
 
       track.lineStyle(5, 0xf7f4ee, 1);
       track.beginPath();
       if (railOut[0]) track.moveTo(railOut[0].x, railOut[0].y);
-      for (const point of railOut) track.lineTo(point.x, point.y);
+      for (const point of railOut) {
+        if (point) track.lineTo(point.x, point.y);
+      }
       track.closePath();
       track.strokePath();
+      
       track.beginPath();
       if (railIn[0]) track.moveTo(railIn[0].x, railIn[0].y);
-      for (const point of railIn) track.lineTo(point.x, point.y);
+      for (const point of railIn) {
+        if (point) track.lineTo(point.x, point.y);
+      }
       track.closePath();
       track.strokePath();
 
       const chuteOuter = projectLogicalPoints(chuteOuterLogical, currentCamera);
       const chuteInner = projectLogicalPoints(chuteInnerLogical, currentCamera);
+      // Always render chute, even if some points are off-screen
       if (chuteOuter.length > 1 && chuteInner.length > 1) {
         track.fillStyle(0xc4a06a, 1);
         track.beginPath();
         if (chuteOuter[0]) track.moveTo(chuteOuter[0].x, chuteOuter[0].y);
-        for (const point of chuteOuter) track.lineTo(point.x, point.y);
+        for (const point of chuteOuter) {
+          if (point) track.lineTo(point.x, point.y);
+        }
         for (let index = chuteInner.length - 1; index >= 0; index -= 1) {
           const point = chuteInner[index];
           if (point) track.lineTo(point.x, point.y);
@@ -519,11 +532,15 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         track.lineStyle(5, 0xf7f4ee, 1);
         track.beginPath();
         if (chuteOuter[0]) track.moveTo(chuteOuter[0].x, chuteOuter[0].y);
-        for (const point of chuteOuter) track.lineTo(point.x, point.y);
+        for (const point of chuteOuter) {
+          if (point) track.lineTo(point.x, point.y);
+        }
         track.strokePath();
         track.beginPath();
         if (chuteInner[0]) track.moveTo(chuteInner[0].x, chuteInner[0].y);
-        for (const point of chuteInner) track.lineTo(point.x, point.y);
+        for (const point of chuteInner) {
+          if (point) track.lineTo(point.x, point.y);
+        }
         track.strokePath();
       }
 
