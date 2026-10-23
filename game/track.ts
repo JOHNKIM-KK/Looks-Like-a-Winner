@@ -11,6 +11,8 @@ const CENTER_X = 860;
 const CENTER_Y = 500;
 const REFERENCE_RADIUS = INNER_RADIUS + 3 * LANE_GAP;
 
+const MINIMUM_SPRITE_SCALE = 0.45;
+
 export type SegmentKind = "straight" | "corner" | "final";
 
 export type SegmentEnds = {
@@ -27,6 +29,15 @@ export type TrackPose = {
   scale: number;
   tangentX: number;
   tangentY: number;
+};
+
+export type Camera = {
+  groundX: number;
+  groundY: number;
+  height: number;
+  pitch: number;
+  yaw: number;
+  focalLength: number;
 };
 
 type Logical = {
@@ -131,29 +142,69 @@ function logicalAtDistance(distance: number, radius: number): Logical {
   };
 }
 
-function project(logical: Logical): TrackPose {
-  const depth = Math.min(1, Math.max(0, (logical.y + REFERENCE_RADIUS) / (2 * REFERENCE_RADIUS)));
-  const scale = 1 - (1 - FAR_SCALE) * depth;
-  const converge = 0.76 + 0.24 * (1 - depth);
-  const x = CENTER_X - logical.x * converge;
-  const y = CENTER_Y - logical.y * 0.72;
-  const tangentX = -logical.tx * converge;
-  const tangentY = -logical.ty * 0.72;
-  const heading = Math.atan2(tangentY, tangentX);
+export function createDefaultCamera(): Camera {
+  return {
+    groundX: 0,
+    groundY: REFERENCE_RADIUS * 0.92,
+    height: 420,
+    pitch: 6 * (Math.PI / 180),
+    yaw: 0,
+    focalLength: 720,
+  };
+}
+
+function projectWithCamera(logical: Logical, camera: Camera): TrackPose {
+  const dx = logical.x - camera.groundX;
+  const dy = logical.y - camera.groundY;
+  
+  const cosYaw = Math.cos(camera.yaw);
+  const sinYaw = Math.sin(camera.yaw);
+  const localX = dx * cosYaw + dy * sinYaw;
+  const localY = -dx * sinYaw + dy * cosYaw;
+  
+  const cosPitch = Math.cos(camera.pitch);
+  const sinPitch = Math.sin(camera.pitch);
+  const camDepth = localY * cosPitch - (-camera.height) * sinPitch;
+  
+  const behind = camDepth <= 1;
+  const safeDepth = behind ? 1 : camDepth;
+  
+  const screenX = CENTER_X + (camera.focalLength * localX) / safeDepth;
+  const camVertical = localY * sinPitch + (-camera.height) * cosPitch;
+  const screenY = CENTER_Y - (camera.focalLength * camVertical) / safeDepth;
+  
+  const perspectiveScale = behind ? MINIMUM_SPRITE_SCALE : camera.focalLength / safeDepth;
+  const scale = Math.max(MINIMUM_SPRITE_SCALE, Math.min(2.5, perspectiveScale));
+  
+  const txLocal = logical.tx * cosYaw + logical.ty * sinYaw;
+  const tyLocal = -logical.tx * sinYaw + logical.ty * cosYaw;
+  
+  const tangentX = txLocal;
+  const tangentY = tyLocal * cosPitch;
+  const length = Math.hypot(tangentX, tangentY) || 1;
+  const normalizedTangentX = tangentX / length;
+  const normalizedTangentY = tangentY / length;
+  
+  const heading = Math.atan2(normalizedTangentY, normalizedTangentX);
   const flipX = Math.cos(heading) < 0;
   let lean = heading;
   if (flipX) lean = heading > 0 ? heading - Math.PI : heading + Math.PI;
   const leanDeg = Math.max(-15, Math.min(15, (lean * 180) / Math.PI));
-  const length = Math.hypot(tangentX, tangentY) || 1;
+  
   return {
-    x,
-    y,
+    x: screenX,
+    y: screenY,
     flipX,
     lean: leanDeg,
     scale,
-    tangentX: tangentX / length,
-    tangentY: tangentY / length,
+    tangentX: normalizedTangentX,
+    tangentY: normalizedTangentY,
   };
+}
+
+function project(logical: Logical): TrackPose {
+  const defaultCamera = createDefaultCamera();
+  return projectWithCamera(logical, defaultCamera);
 }
 
 export function poseOnRadius(progress: number, radius: number): TrackPose {
