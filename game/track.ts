@@ -13,9 +13,9 @@ const REFERENCE_RADIUS = INNER_RADIUS + 3 * LANE_GAP;
 export type SegmentKind = "straight" | "corner" | "final";
 
 export type SegmentEnds = {
-  startStraight: number;
-  backStraight: number;
-  corner: number;
+  pocketEnd: number;
+  backStraightEnd: number;
+  cornerEnd: number;
 };
 
 export type TrackPose = {
@@ -39,27 +39,26 @@ export function laneRadius(lane: number) {
   return INNER_RADIUS + (lane - 1) * LANE_GAP;
 }
 
-export function raceDistance(radius: number) {
-  return CHUTE + STRAIGHT + Math.PI * radius + GOAL_ALONG * STRAIGHT;
+export function referenceDistance() {
+  return CHUTE + STRAIGHT + Math.PI * REFERENCE_RADIUS + GOAL_ALONG * STRAIGHT;
 }
 
-export function segmentEnds(lane = 1): SegmentEnds {
-  const radius = laneRadius(lane);
-  const total = raceDistance(radius);
+export function segmentEnds(): SegmentEnds {
+  const total = referenceDistance();
   return {
-    startStraight: CHUTE / total,
-    backStraight: (CHUTE + STRAIGHT) / total,
-    corner: (CHUTE + STRAIGHT + Math.PI * radius) / total,
+    pocketEnd: CHUTE / total,
+    backStraightEnd: (CHUTE + STRAIGHT) / total,
+    cornerEnd: (CHUTE + STRAIGHT + Math.PI * REFERENCE_RADIUS) / total,
   };
 }
 
-const ENDS = segmentEnds(1);
+const ENDS = segmentEnds();
 
 export function segmentAt(progress: number): SegmentKind {
   const along = Math.max(0, progress);
-  if (along < ENDS.startStraight) return "straight";
-  if (along < ENDS.backStraight) return "straight";
-  if (along < ENDS.corner) return "corner";
+  if (along < ENDS.pocketEnd) return "straight";
+  if (along < ENDS.backStraightEnd) return "straight";
+  if (along < ENDS.cornerEnd) return "corner";
   return "final";
 }
 
@@ -151,7 +150,7 @@ function project(logical: Logical): TrackPose {
 }
 
 export function poseOnRadius(progress: number, radius: number): TrackPose {
-  return project(logicalAtDistance(Math.max(0, progress) * raceDistance(radius), radius));
+  return project(logicalAtDistance(Math.max(0, progress) * referenceDistance(), radius));
 }
 
 export function poseAt(progress: number, lane: number) {

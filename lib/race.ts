@@ -1,5 +1,5 @@
 import { payoffWord } from "@/game/skillShow";
-import { COAST_END, cutLength, poseAt, segmentAt, segmentEnds } from "@/game/track";
+import { COAST_END, cutLength, poseAt, segmentAt, segmentEnds, referenceDistance } from "@/game/track";
 import { skillById, type SkillId, type SkillKind } from "./skills";
 
 export { segmentAt, COAST_END };
@@ -101,8 +101,8 @@ export type RaceResult = {
 
 const STAT_KEYS = ["start", "accel", "stamina", "corner", "mental", "luck"] as const;
 const BASE_SPEED = 1 / 40.2;
-const ENDS = segmentEnds(1);
-const START_SEGMENT = ENDS.startStraight;
+const ENDS = segmentEnds();
+const START_SEGMENT = ENDS.pocketEnd;
 
 type Runner = {
   input: HorseInput;
@@ -280,7 +280,7 @@ function applySkill(runners: Runner[], runner: Runner) {
     hit = onBend;
     if (hit) {
       const from = runner.progress;
-      const to = Math.max(from + 0.012, Math.min(0.97, ENDS.corner));
+      const to = Math.max(from + 0.012, Math.min(0.97, ENDS.cornerEnd));
       runner.cutFrom = from;
       runner.cutTo = to;
       runner.cutUntil = runner.skillTime + cutDuration(from, to, runner.number, speedAt(runner.stats, from));
@@ -352,14 +352,14 @@ function cutDuration(from: number, to: number, lane: number, progressSpeed: numb
 
 function cornerRoom(progress: number) {
   if (segmentAt(progress) !== "corner") return 0;
-  return Math.max(0, ENDS.corner - progress);
+  return Math.max(0, ENDS.cornerEnd - progress);
 }
 
 function skillReady(runner: Runner) {
   const kind = skillById(runner.input.skillId).kind;
   const segment = segmentAt(runner.progress);
   if (kind === "final-burst") return segment === "final" || runner.progress >= 0.999;
-  if (kind === "jaywalk") return cornerRoom(runner.progress) >= 0.14 || runner.progress >= ENDS.corner - 0.14;
+  if (kind === "jaywalk") return cornerRoom(runner.progress) >= 0.14 || runner.progress >= ENDS.cornerEnd - 0.14;
   if (kind === "crown") return runner.progress >= 0.6;
   return true;
 }
