@@ -201,16 +201,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   const releasedSkills = new Set<number>();
   const cutinQueue: SkillCutin[] = [];
 
-  function skillCap() {
-    for (const event of race.events) {
-      if (!event.cutin || releasedSkills.has(event.time)) continue;
-      const releasing = activeCutin === event.cutin && beat === "payoff" && skillLive;
-      if (releasing) continue;
-      return event.time - SKILL_LEAD;
-    }
-    return null;
-  }
-
   class RaceScene extends Phaser.Scene {
     constructor() {
       super("race");
@@ -407,15 +397,10 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       const shotStop =
         skillLive && activeCutin?.skillName === "따발총" && activeCutin.hit && payoffAge > 0.16 && payoffAge < 0.22;
       const holding = beat === "focus" || beat === "announce" || beat === "release" || (beat === "payoff" && !skillLive);
-      if (holding) {
-        raceTime = Math.max(0, showSkillTime - 0.1);
-      } else if (!shotStop) {
-        if (beat === "payoff" && raceTime < showSkillTime) raceTime = showSkillTime;
+      if (!holding && !shotStop) {
         raceTime += wall;
       }
       if (skillLive) releasedSkills.add(showSkillTime);
-      const cap = skillCap();
-      if (cap !== null && raceTime > cap) raceTime = Math.max(0, cap);
       if (beat === "announce" && !announced && activeCutin) {
         announced = true;
         hooks.onCutin(activeCutin);
@@ -435,7 +420,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         if (raceTime + 0.0001 < event.time - SKILL_LEAD) continue;
         fired.add(event.time);
         cutinQueue.push(event.cutin);
-        hooks.onComment(event.message);
       }
       if (showStart < 0 && cutinQueue.length > 0) {
         const next = cutinQueue.shift();
@@ -448,7 +432,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           sparked = false;
           sparkWave = -1;
           beat = "focus";
-          raceTime = Math.max(0, showSkillTime - 0.1);
         }
       }
 
@@ -460,6 +443,12 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         if (latest && latest !== lastComment) {
           lastComment = latest;
           hooks.onComment(latest);
+        }
+      } else if (beat === "announce" && activeCutin) {
+        const skillEvent = race.events.find((event) => event.cutin === activeCutin);
+        if (skillEvent && skillEvent.message !== lastComment) {
+          lastComment = skillEvent.message;
+          hooks.onComment(lastComment);
         }
       }
 
