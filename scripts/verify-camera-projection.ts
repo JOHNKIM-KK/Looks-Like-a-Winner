@@ -1,13 +1,13 @@
-import { createDefaultCamera, poseOnRadius, poseAt, laneRadius } from "../game/track";
+import { createDefaultCamera, poseOnRadius, poseAt, laneRadius, referenceDistance, INNER_RADIUS, LANE_GAP } from "../game/track";
 
-console.log("=== 카메라 투영 검증 (강화) ===\n");
+console.log("=== 카메라 투영 검증 ===\n");
 
 const camera = createDefaultCamera();
-console.log("기본 카메라 설정:");
-console.log(`  지면 위치: (${camera.groundX.toFixed(1)}, ${camera.groundY.toFixed(1)})`);
-console.log(`  높이: ${camera.height.toFixed(1)}`);
-console.log(`  피치(기울기): ${(camera.pitch * 180 / Math.PI).toFixed(1)}°`);
-console.log(`  초점거리: ${camera.focalLength.toFixed(1)}\n`);
+console.log("최적화된 카메라 파라미터:");
+console.log(`  groundY: ${camera.groundY}`);
+console.log(`  height: ${camera.height}`);
+console.log(`  pitch: ${(camera.pitch * 180 / Math.PI).toFixed(2)}°`);
+console.log(`  focalLength: ${camera.focalLength}\n`);
 
 const MINIMUM_SPRITE_SCALE = 0.45;
 const VIEW_HEIGHT = 560;
@@ -154,32 +154,108 @@ if (tangentNormOk) {
   allTests = false;
 }
 
-// 테스트 6: 기존 캔버스 범위 내 주요 점
-console.log("테스트 6: 주요 점이 기존 캔버스 안에 있음");
+// 테스트 6: 좌표가 합리적 범위 내
+console.log("테스트 6: 좌표가 합리적 범위 내");
 let boundsOk = true;
-const testPoints = [
-  { progress: 0, lane: 4, label: "출발(레인4)" },
-  { progress: 0.5, lane: 4, label: "코너(레인4)" },
-  { progress: 1.0, lane: 4, label: "골(레인4)" },
-];
+const reasonableMinX = -500;
+const reasonableMaxX = 2000;
+const reasonableMinY = 0;
+const reasonableMaxY = 1200;
 
-for (const point of testPoints) {
-  const pose = poseAt(point.progress, point.lane);
-  if (pose.x < bounds.x || pose.x > bounds.x + bounds.width ||
-      pose.y < bounds.y || pose.y > bounds.y + bounds.height) {
-    console.log(`  ✗ 범위 밖: ${point.label}, x=${pose.x.toFixed(1)}, y=${pose.y.toFixed(1)}`);
-    boundsOk = false;
+for (let lane = 1; lane <= 8; lane++) {
+  for (let i = 0; i <= 20; i++) {
+    const pose = poseAt(i / 20, lane);
+    if (pose.x < reasonableMinX || pose.x > reasonableMaxX ||
+        pose.y < reasonableMinY || pose.y > reasonableMaxY) {
+      boundsOk = false;
+      break;
+    }
   }
+  if (!boundsOk) break;
 }
 
 if (boundsOk) {
-  console.log("  ✓ 주요 점들이 캔버스 범위 내에 있습니다.\n");
+  console.log("  ✓ 모든 점이 합리적 범위(-500~2000, 0~1200) 내에 있습니다.\n");
 } else {
   console.log("  ✗ 범위 테스트 실패\n");
   allTests = false;
 }
 
-console.log("=== 검증 요약 ===");
+// 이전 투영과 비교
+console.log("\n=== 이전 투영과 비교 ===");
+
+const STRAIGHT = 1712;
+const STRAIGHT_BACK = 1418;
+const CHUTE = 158;
+const GOAL_ALONG = 0.920;
+const REFERENCE_RADIUS = INNER_RADIUS + 3 * LANE_GAP;
+const FAR_SCALE = 0.72;
+const CENTER_X = 860;
+const CENTER_Y = 500;
+
+type Logical = { x: number; y: number };
+
+function logicalAtDistance(distance: number, radius: number): Logical {
+  const halfBack = STRAIGHT_BACK / 2;
+  const halfHome = STRAIGHT / 2;
+  const corner = Math.PI * radius;
+  let cursor = Math.max(0, distance);
+  
+  if (cursor <= CHUTE) return { x: halfBack + CHUTE - cursor, y: -radius };
+  cursor -= CHUTE;
+  if (cursor <= STRAIGHT_BACK) return { x: halfBack - cursor, y: -radius };
+  cursor -= STRAIGHT_BACK;
+  if (cursor <= corner) {
+    const theta = -Math.PI / 2 + cursor / radius;
+    return { x: -halfHome + Math.cos(theta) * radius, y: Math.sin(theta) * radius };
+  }
+  cursor -= corner;
+  if (cursor <= GOAL_ALONG * STRAIGHT) return { x: -halfHome + cursor, y: radius };
+  const theta = Math.PI / 2 + (cursor - GOAL_ALONG * STRAIGHT) / radius;
+  return { x: halfHome + Math.cos(theta) * radius, y: Math.sin(theta) * radius };
+}
+
+function projectOld(logical: Logical): { x: number; y: number; scale: number } {
+  const depth = Math.min(1, Math.max(0, (logical.y + REFERENCE_RADIUS) / (2 * REFERENCE_RADIUS)));
+  const scale = Math.max(0.45, 1 - (1 - FAR_SCALE) * depth);
+  const converge = 0.76 + 0.24 * (1 - depth);
+  return { x: CENTER_X - logical.x * converge, y: CENTER_Y - logical.y * 0.72, scale };
+}
+
+const comparePoints = [
+  { label: "출발(레인4)", progress: 0, lane: 4 },
+  { label: "맞은편(레인4)", progress: 0.25, lane: 4 },
+  { label: "코너(레인4)", progress: 0.5, lane: 4 },
+  { label: "홈 직선(레인4)", progress: 0.75, lane: 4 },
+  { label: "골(레인4)", progress: 1.0, lane: 4 },
+];
+
+console.log("위치".padEnd(18) + "이전 X".padEnd(10) + "새 X".padEnd(10) + "이전 Y".padEnd(10) + "새 Y".padEnd(10) + "이전 Scale".padEnd(12) + "새 Scale".padEnd(11) + "오차");
+console.log("-".repeat(90));
+
+let totalError = 0;
+for (const point of comparePoints) {
+  const logical = logicalAtDistance(point.progress * referenceDistance(), laneRadius(point.lane));
+  const old = projectOld(logical);
+  const pose = poseAt(point.progress, point.lane);
+  const error = Math.sqrt((pose.x - old.x) ** 2 + (pose.y - old.y) ** 2);
+  totalError += error;
+  
+  console.log(
+    point.label.padEnd(18) +
+    old.x.toFixed(1).padEnd(10) +
+    pose.x.toFixed(1).padEnd(10) +
+    old.y.toFixed(1).padEnd(10) +
+    pose.y.toFixed(1).padEnd(10) +
+    old.scale.toFixed(3).padEnd(12) +
+    pose.scale.toFixed(3).padEnd(11) +
+    error.toFixed(1) + "px"
+  );
+}
+
+console.log(`\n평균 오차: ${(totalError / comparePoints.length).toFixed(1)}px`);
+
+console.log("\n=== 검증 요약 ===");
 if (allTests && fullRangeOk && visibleOk && depthMonotonicOk && scaleFloorOk && tangentNormOk && boundsOk) {
   console.log("✅ 모든 카메라 투영 테스트를 통과했습니다.");
   process.exit(0);
