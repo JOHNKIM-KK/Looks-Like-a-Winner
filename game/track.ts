@@ -1,10 +1,11 @@
 export const STRAIGHT = 760;
 export const INNER_RADIUS = 200;
 export const LANE_GAP = 58;
-export const FINISH_ALONG = 0.7;
+export const CHUTE = 520;
 export const COAST_END = 1.18;
 export const FAR_SCALE = 0.72;
 
+const GOAL_ALONG = 0.62;
 const CENTER_X = 860;
 const CENTER_Y = 500;
 const REFERENCE_RADIUS = INNER_RADIUS + 3 * LANE_GAP;
@@ -13,9 +14,8 @@ export type SegmentKind = "straight" | "corner" | "final";
 
 export type SegmentEnds = {
   startStraight: number;
-  firstCorner: number;
   backStraight: number;
-  secondCorner: number;
+  corner: number;
 };
 
 export type TrackPose = {
@@ -39,30 +39,27 @@ export function laneRadius(lane: number) {
   return INNER_RADIUS + (lane - 1) * LANE_GAP;
 }
 
-export function lapLength(lane = 1) {
-  const radius = laneRadius(lane);
-  return STRAIGHT * 2 + Math.PI * radius * 2;
+export function raceDistance(radius: number) {
+  return CHUTE + STRAIGHT + Math.PI * radius + GOAL_ALONG * STRAIGHT;
 }
 
 export function segmentEnds(lane = 1): SegmentEnds {
   const radius = laneRadius(lane);
-  const corner = Math.PI * radius;
-  const total = lapLength(lane);
-  const startStraight = ((1 - FINISH_ALONG) * STRAIGHT) / total;
-  const firstCorner = startStraight + corner / total;
-  const backStraight = firstCorner + STRAIGHT / total;
-  const secondCorner = backStraight + corner / total;
-  return { startStraight, firstCorner, backStraight, secondCorner };
+  const total = raceDistance(radius);
+  return {
+    startStraight: CHUTE / total,
+    backStraight: (CHUTE + STRAIGHT) / total,
+    corner: (CHUTE + STRAIGHT + Math.PI * radius) / total,
+  };
 }
 
 const ENDS = segmentEnds(1);
 
 export function segmentAt(progress: number): SegmentKind {
-  const lap = progress - Math.floor(progress);
-  if (lap < ENDS.startStraight) return "straight";
-  if (lap < ENDS.firstCorner) return "corner";
-  if (lap < ENDS.backStraight) return "straight";
-  if (lap < ENDS.secondCorner) return "corner";
+  const along = Math.max(0, progress);
+  if (along < ENDS.startStraight) return "straight";
+  if (along < ENDS.backStraight) return "straight";
+  if (along < ENDS.corner) return "corner";
   return "final";
 }
 
@@ -94,6 +91,40 @@ function logicalFromLoop(loop: number, radius: number): Logical {
   };
 }
 
+function logicalAtDistance(distance: number, radius: number): Logical {
+  const half = STRAIGHT / 2;
+  const corner = Math.PI * radius;
+  let cursor = Math.max(0, distance);
+  if (cursor <= CHUTE) {
+    return { x: -half - CHUTE + cursor, y: radius, tx: 1, ty: 0 };
+  }
+  cursor -= CHUTE;
+  if (cursor <= STRAIGHT) {
+    return { x: -half + cursor, y: radius, tx: 1, ty: 0 };
+  }
+  cursor -= STRAIGHT;
+  if (cursor <= corner) {
+    const theta = Math.PI / 2 - cursor / radius;
+    return {
+      x: half + Math.cos(theta) * radius,
+      y: Math.sin(theta) * radius,
+      tx: Math.sin(theta),
+      ty: -Math.cos(theta),
+    };
+  }
+  cursor -= corner;
+  if (cursor <= STRAIGHT) {
+    return { x: half - cursor, y: -radius, tx: -1, ty: 0 };
+  }
+  const theta = -Math.PI / 2 - (cursor - STRAIGHT) / radius;
+  return {
+    x: -half + Math.cos(theta) * radius,
+    y: Math.sin(theta) * radius,
+    tx: Math.sin(theta),
+    ty: -Math.cos(theta),
+  };
+}
+
 function project(logical: Logical): TrackPose {
   const depth = Math.min(1, Math.max(0, (logical.y + REFERENCE_RADIUS) / (2 * REFERENCE_RADIUS)));
   const scale = 1 - (1 - FAR_SCALE) * depth;
@@ -120,10 +151,7 @@ function project(logical: Logical): TrackPose {
 }
 
 export function poseOnRadius(progress: number, radius: number): TrackPose {
-  const total = STRAIGHT * 2 + Math.PI * radius * 2;
-  const traveled = FINISH_ALONG * STRAIGHT + progress * total;
-  const loop = ((traveled % total) + total) % total;
-  return project(logicalFromLoop(loop, radius));
+  return project(logicalAtDistance(Math.max(0, progress) * raceDistance(radius), radius));
 }
 
 export function poseAt(progress: number, lane: number) {
@@ -187,8 +215,17 @@ export function sampleRadius(radius: number, steps: number) {
   return poses;
 }
 
+export function sampleChute(radius: number, steps: number) {
+  const poses: TrackPose[] = [];
+  for (let index = 0; index <= steps; index += 1) {
+    poses.push(project(logicalAtDistance((index / steps) * CHUTE, radius)));
+  }
+  return poses;
+}
+
 export function viewBounds(lanes: number) {
-  const poses = sampleRadius(laneRadius(Math.max(1, lanes)) + LANE_GAP * 1.6, 64);
+  const edge = laneRadius(Math.max(1, lanes)) + LANE_GAP * 1.6;
+  const poses = [...sampleRadius(edge, 64), ...sampleChute(edge, 16)];
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;

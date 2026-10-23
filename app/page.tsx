@@ -5,6 +5,7 @@ import { RaceGame } from "@/components/RaceGame";
 import { RaceResult } from "@/components/RaceResult";
 import { mockHorses } from "@/lib/mockHorses";
 import { skillById } from "@/lib/skills";
+import { primeStartSound } from "@/game/bang";
 import { MAX_HORSES, simulateRace, type RaceResult as RaceData } from "@/lib/race";
 
 type Phase = "idle" | "racing" | "done";
@@ -18,6 +19,7 @@ export default function HomePage() {
   const [race, setRace] = useState<RaceData | null>(null);
 
   function start() {
+    primeStartSound();
     setRace(simulateRace(mockHorses, nextSeed()));
     setPhase("racing");
     window.scrollTo(0, 0);

@@ -101,7 +101,8 @@ export type RaceResult = {
 
 const STAT_KEYS = ["start", "accel", "stamina", "corner", "mental", "luck"] as const;
 const BASE_SPEED = 1 / 40.2;
-const START_SEGMENT = segmentEnds(1).startStraight;
+const ENDS = segmentEnds(1);
+const START_SEGMENT = ENDS.startStraight;
 
 type Runner = {
   input: HorseInput;
@@ -276,13 +277,11 @@ function applySkill(runners: Runner[], runner: Runner) {
       other.footUntil = runner.skillTime + SKILL_WINDOW;
     }
   } else if (skill.kind === "jaywalk") {
-    const ends = segmentEnds(1);
-    const onFirst = segment === "corner" && runner.progress < ends.firstCorner;
-    const onSecond = segment === "corner" && runner.progress >= ends.backStraight;
-    hit = onFirst || onSecond;
+    const onBend = segment === "corner";
+    hit = onBend;
     if (hit) {
       const from = runner.progress;
-      const to = Math.max(from + 0.012, Math.min(0.97, onFirst ? ends.firstCorner : ends.secondCorner));
+      const to = Math.max(from + 0.012, Math.min(0.97, ENDS.corner));
       runner.cutFrom = from;
       runner.cutTo = to;
       runner.cutUntil = runner.skillTime + cutDuration(from, to, runner.number, speedAt(runner.stats, from));
@@ -354,16 +353,14 @@ function cutDuration(from: number, to: number, lane: number, progressSpeed: numb
 
 function cornerRoom(progress: number) {
   if (segmentAt(progress) !== "corner") return 0;
-  const ends = segmentEnds(1);
-  const exit = progress < ends.firstCorner ? ends.firstCorner : ends.secondCorner;
-  return Math.max(0, exit - progress);
+  return Math.max(0, ENDS.corner - progress);
 }
 
 function skillReady(runner: Runner) {
   const kind = skillById(runner.input.skillId).kind;
   const segment = segmentAt(runner.progress);
   if (kind === "final-burst") return segment === "final" || runner.progress >= 0.999;
-  if (kind === "jaywalk") return cornerRoom(runner.progress) >= 0.14 || runner.progress >= segmentEnds(1).secondCorner - 0.14;
+  if (kind === "jaywalk") return cornerRoom(runner.progress) >= 0.14 || runner.progress >= ENDS.corner - 0.14;
   if (kind === "crown") return runner.progress >= 0.6;
   return true;
 }
