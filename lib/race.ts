@@ -161,7 +161,7 @@ function buildStats(biases: HorseStats, random: () => number): HorseStats {
 }
 
 function gateProgress(stats: HorseStats) {
-  return clamp(((stats.start - 48) / 100) * 0.1, 0, 0.05);
+  return 0;
 }
 
 function speedAt(stats: HorseStats, progress: number) {
@@ -169,7 +169,7 @@ function speedAt(stats: HorseStats, progress: number) {
   let phase = 1;
   if (kind === "straight") {
     phase = 1 + ((stats.accel - 60) / 100) * 0.95;
-    if (progress < START_SEGMENT) phase += ((stats.start - 60) / 100) * 1.4;
+    if (progress < START_SEGMENT) phase += ((stats.start - 60) / 100) * 2.4;
   } else if (kind === "corner") {
     phase = 1 + ((stats.corner - 60) / 100) * 0.55;
   } else {
@@ -188,11 +188,10 @@ function previewProgress(stats: HorseStats, time: number) {
 }
 
 function skillWindows(kind: SkillKind, stats: HorseStats) {
-  const offset = gateProgress(stats);
   if (kind === "start") {
     const early: number[] = [];
     for (let time = 0.5; time <= 2.4; time += 0.4) {
-      const progress = previewProgress(stats, time) + offset;
+      const progress = previewProgress(stats, time);
       if (progress < START_SEGMENT + 0.02) early.push(Number(time.toFixed(1)));
     }
     if (early.length > 0) return early;
@@ -200,15 +199,15 @@ function skillWindows(kind: SkillKind, stats: HorseStats) {
   if (kind === "jaywalk") {
     const cuts: number[] = [];
     for (let time = 2; time <= 34; time += 0.5) {
-      const progress = previewProgress(stats, time) + offset;
+      const progress = previewProgress(stats, time);
       if (cornerRoom(progress) >= 0.14) cuts.push(time);
     }
     if (cuts.length > 0) return cuts;
   }
   const matches: number[] = [];
   for (let time = 2; time <= 38; time += 0.5) {
-    const progress = previewProgress(stats, time) + offset;
-    const ahead = previewProgress(stats, time + 1) + offset;
+    const progress = previewProgress(stats, time);
+    const ahead = previewProgress(stats, time + 1);
     const segment = segmentAt(progress);
     const settled = segmentAt(ahead) === segment;
     const fits =
@@ -387,7 +386,7 @@ function simulate(runners: Runner[]) {
     }
     for (const runner of runners) {
       if (index === 0) {
-        runner.progress = gateProgress(runner.stats);
+        runner.progress = 0;
         runner.samples.push(runner.progress);
         continue;
       }
@@ -504,7 +503,7 @@ export function simulateRace(horses: HorseInput[], seed: number): RaceResult {
       input,
       number: index + 1,
       stats,
-      progress: gateProgress(stats),
+      progress: 0,
       samples: [],
       finishTime: 0,
       arriveSpeed: 0,
