@@ -1,5 +1,7 @@
-// 이전 project() 함수와 새 함수 비교
+// 이전 project() 함수와 새 카메라 투영 비교
 import { laneRadius, referenceDistance, viewBounds, poseAt as newPoseAt } from "../game/track";
+
+console.log("=== 이전 고정 원근법 vs 새 카메라 투영 비교 ===\n");
 
 // 이전 project() 복제
 const FAR_SCALE_OLD = 0.72;
@@ -96,8 +98,6 @@ function poseOnRadiusOld(progress: number, radius: number): TrackPoseOld {
 function poseAtOld(progress: number, lane: number): TrackPoseOld {
   return poseOnRadiusOld(progress, laneRadius(lane));
 }
-
-console.log("=== 이전 project() vs 새 카메라 투영 비교 ===\n");
 
 // 주요 위치 비교
 const testPoints = [
