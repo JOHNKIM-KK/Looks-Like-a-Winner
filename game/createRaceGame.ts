@@ -19,7 +19,8 @@ import { LANE_GAP, cutPose, laneRadius, poseAt, poseOnRadius, renderLane, sample
 const FRAME_WIDTH = 213;
 const FRAME_HEIGHT = 211;
 const HORSE_HEIGHT = 96;
-const VIEW_HEIGHT = 560;
+const GAME_WIDTH = 540;
+const GAME_HEIGHT = 1170;
 const HELMETS = [
   { x: 136, y: 43 },
   { x: 137, y: 42 },
@@ -1015,11 +1016,14 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   return new Phaser.Game({
     type: Phaser.AUTO,
     parent,
-    width: Math.max(320, parent.clientWidth),
-    height: VIEW_HEIGHT,
+    width: GAME_WIDTH,
+    height: GAME_HEIGHT,
     backgroundColor: "#145c34",
     scene: RaceScene,
-    scale: { mode: Phaser.Scale.RESIZE },
+    scale: { 
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_HORIZONTALLY,
+    },
     banner: false,
   });
 }

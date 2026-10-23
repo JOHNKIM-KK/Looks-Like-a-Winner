@@ -7,8 +7,8 @@ export const COAST_END = 1.18;
 export const FAR_SCALE = 0.72;
 
 const GOAL_ALONG = 0.920;
-const CENTER_X = 860;
-const CENTER_Y = 500;
+const CENTER_X = 270;
+const CENTER_Y = 555;
 const REFERENCE_RADIUS = INNER_RADIUS + 3 * LANE_GAP;
 
 const MINIMUM_SPRITE_SCALE = 0.45;
@@ -150,7 +150,7 @@ export function createDefaultCamera(): Camera {
     height: 1730,
     pitch: 60.0 * (Math.PI / 180),
     yaw: 0,
-    focalLength: 1720,
+    focalLength: 620,
   };
 }
 

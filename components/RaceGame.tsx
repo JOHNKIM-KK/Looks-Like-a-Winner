@@ -7,9 +7,10 @@ import type { RankRow } from "@/game/createRaceGame";
 type Props = {
   race: RaceResult;
   onComplete: () => void;
+  isRacing: boolean;
 };
 
-export function RaceGame({ race, onComplete }: Props) {
+export function RaceGame({ race, onComplete, isRacing }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const onCompleteRef = useRef(onComplete);
   const [comment, setComment] = useState("게이트 앞에서 대기 중입니다.");
@@ -41,6 +42,25 @@ export function RaceGame({ race, onComplete }: Props) {
       game?.destroy(true);
     };
   }, [race]);
+
+  if (isRacing) {
+    return (
+      <div 
+        className="fixed inset-0 z-50 flex items-center justify-center bg-[#145c34]"
+        style={{
+          paddingTop: 'env(safe-area-inset-top)',
+          paddingRight: 'env(safe-area-inset-right)',
+          paddingBottom: 'env(safe-area-inset-bottom)',
+          paddingLeft: 'env(safe-area-inset-left)',
+        }}
+      >
+        <div className="relative h-full w-full max-w-[540px] overflow-hidden">
+          <div ref={hostRef} className="h-full w-full" />
+          {cutin ? <SkillCutinBanner key={`${cutin.number}-${cutin.skillName}`} cutin={cutin} /> : null}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <section className="flex flex-col gap-3">
