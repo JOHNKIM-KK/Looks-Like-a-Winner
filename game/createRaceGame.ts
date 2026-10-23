@@ -488,6 +488,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
             y: previous.y + (pose.y - previous.y) * blend,
           };
         }
+        actor.container.setVisible(pose.visible);
+        if (!pose.visible) continue;
+        
         actor.container.setPosition(pose.x, pose.y);
         if (castingNow && kind === "final-burst" && payoffAge < 0.35) {
           const lunge = Math.sin((payoffAge / 0.35) * Math.PI) * 52;
