@@ -390,16 +390,11 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         hooks.onComment(lastComment);
       }
       if (gateOpen < 1) gateOpen = Math.min(1, gateOpen + wall / 0.28);
+      raceTime += wall;
       const age = showStart >= 0 ? wallClock - showStart : -1;
       beat = beatAt(age);
       const payoffAge = age - INTRO;
       skillLive = beat === "payoff" && (zoom <= 1.08 || zoom <= restZoom + 0.16);
-      const shotStop =
-        skillLive && activeCutin?.skillName === "따발총" && activeCutin.hit && payoffAge > 0.16 && payoffAge < 0.22;
-      const holding = beat === "focus" || beat === "announce" || beat === "release" || (beat === "payoff" && !skillLive);
-      if (!holding && !shotStop) {
-        raceTime += wall;
-      }
       if (skillLive) releasedSkills.add(showSkillTime);
       if (beat === "announce" && !announced && activeCutin) {
         announced = true;
@@ -435,21 +430,13 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         }
       }
 
-      if (beat === "payoff" || beat === "idle") {
-        let latest = "";
-        for (const event of race.events) {
-          if (event.time <= raceTime + 0.0001) latest = event.message;
-        }
-        if (latest && latest !== lastComment) {
-          lastComment = latest;
-          hooks.onComment(latest);
-        }
-      } else if (beat === "announce" && activeCutin) {
-        const skillEvent = race.events.find((event) => event.cutin === activeCutin);
-        if (skillEvent && skillEvent.message !== lastComment) {
-          lastComment = skillEvent.message;
-          hooks.onComment(lastComment);
-        }
+      let latest = "";
+      for (const event of race.events) {
+        if (event.time <= raceTime + 0.0001) latest = event.message;
+      }
+      if (latest && latest !== lastComment) {
+        lastComment = latest;
+        hooks.onComment(latest);
       }
 
       this.paintGates();
