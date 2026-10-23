@@ -1,11 +1,11 @@
-export const STRAIGHT = 640;
-export const INNER_RADIUS = 33;
+export const STRAIGHT = 900;
+export const INNER_RADIUS = 112;
 export const LANE_GAP = 58;
-export const CHUTE = 50;
+export const CHUTE = 150;
 export const COAST_END = 1.18;
 export const FAR_SCALE = 0.72;
 
-const GOAL_ALONG = 413 / 640;
+const GOAL_ALONG = 1.167;
 const CENTER_X = 860;
 const CENTER_Y = 500;
 const REFERENCE_RADIUS = INNER_RADIUS + 3 * LANE_GAP;

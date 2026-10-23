@@ -94,9 +94,4 @@ for (const seed of seeds) {
   }
 }
 
-console.log(`\n=== 말별 승리 횟수 ===`);
-mockHorses.forEach((horse) => {
-  const wins = winCounts.get(horse.id) ?? 0;
-  const rate = ((wins / SEEDS) * 100).toFixed(1);
-  console.log(`${horse.name.padEnd(12)} (${horse.id.padEnd(8)}): ${wins.toString().padStart(4)}회 (${rate.padStart(5)}%)`);
-});
+// 승률 보고 제외 (사용자 요청)
