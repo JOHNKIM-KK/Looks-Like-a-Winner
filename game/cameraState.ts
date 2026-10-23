@@ -13,6 +13,8 @@ export type CameraState = {
   name: CameraStateName;
   closeupHorseIndex?: number;
   closeupReturnTo?: CameraStateName;
+  closeupStartTime?: number;
+  closeupDuration?: number;
 };
 
 export type RaceSnapshot = {
@@ -39,6 +41,12 @@ export function nextCameraState(
   }
 
   if (prev.name === "CLOSEUP") {
+    if (prev.closeupStartTime !== undefined && prev.closeupDuration !== undefined) {
+      if (snapshot.raceTime >= prev.closeupStartTime + prev.closeupDuration) {
+        const returnTo = prev.closeupReturnTo ?? "STRAIGHT";
+        return nextCameraState({ name: returnTo }, snapshot);
+      }
+    }
     return prev;
   }
 
@@ -71,8 +79,9 @@ export function nextCameraState(
 
 export function requestCloseup(
   current: CameraState,
+  snapshot: RaceSnapshot,
   horseIndex: number,
-  _durationSec: number
+  durationSec: number
 ): CameraState {
   if (current.name === "CORNER_IN" || current.name === "CORNER_OUT") {
     return current;
@@ -82,6 +91,8 @@ export function requestCloseup(
     name: "CLOSEUP",
     closeupHorseIndex: horseIndex,
     closeupReturnTo: current.name === "CLOSEUP" ? current.closeupReturnTo : current.name,
+    closeupStartTime: snapshot.raceTime,
+    closeupDuration: durationSec,
   };
 }
 
@@ -108,21 +119,21 @@ export function getCameraForState(
       return {
         groundX: packCenterX,
         groundY: -850,
-        height: 1650,
-        pitch: 58 * deg,
+        height: 580,
+        pitch: 42 * deg,
         yaw: 0,
-        focalLength: 640,
+        focalLength: 820,
       };
     }
 
     case "STRAIGHT": {
       return {
         groundX: packCenterX,
-        groundY: packCenterY - 1050,
-        height: 1730,
-        pitch: 6 * deg,
+        groundY: packCenterY - 180,
+        height: 320,
+        pitch: 8 * deg,
         yaw: 0,
-        focalLength: 620,
+        focalLength: 1050,
       };
     }
 
@@ -132,34 +143,34 @@ export function getCameraForState(
       const approachFactor = Math.min(1, cornerFrac * 3);
       
       return {
-        groundX: -400 + approachFactor * 200,
-        groundY: -100,
-        height: 1400,
-        pitch: 12 * deg,
-        yaw: -35 * deg,
-        focalLength: 580,
+        groundX: -650 + approachFactor * 150,
+        groundY: -350,
+        height: 480,
+        pitch: 28 * deg,
+        yaw: -48 * deg,
+        focalLength: 920,
       };
     }
 
     case "CORNER_OUT": {
       return {
-        groundX: 420,
-        groundY: 180,
-        height: 1500,
-        pitch: 18 * deg,
-        yaw: 140 * deg,
-        focalLength: 600,
+        groundX: 650,
+        groundY: 380,
+        height: 550,
+        pitch: 32 * deg,
+        yaw: 130 * deg,
+        focalLength: 950,
       };
     }
 
     case "FINISH": {
       return {
         groundX: 0,
-        groundY: 600,
-        height: 1800,
+        groundY: 950,
+        height: 680,
         pitch: 75 * deg,
         yaw: 180 * deg,
-        focalLength: 650,
+        focalLength: 1050,
       };
     }
 
@@ -172,11 +183,11 @@ export function getCameraForState(
 
       return {
         groundX: packCenterX,
-        groundY: packCenterY - 400,
-        height: 850,
-        pitch: 20 * deg,
+        groundY: packCenterY - 100,
+        height: 220,
+        pitch: 15 * deg,
         yaw: 0,
-        focalLength: 750,
+        focalLength: 1350,
       };
     }
 

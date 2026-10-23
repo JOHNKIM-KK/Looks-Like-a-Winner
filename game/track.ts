@@ -329,3 +329,40 @@ export function renderLane(lane: number, progress: number, seed: number): number
   
   return lane + (targetLane - lane) * eased;
 }
+
+type LogicalPoint = {
+  x: number;
+  y: number;
+};
+
+export function sampleRadiusLogical(radius: number, steps: number): LogicalPoint[] {
+  const total = STRAIGHT * 2 + Math.PI * radius * 2;
+  const points: LogicalPoint[] = [];
+  for (let index = 0; index <= steps; index += 1) {
+    const logical = logicalFromLoop((index / steps) * total, radius);
+    points.push({ x: logical.x, y: logical.y });
+  }
+  return points;
+}
+
+export function sampleChuteLogical(radius: number, steps: number): LogicalPoint[] {
+  const points: LogicalPoint[] = [];
+  for (let index = 0; index <= steps; index += 1) {
+    const logical = logicalAtDistance((index / steps) * CHUTE, radius);
+    points.push({ x: logical.x, y: logical.y });
+  }
+  return points;
+}
+
+export function projectLogicalPoints(points: LogicalPoint[], camera: Camera): TrackPose[] {
+  return points.map(p => projectWithCamera({ x: p.x, y: p.y, tx: 0, ty: 0 }, camera));
+}
+
+export function goalLineLogical(lane: number): LogicalPoint {
+  const radius = laneRadius(lane);
+  const halfBack = STRAIGHT_BACK / 2;
+  const halfHome = STRAIGHT / 2;
+  const corner = Math.PI * radius;
+  const cursor = referenceDistance() - CHUTE - STRAIGHT_BACK - corner;
+  return { x: -halfHome + cursor, y: radius };
+}

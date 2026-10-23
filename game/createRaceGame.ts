@@ -14,7 +14,7 @@ import {
   type ShowBeat,
 } from "@/game/skillShow";
 import { playBang } from "@/game/bang";
-import { LANE_GAP, cutPose, laneRadius, poseAt, poseOnRadius, renderLane, sampleChute, sampleRadius, viewBounds, projectWithCamera, type TrackPose } from "@/game/track";
+import { LANE_GAP, cutPose, laneRadius, poseAt, poseOnRadius, renderLane, sampleChute, sampleRadius, viewBounds, projectWithCamera, sampleRadiusLogical, sampleChuteLogical, projectLogicalPoints, goalLineLogical, type TrackPose } from "@/game/track";
 import {
   createInitialState,
   nextCameraState,
@@ -78,91 +78,6 @@ function sheetFor(horse: RaceHorse) {
   return SILKS[(horse.number - 1) % SILKS.length] ?? SILKS[0];
 }
 
-function drawOval(graphics: Phaser.GameObjects.Graphics, lanes: number) {
-  const outerLane = Math.max(1, lanes);
-  const outer = sampleRadius(laneRadius(outerLane) + 28, 140);
-  const inner = sampleRadius(Math.max(70, laneRadius(1) - 34), 140);
-  const railOut = sampleRadius(laneRadius(outerLane) + 28, 140);
-  const railIn = sampleRadius(Math.max(70, laneRadius(1) - 34), 140);
-
-  graphics.fillStyle(0xc4a06a, 1);
-  graphics.beginPath();
-  graphics.moveTo(outer[0]?.x ?? 0, outer[0]?.y ?? 0);
-  for (const point of outer) graphics.lineTo(point.x, point.y);
-  graphics.closePath();
-  graphics.fillPath();
-
-  graphics.fillStyle(0x176b3c, 1);
-  graphics.beginPath();
-  graphics.moveTo(inner[0]?.x ?? 0, inner[0]?.y ?? 0);
-  for (const point of inner) graphics.lineTo(point.x, point.y);
-  graphics.closePath();
-  graphics.fillPath();
-
-  graphics.lineStyle(5, 0xf7f4ee, 1);
-  graphics.beginPath();
-  graphics.moveTo(railOut[0]?.x ?? 0, railOut[0]?.y ?? 0);
-  for (const point of railOut) graphics.lineTo(point.x, point.y);
-  graphics.closePath();
-  graphics.strokePath();
-  graphics.beginPath();
-  graphics.moveTo(railIn[0]?.x ?? 0, railIn[0]?.y ?? 0);
-  for (const point of railIn) graphics.lineTo(point.x, point.y);
-  graphics.closePath();
-  graphics.strokePath();
-
-  const chuteOuter = sampleChute(laneRadius(outerLane) + 28, 24);
-  const chuteInner = sampleChute(Math.max(70, laneRadius(1) - 34), 24);
-  const chuteRailOut = chuteOuter;
-  const chuteRailIn = chuteInner;
-  if (chuteOuter.length > 1 && chuteInner.length > 1) {
-    graphics.fillStyle(0xc4a06a, 1);
-    graphics.beginPath();
-    graphics.moveTo(chuteOuter[0]?.x ?? 0, chuteOuter[0]?.y ?? 0);
-    for (const point of chuteOuter) graphics.lineTo(point.x, point.y);
-    for (let index = chuteInner.length - 1; index >= 0; index -= 1) {
-      const point = chuteInner[index];
-      if (point) graphics.lineTo(point.x, point.y);
-    }
-    graphics.closePath();
-    graphics.fillPath();
-    graphics.lineStyle(5, 0xf7f4ee, 1);
-    graphics.beginPath();
-    graphics.moveTo(chuteRailOut[0]?.x ?? 0, chuteRailOut[0]?.y ?? 0);
-    for (const point of chuteRailOut) graphics.lineTo(point.x, point.y);
-    graphics.strokePath();
-    graphics.beginPath();
-    graphics.moveTo(chuteRailIn[0]?.x ?? 0, chuteRailIn[0]?.y ?? 0);
-    for (const point of chuteRailIn) graphics.lineTo(point.x, point.y);
-    graphics.strokePath();
-  }
-
-  const heads = [0xe23b3b, 0xf0c14d, 0x1f8a84, 0x7c5cbf, 0xf6f1e7, 0x2a6f9a, 0xc47a4a];
-  const crowd = sampleRadius(laneRadius(outerLane) + 78, 90);
-  crowd.forEach((point, index) => {
-    graphics.fillStyle(heads[index % heads.length] ?? 0xf6f1e7, 1);
-    graphics.fillCircle(point.x, point.y, 7);
-  });
-
-  const near = poseOnRadius(1, laneRadius(1) - 20);
-  const far = poseOnRadius(1, laneRadius(outerLane) + 24);
-  const steps = 12;
-  for (let index = 0; index < steps; index += 1) {
-    const from = index / steps;
-    const to = (index + 1) / steps;
-    graphics.lineStyle(12, index % 2 === 0 ? 0x161616 : 0xf7f7f7, 1);
-    graphics.lineBetween(
-      near.x + (far.x - near.x) * from,
-      near.y + (far.y - near.y) * from,
-      near.x + (far.x - near.x) * to,
-      near.y + (far.y - near.y) * to,
-    );
-  }
-  graphics.fillStyle(0xc62828, 1);
-  graphics.fillCircle(near.x, near.y, 11);
-  graphics.fillCircle(far.x, far.y, 11);
-}
-
 const COUNT_STEP = 0.8;
 const SKILL_LEAD = 0.1;
 
@@ -217,6 +132,18 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     horses: [],
   }, 0, 0);
 
+  const outerLane = Math.max(1, race.horses.length);
+  const trackOuterLogical = sampleRadiusLogical(laneRadius(outerLane) + 28, 140);
+  const trackInnerLogical = sampleRadiusLogical(Math.max(70, laneRadius(1) - 34), 140);
+  const railOutLogical = trackOuterLogical;
+  const railInLogical = trackInnerLogical;
+  const chuteOuterLogical = sampleChuteLogical(laneRadius(outerLane) + 28, 24);
+  const chuteInnerLogical = sampleChuteLogical(Math.max(70, laneRadius(1) - 34), 24);
+  const crowdLogical = sampleRadiusLogical(laneRadius(outerLane) + 78, 90);
+  const goalInnerLogical = goalLineLogical(1);
+  const goalOuterLogical = goalLineLogical(outerLane);
+  let track: Phaser.GameObjects.Graphics | null = null;
+
   class RaceScene extends Phaser.Scene {
     constructor() {
       super("race");
@@ -235,8 +162,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
 
     create() {
       this.cameras.main.setBackgroundColor("#145c34");
-      const track = this.add.graphics().setDepth(1);
-      drawOval(track, race.horses.length);
+      track = this.add.graphics().setDepth(1);
 
       for (const horse of race.horses) {
         const key = `gallop-${horse.id}`;
@@ -456,6 +382,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         hooks.onComment(latest);
       }
 
+      this.paintTrack();
       this.paintGates();
       this.placeHorses();
       this.publishRanks();
@@ -465,6 +392,97 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         finished = true;
         hooks.onCutin(null);
         hooks.onComplete();
+      }
+    }
+
+    paintTrack() {
+      if (!track) return;
+      track.clear();
+
+      const trackOuter = projectLogicalPoints(trackOuterLogical, currentCamera);
+      const trackInner = projectLogicalPoints(trackInnerLogical, currentCamera);
+      const railOut = projectLogicalPoints(railOutLogical, currentCamera);
+      const railIn = projectLogicalPoints(railInLogical, currentCamera);
+
+      track.fillStyle(0xc4a06a, 1);
+      track.beginPath();
+      if (trackOuter[0]) track.moveTo(trackOuter[0].x, trackOuter[0].y);
+      for (const point of trackOuter) track.lineTo(point.x, point.y);
+      track.closePath();
+      track.fillPath();
+
+      track.fillStyle(0x176b3c, 1);
+      track.beginPath();
+      if (trackInner[0]) track.moveTo(trackInner[0].x, trackInner[0].y);
+      for (const point of trackInner) track.lineTo(point.x, point.y);
+      track.closePath();
+      track.fillPath();
+
+      track.lineStyle(5, 0xf7f4ee, 1);
+      track.beginPath();
+      if (railOut[0]) track.moveTo(railOut[0].x, railOut[0].y);
+      for (const point of railOut) track.lineTo(point.x, point.y);
+      track.closePath();
+      track.strokePath();
+      track.beginPath();
+      if (railIn[0]) track.moveTo(railIn[0].x, railIn[0].y);
+      for (const point of railIn) track.lineTo(point.x, point.y);
+      track.closePath();
+      track.strokePath();
+
+      const chuteOuter = projectLogicalPoints(chuteOuterLogical, currentCamera);
+      const chuteInner = projectLogicalPoints(chuteInnerLogical, currentCamera);
+      if (chuteOuter.length > 1 && chuteInner.length > 1) {
+        track.fillStyle(0xc4a06a, 1);
+        track.beginPath();
+        if (chuteOuter[0]) track.moveTo(chuteOuter[0].x, chuteOuter[0].y);
+        for (const point of chuteOuter) track.lineTo(point.x, point.y);
+        for (let index = chuteInner.length - 1; index >= 0; index -= 1) {
+          const point = chuteInner[index];
+          if (point) track.lineTo(point.x, point.y);
+        }
+        track.closePath();
+        track.fillPath();
+        track.lineStyle(5, 0xf7f4ee, 1);
+        track.beginPath();
+        if (chuteOuter[0]) track.moveTo(chuteOuter[0].x, chuteOuter[0].y);
+        for (const point of chuteOuter) track.lineTo(point.x, point.y);
+        track.strokePath();
+        track.beginPath();
+        if (chuteInner[0]) track.moveTo(chuteInner[0].x, chuteInner[0].y);
+        for (const point of chuteInner) track.lineTo(point.x, point.y);
+        track.strokePath();
+      }
+
+      const heads = [0xe23b3b, 0xf0c14d, 0x1f8a84, 0x7c5cbf, 0xf6f1e7, 0x2a6f9a, 0xc47a4a];
+      const crowd = projectLogicalPoints(crowdLogical, currentCamera);
+      crowd.forEach((point, index) => {
+        if (point.visible && track) {
+          track.fillStyle(heads[index % heads.length] ?? 0xf6f1e7, 1);
+          track.fillCircle(point.x, point.y, 7 * point.scale);
+        }
+      });
+
+      const goalInner = projectWithCamera({ x: goalInnerLogical.x, y: goalInnerLogical.y, tx: 0, ty: 0 }, currentCamera);
+      const goalOuter = projectWithCamera({ x: goalOuterLogical.x, y: goalOuterLogical.y, tx: 0, ty: 0 }, currentCamera);
+      if (goalInner.visible && goalOuter.visible && track) {
+        const steps = 12;
+        for (let index = 0; index < steps; index += 1) {
+          const from = index / steps;
+          const to = (index + 1) / steps;
+          track.lineStyle(12, index % 2 === 0 ? 0x161616 : 0xf7f7f7, 1);
+          track.lineBetween(
+            goalInner.x + (goalOuter.x - goalInner.x) * from,
+            goalInner.y + (goalOuter.y - goalInner.y) * from,
+            goalInner.x + (goalOuter.x - goalInner.x) * to,
+            goalInner.y + (goalOuter.y - goalInner.y) * to,
+          );
+        }
+        if (track) {
+          track.fillStyle(0xc62828, 1);
+          track.fillCircle(goalInner.x, goalInner.y, 11);
+          track.fillCircle(goalOuter.x, goalOuter.y, 11);
+        }
       }
     }
 
