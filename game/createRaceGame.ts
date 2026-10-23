@@ -14,11 +14,12 @@ import {
   type ShowBeat,
 } from "@/game/skillShow";
 import { playBang } from "@/game/bang";
-import { LANE_GAP, cutPose, laneRadius, poseAt, poseOnRadius, renderLane, sampleChute, sampleRadius, viewBounds, projectWithCamera, sampleRadiusLogical, sampleChuteLogical, projectLogicalPoints, goalLineLogical, type TrackPose } from "@/game/track";
+import { LANE_GAP, cutPose, laneRadius, renderLane, viewBounds, projectWithCamera, sampleRadiusLogical, sampleChuteLogical, projectLogicalPoints, goalLineLogical, type TrackPose } from "@/game/track";
 import {
   createInitialState,
   nextCameraState,
   getCameraForState,
+  shouldScaleHorseInCorner,
   type CameraState,
   type RaceSnapshot,
 } from "@/game/cameraState";
@@ -76,6 +77,62 @@ type Actor = {
 
 function sheetFor(horse: RaceHorse) {
   return SILKS[(horse.number - 1) % SILKS.length] ?? SILKS[0];
+}
+
+function getLogicalAt(progress: number, lane: number) {
+  const STRAIGHT = 1712;
+  const INNER_RADIUS = 256;
+  const LANE_GAP = 58;
+  const CHUTE = 158;
+  const STRAIGHT_BACK = 1418;
+  const REFERENCE_RADIUS = INNER_RADIUS + 3 * LANE_GAP;
+  const GOAL_ALONG = 0.920;
+  
+  const radius = laneRadius(lane);
+  const halfBack = STRAIGHT_BACK / 2;
+  const halfHome = STRAIGHT / 2;
+  const corner = Math.PI * radius;
+  const total = CHUTE + STRAIGHT_BACK + Math.PI * REFERENCE_RADIUS + GOAL_ALONG * STRAIGHT;
+  let cursor = Math.max(0, progress * total);
+  
+  if (cursor <= CHUTE) {
+    const x = halfBack + CHUTE - cursor;
+    const y = -radius;
+    return { x, y, tx: -1, ty: 0 };
+  }
+  cursor -= CHUTE;
+  
+  if (cursor <= STRAIGHT_BACK) {
+    const x = halfBack - cursor;
+    const y = -radius;
+    return { x, y, tx: -1, ty: 0 };
+  }
+  cursor -= STRAIGHT_BACK;
+  
+  if (cursor <= corner) {
+    const theta = -Math.PI / 2 + cursor / radius;
+    return {
+      x: -halfHome + Math.cos(theta) * radius,
+      y: Math.sin(theta) * radius,
+      tx: -Math.sin(theta),
+      ty: Math.cos(theta),
+    };
+  }
+  cursor -= corner;
+  
+  if (cursor <= GOAL_ALONG * STRAIGHT) {
+    const x = -halfHome + cursor;
+    const y = radius;
+    return { x, y, tx: 1, ty: 0 };
+  }
+  
+  const theta = Math.PI / 2 + (cursor - GOAL_ALONG * STRAIGHT) / radius;
+  return {
+    x: halfHome + Math.cos(theta) * radius,
+    y: Math.sin(theta) * radius,
+    tx: -Math.sin(theta),
+    ty: Math.cos(theta),
+  };
 }
 
 const COUNT_STEP = 0.8;
@@ -519,9 +576,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const actor = sortedByProgress[i];
         if (actor) {
           const displayLane = renderLane(actor.horse.number, progressAt(actor.horse.samples, raceTime), race.seed);
-          const pose = poseAt(progressAt(actor.horse.samples, raceTime), displayLane);
-          packCenterX += pose.x;
-          packCenterY += pose.y;
+          const logical = getLogicalAt(progressAt(actor.horse.samples, raceTime), displayLane);
+          packCenterX += logical.x;
+          packCenterY += logical.y;
         }
       }
       packCenterX /= leadCount;
@@ -643,7 +700,13 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const brakeLean = braking ? Math.sin((1 - pull) * Math.PI) * 20 : 0;
         actor.container.setAngle(pose.lean + brakeLean * (pose.flipX ? 1 : -1));
         const punch = castingNow && kind === "start" && payoffAge < 0.08 ? 1.08 : 1;
-        actor.container.setScale((HORSE_HEIGHT / FRAME_HEIGHT) * pose.scale * punch);
+        
+        const inCornerCloseup = cameraState.name === "CLOSEUP" && 
+                               cameraState.closeupHorseIndex === (actor.horse.number - 1) &&
+                               shouldScaleHorseInCorner(cameraState);
+        const closeupScale = inCornerCloseup ? 1.15 : 1;
+        
+        actor.container.setScale((HORSE_HEIGHT / FRAME_HEIGHT) * pose.scale * punch * closeupScale);
         actor.container.setDepth(pose.y);
         const footAge = raceTime - actor.horse.footFrom;
         const sucking = onFoot && footAge >= 0 && footAge < 0.4;
@@ -770,7 +833,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const ahead = progressAt(actor.horse.samples, raceTime + 0.2) - actor.progress;
         const pull = Math.max(0, Math.min(1, ahead / 0.003));
         if (pull < 0.08) continue;
-        const pose = poseAt(actor.progress, actor.horse.number);
+        const logical = getLogicalAt(actor.progress, actor.horse.number);
+        const pose = projectWithCamera(logical, currentCamera);
         const backX = -pose.tangentX;
         const backY = -pose.tangentY;
         brakeHaze?.fillStyle(0xf7f4ee, 0.34 + pull * 0.4);
@@ -884,7 +948,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       if (!caster) return;
       const kind = skillById(caster.horse.skillId).kind;
       const age = Math.max(0, wallClock - showStart - INTRO);
-      const pose = poseAt(caster.progress, caster.horse.number);
+      const logical = getLogicalAt(caster.progress, caster.horse.number);
+      const pose = projectWithCamera(logical, currentCamera);
       const backX = -pose.tangentX;
       const backY = -pose.tangentY;
       const frame = caster.sprite.frame.name;
@@ -1035,97 +1100,62 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       if (!gates) return;
       gates.clear();
       const lanes = race.horses.length;
-      const posts: TrackPose[] = [];
+      
       for (let lane = 0; lane <= lanes; lane += 1) {
-        posts.push(poseOnRadius(0, laneRadius(1) - LANE_GAP / 2 + lane * LANE_GAP));
-      }
-      for (let index = 0; index < posts.length - 1; index += 1) {
-        const left = posts[index];
-        const right = posts[index + 1];
-        if (!left || !right) continue;
-        const pose = poseAt(0, index + 1);
-        const back = 84;
-        const front = 34;
-        const lx = left.x - pose.tangentX * back;
-        const ly = left.y - pose.tangentY * back;
-        const rx = right.x - pose.tangentX * back;
-        const ry = right.y - pose.tangentY * back;
-        const lfx = left.x + pose.tangentX * front;
-        const lfy = left.y + pose.tangentY * front;
-        const rfx = right.x + pose.tangentX * front;
-        const rfy = right.y + pose.tangentY * front;
-        gates.setDepth(!started || gateOpen < 0.85 ? 4000 : 2);
-        gates.fillStyle(0x8a6239, 1);
-        gates.fillCircle(lx, ly, 7);
-        gates.fillCircle(rx, ry, 7);
-        gates.lineStyle(7, 0x5c3b22, 1);
-        gates.lineBetween(lx, ly, lfx, lfy);
-        gates.lineBetween(rx, ry, rfx, rfy);
-        gates.lineBetween(lx, ly, rx, ry);
-        const mx = (lfx + rfx) / 2;
-        const my = (lfy + rfy) / 2;
-        const swing = gateOpen * 1.35;
-        const turn = (dx: number, dy: number, angle: number) => ({
-          x: dx * Math.cos(angle) - dy * Math.sin(angle),
-          y: dx * Math.sin(angle) + dy * Math.cos(angle),
-        });
-        const leftDoor = turn(mx - lfx, my - lfy, -swing);
-        const rightDoor = turn(mx - rfx, my - rfy, swing);
-        gates.lineStyle(8, 0xf4f1ea, 1);
-        gates.lineBetween(lfx, lfy, lfx + leftDoor.x, lfy + leftDoor.y);
-        gates.lineBetween(rfx, rfy, rfx + rightDoor.x, rfy + rightDoor.y);
+        const radius = laneRadius(1) - LANE_GAP / 2 + lane * LANE_GAP;
+        const leftLogical = { x: 709 + 158, y: -radius, tx: -1, ty: 0 };
+        
+        const post = projectWithCamera(leftLogical, currentCamera);
+        if (!post.visible) continue;
+        
+        if (lane < lanes) {
+          const rightRadius = laneRadius(1) - LANE_GAP / 2 + (lane + 1) * LANE_GAP;
+          const rightPost = projectWithCamera({ x: 709 + 158, y: -rightRadius, tx: -1, ty: 0 }, currentCamera);
+          
+          if (rightPost.visible) {
+            const back = 84;
+            const front = 34;
+            
+            const lx = post.x + post.tangentX * back;
+            const ly = post.y + post.tangentY * back;
+            const rx = rightPost.x + rightPost.tangentX * back;
+            const ry = rightPost.y + rightPost.tangentY * back;
+            const lfx = post.x - post.tangentX * front;
+            const lfy = post.y - post.tangentY * front;
+            const rfx = rightPost.x - rightPost.tangentX * front;
+            const rfy = rightPost.y - rightPost.tangentY * front;
+            
+            gates.setDepth(!started || gateOpen < 0.85 ? 4000 : 2);
+            gates.fillStyle(0x8a6239, 1);
+            gates.fillCircle(lx, ly, 7);
+            gates.fillCircle(rx, ry, 7);
+            gates.lineStyle(7, 0x5c3b22, 1);
+            gates.lineBetween(lx, ly, lfx, lfy);
+            gates.lineBetween(rx, ry, rfx, rfy);
+            gates.lineBetween(lx, ly, rx, ry);
+            
+            const mx = (lfx + rfx) / 2;
+            const my = (lfy + rfy) / 2;
+            const swing = gateOpen * 1.35;
+            const turn = (dx: number, dy: number, angle: number) => ({
+              x: dx * Math.cos(angle) - dy * Math.sin(angle),
+              y: dx * Math.sin(angle) + dy * Math.cos(angle),
+            });
+            const leftDoor = turn(mx - lfx, my - lfy, -swing);
+            const rightDoor = turn(mx - rfx, my - rfy, swing);
+            gates.lineStyle(8, 0xf4f1ea, 1);
+            gates.lineBetween(lfx, lfy, lfx + leftDoor.x, lfy + leftDoor.y);
+            gates.lineBetween(rfx, rfy, rfx + rightDoor.x, rfy + rightDoor.y);
+          }
+        }
       }
     }
 
     frameCamera(immediate: boolean) {
       const camera = this.cameras.main;
-      const fitZoom = Math.min(camera.width / bounds.width, camera.height / bounds.height) * 0.92;
-      restZoom = Math.max(0.2, fitZoom);
-      const gateA = poseAt(0, 1);
-      const gateB = poseAt(0, race.horses.length);
-      const gateSpan = Math.hypot(gateB.x - gateA.x, gateB.y - gateA.y) + 280;
-      const gateZoom = Phaser.Math.Clamp((camera.height / gateSpan) * 1.2, restZoom + 0.45, 1.75);
-      let focusX = (gateA.x + gateB.x) / 2;
-      let focusY = (gateA.y + gateB.y) / 2;
-      let targetZoom = gateZoom;
-      const showing = beat === "focus" || beat === "announce";
-      const skillHorse = showing ? actors.find((actor) => actor.horse.number === skillFocusNumber) : undefined;
-      const nearFinish = started && actors.some((actor) => actor.progress >= 0.9);
-      if (!started) {
-        targetZoom = gateZoom;
-      } else if (skillHorse) {
-        targetZoom = Math.max(FOCUS_ZOOM, restZoom + 0.5);
-        focusX = skillHorse.container.x;
-        focusY = skillHorse.container.y;
-      } else if (nearFinish) {
-        const inner = poseAt(1, 1);
-        const outer = poseAt(1, race.horses.length);
-        focusX = (inner.x + outer.x) / 2;
-        focusY = (inner.y + outer.y) / 2;
-        targetZoom = Math.max(1.05, restZoom + 0.4);
-      } else {
-        focusX = bounds.x + bounds.width / 2;
-        focusY = bounds.y + bounds.height / 2;
-        targetZoom = restZoom;
-      }
-      const zoomStep = targetZoom > zoom ? ZOOM_IN : showing ? ZOOM_OUT : 0.08;
-      zoom += (targetZoom - zoom) * (immediate ? 1 : zoomStep);
-      const viewW = camera.width / zoom;
-      const viewH = camera.height / zoom;
-      const halfW = camera.width / 2;
-      const halfH = camera.height / 2;
-      const desiredX =
-        viewW >= bounds.width
-          ? bounds.x + bounds.width / 2 - halfW
-          : Phaser.Math.Clamp(focusX - halfW, bounds.x + viewW / 2 - halfW, bounds.x + bounds.width - viewW / 2 - halfW);
-      const desiredY =
-        viewH >= bounds.height
-          ? bounds.y + bounds.height / 2 - halfH
-          : Phaser.Math.Clamp(focusY - halfH, bounds.y + viewH / 2 - halfH, bounds.y + bounds.height - viewH / 2 - halfH);
-      const blend = immediate ? 1 : showing ? 0.45 : nearFinish ? 0.4 : 0.2;
-      camera.setZoom(zoom);
-      camera.scrollX += (desiredX - camera.scrollX) * blend;
-      camera.scrollY += (desiredY - camera.scrollY) * blend;
+      camera.setZoom(1);
+      camera.scrollX = 0;
+      camera.scrollY = 0;
     }
 
     publishRanks() {

@@ -106,72 +106,101 @@ export function exitCloseup(current: CameraState): CameraState {
   };
 }
 
+type CameraTarget = {
+  targetX: number;
+  targetY: number;
+  distance: number;
+  azimuth: number;
+  elevation: number;
+  focalLength: number;
+};
+
+function cameraLookAt(target: CameraTarget): Camera {
+  const azimuthRad = target.azimuth * (Math.PI / 180);
+  const elevationRad = target.elevation * (Math.PI / 180);
+  
+  const groundX = target.targetX - target.distance * Math.cos(elevationRad) * Math.sin(azimuthRad);
+  const groundY = target.targetY - target.distance * Math.cos(elevationRad) * Math.cos(azimuthRad);
+  const height = target.distance * Math.sin(elevationRad);
+  
+  const dx = target.targetX - groundX;
+  const dy = target.targetY - groundY;
+  const dh = 0 - height;
+  
+  const yaw = Math.atan2(dx, dy);
+  const horizontalDist = Math.hypot(dx, dy);
+  const pitch = -Math.atan2(dh, horizontalDist);
+  
+  return {
+    groundX,
+    groundY,
+    height,
+    pitch,
+    yaw,
+    focalLength: target.focalLength,
+  };
+}
+
 export function getCameraForState(
   state: CameraState,
   snapshot: RaceSnapshot,
   packCenterX: number,
   packCenterY: number
 ): Camera {
-  const deg = Math.PI / 180;
-
   switch (state.name) {
     case "START": {
-      return {
-        groundX: packCenterX,
-        groundY: -850,
-        height: 580,
-        pitch: 42 * deg,
-        yaw: 0,
-        focalLength: 820,
-      };
+      return cameraLookAt({
+        targetX: packCenterX,
+        targetY: -700,
+        distance: 450,
+        azimuth: 0,
+        elevation: 35,
+        focalLength: 850,
+      });
     }
 
     case "STRAIGHT": {
-      return {
-        groundX: packCenterX,
-        groundY: packCenterY - 180,
-        height: 320,
-        pitch: 8 * deg,
-        yaw: 0,
-        focalLength: 1050,
-      };
+      return cameraLookAt({
+        targetX: packCenterX,
+        targetY: packCenterY,
+        distance: 280,
+        azimuth: 0,
+        elevation: 12,
+        focalLength: 1100,
+      });
     }
 
     case "CORNER_IN": {
-      const ends = segmentEnds();
-      const cornerFrac = (snapshot.leadProgress - ends.backStraightEnd) / (ends.cornerEnd - ends.backStraightEnd);
-      const approachFactor = Math.min(1, cornerFrac * 3);
-      
-      return {
-        groundX: -650 + approachFactor * 150,
-        groundY: -350,
-        height: 480,
-        pitch: 28 * deg,
-        yaw: -48 * deg,
-        focalLength: 920,
-      };
+      return cameraLookAt({
+        targetX: -600,
+        targetY: -250,
+        distance: 580,
+        azimuth: -42,
+        elevation: 24,
+        focalLength: 990,
+      });
     }
 
     case "CORNER_OUT": {
-      return {
-        groundX: 650,
-        groundY: 380,
-        height: 550,
-        pitch: 32 * deg,
-        yaw: 130 * deg,
-        focalLength: 950,
-      };
+      return cameraLookAt({
+        targetX: 100,
+        targetY: 150,
+        distance: 480,
+        azimuth: 135,
+        elevation: 28,
+        focalLength: 1020,
+      });
     }
 
     case "FINISH": {
-      return {
-        groundX: 0,
-        groundY: 950,
-        height: 680,
-        pitch: 75 * deg,
-        yaw: 180 * deg,
-        focalLength: 1050,
-      };
+      return cameraLookAt({
+        targetX: 0,
+        targetY: 700,
+        distance: 400,
+        azimuth: 180,
+        elevation: 58,
+        focalLength: 1150,
+      });
     }
 
     case "CLOSEUP": {
@@ -181,24 +210,28 @@ export function getCameraForState(
         return getCameraForState({ name: "STRAIGHT" }, snapshot, packCenterX, packCenterY);
       }
 
-      return {
-        groundX: packCenterX,
-        groundY: packCenterY - 100,
-        height: 220,
-        pitch: 15 * deg,
-        yaw: 0,
-        focalLength: 1350,
-      };
+      return cameraLookAt({
+        targetX: packCenterX,
+        targetY: packCenterY,
+        distance: 180,
+        azimuth: 0,
+        elevation: 18,
+        focalLength: 1400,
+      });
     }
 
     default:
-      return {
-        groundX: 0,
-        groundY: -1050,
-        height: 1730,
-        pitch: 60 * deg,
-        yaw: 0,
-        focalLength: 620,
-      };
+      return cameraLookAt({
+        targetX: 0,
+        targetY: 0,
+        distance: 1500,
+        azimuth: 0,
+        elevation: 55,
+        focalLength: 650,
+      });
   }
+}
+
+export function shouldScaleHorseInCorner(state: CameraState): boolean {
+  return state.name === "CORNER_IN" || state.name === "CORNER_OUT";
 }
