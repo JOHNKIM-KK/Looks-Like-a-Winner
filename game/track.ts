@@ -154,7 +154,7 @@ export function createDefaultCamera(): Camera {
   };
 }
 
-function projectWithCamera(logical: Logical, camera: Camera): TrackPose {
+export function projectWithCamera(logical: Logical, camera: Camera): TrackPose {
   const dx = logical.x - camera.groundX;
   const dy = logical.y - camera.groundY;
   

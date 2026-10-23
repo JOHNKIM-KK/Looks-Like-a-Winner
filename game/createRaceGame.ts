@@ -14,7 +14,14 @@ import {
   type ShowBeat,
 } from "@/game/skillShow";
 import { playBang } from "@/game/bang";
-import { LANE_GAP, cutPose, laneRadius, poseAt, poseOnRadius, renderLane, sampleChute, sampleRadius, viewBounds, type TrackPose } from "@/game/track";
+import { LANE_GAP, cutPose, laneRadius, poseAt, poseOnRadius, renderLane, sampleChute, sampleRadius, viewBounds, projectWithCamera, type TrackPose } from "@/game/track";
+import {
+  createInitialState,
+  nextCameraState,
+  getCameraForState,
+  type CameraState,
+  type RaceSnapshot,
+} from "@/game/cameraState";
 
 const FRAME_WIDTH = 213;
 const FRAME_HEIGHT = 211;
@@ -201,6 +208,14 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   const fired = new Set<number>();
   const releasedSkills = new Set<number>();
   const cutinQueue: SkillCutin[] = [];
+  let cameraState: CameraState = createInitialState();
+  let currentCamera = getCameraForState(cameraState, {
+    raceTime: 0,
+    started: false,
+    gateOpen: 0,
+    leadProgress: 0,
+    horses: [],
+  }, 0, 0);
 
   class RaceScene extends Phaser.Scene {
     constructor() {
@@ -454,6 +469,48 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
 
     placeHorses() {
+      const leadHorse = [...actors].sort((a, b) => {
+        const aProgress = progressAt(a.horse.samples, raceTime);
+        const bProgress = progressAt(b.horse.samples, raceTime);
+        return bProgress - aProgress;
+      })[0];
+      const leadProgress = leadHorse ? progressAt(leadHorse.horse.samples, raceTime) : 0;
+
+      const snapshot: RaceSnapshot = {
+        raceTime,
+        started,
+        gateOpen,
+        leadProgress: started && gateOpen >= 1 ? leadProgress : 0,
+        horses: actors.map((actor, index) => ({
+          index,
+          progress: progressAt(actor.horse.samples, raceTime),
+        })),
+      };
+
+      cameraState = nextCameraState(cameraState, snapshot);
+
+      const sortedByProgress = [...actors].sort((a, b) => {
+        const aProgress = progressAt(a.horse.samples, raceTime);
+        const bProgress = progressAt(b.horse.samples, raceTime);
+        return bProgress - aProgress;
+      });
+      const leadCount = Math.min(4, sortedByProgress.length);
+      let packCenterX = 0;
+      let packCenterY = 0;
+      for (let i = 0; i < leadCount; i += 1) {
+        const actor = sortedByProgress[i];
+        if (actor) {
+          const displayLane = renderLane(actor.horse.number, progressAt(actor.horse.samples, raceTime), race.seed);
+          const pose = poseAt(progressAt(actor.horse.samples, raceTime), displayLane);
+          packCenterX += pose.x;
+          packCenterY += pose.y;
+        }
+      }
+      packCenterX /= leadCount;
+      packCenterY /= leadCount;
+
+      currentCamera = getCameraForState(cameraState, snapshot, packCenterX, packCenterY);
+
       for (const actor of actors) {
         const sample = progressAt(actor.horse.samples, raceTime);
         actor.progress = !started ? 0 : gateOpen < 1 ? sample * gateOpen : sample;
@@ -477,18 +534,82 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           raceTime < actor.horse.cutUntil;
         const cutBlend = cutting ? (raceTime - actor.horse.skillTime) / (actor.horse.cutUntil - actor.horse.skillTime) : 0;
         const displayLane = renderLane(actor.horse.number, actor.progress, race.seed);
-        let pose = poseAt(actor.progress, displayLane);
+        
+        const logicalFromLoop = (progress: number, lane: number) => {
+          const radius = laneRadius(lane);
+          const STRAIGHT = 1712;
+          const INNER_RADIUS = 256;
+          const LANE_GAP = 58;
+          const CHUTE = 158;
+          const STRAIGHT_BACK = 1418;
+          const REFERENCE_RADIUS = INNER_RADIUS + 3 * LANE_GAP;
+          const GOAL_ALONG = 0.920;
+          
+          const halfBack = STRAIGHT_BACK / 2;
+          const halfHome = STRAIGHT / 2;
+          const corner = Math.PI * radius;
+          const total = CHUTE + STRAIGHT_BACK + Math.PI * REFERENCE_RADIUS + GOAL_ALONG * STRAIGHT;
+          let cursor = Math.max(0, progress * total);
+          
+          if (cursor <= CHUTE) {
+            return { x: halfBack + CHUTE - cursor, y: -radius, tx: -1, ty: 0 };
+          }
+          cursor -= CHUTE;
+          
+          if (cursor <= STRAIGHT_BACK) {
+            return { x: halfBack - cursor, y: -radius, tx: -1, ty: 0 };
+          }
+          cursor -= STRAIGHT_BACK;
+          
+          if (cursor <= corner) {
+            const theta = -Math.PI / 2 + cursor / radius;
+            return {
+              x: -halfHome + Math.cos(theta) * radius,
+              y: Math.sin(theta) * radius,
+              tx: -Math.sin(theta),
+              ty: Math.cos(theta),
+            };
+          }
+          cursor -= corner;
+          
+          if (cursor <= GOAL_ALONG * STRAIGHT) {
+            return { x: -halfHome + cursor, y: radius, tx: 1, ty: 0 };
+          }
+          
+          const theta = Math.PI / 2 + (cursor - GOAL_ALONG * STRAIGHT) / radius;
+          return {
+            x: halfHome + Math.cos(theta) * radius,
+            y: Math.sin(theta) * radius,
+            tx: -Math.sin(theta),
+            ty: Math.cos(theta),
+          };
+        };
+
+        const logical = logicalFromLoop(actor.progress, displayLane);
+        let pose = projectWithCamera(logical, currentCamera);
+        
         if (cutting) {
-          pose = cutPose(actor.horse.cutFrom, actor.horse.cutTo, displayLane, cutBlend);
+          const cutFrom = logicalFromLoop(actor.horse.cutFrom, displayLane);
+          const cutTo = logicalFromLoop(actor.horse.cutTo, displayLane);
+          const cutLogical = {
+            x: cutFrom.x + (cutTo.x - cutFrom.x) * cutBlend,
+            y: cutFrom.y + (cutTo.y - cutFrom.y) * cutBlend,
+            tx: cutFrom.tx + (cutTo.tx - cutFrom.tx) * cutBlend,
+            ty: cutFrom.ty + (cutTo.ty - cutFrom.ty) * cutBlend,
+          };
+          pose = projectWithCamera(cutLogical, currentCamera);
         } else if (swapping) {
           const blend = swapBlend;
-          const previous = poseAt(actor.horse.swapFrom, displayLane);
-          pose = {
-            ...pose,
-            x: previous.x + (pose.x - previous.x) * blend,
-            y: previous.y + (pose.y - previous.y) * blend,
+          const previous = logicalFromLoop(actor.horse.swapFrom, displayLane);
+          const swapLogical = {
+            x: previous.x + (logical.x - previous.x) * blend,
+            y: previous.y + (logical.y - previous.y) * blend,
+            tx: previous.tx + (logical.tx - previous.tx) * blend,
+            ty: previous.ty + (logical.ty - previous.ty) * blend,
           };
+          pose = projectWithCamera(swapLogical, currentCamera);
         }
+        
         actor.container.setVisible(pose.visible);
         if (!pose.visible) continue;
         
