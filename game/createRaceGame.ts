@@ -177,6 +177,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   let lastComment = "";
   let countdownText: Phaser.GameObjects.Text | null = null;
   let gates: Phaser.GameObjects.Graphics | null = null;
+  let debugOverlay: Phaser.GameObjects.Graphics | null = null;
+  let debugText: Phaser.GameObjects.Text | null = null;
   const fired = new Set<number>();
   const releasedSkills = new Set<number>();
   const cutinQueue: SkillCutin[] = [];
@@ -188,6 +190,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     leadProgress: 0,
     horses: [],
   }, 0, 0);
+  
+  const DEBUG_ENABLED = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
 
   const outerLane = Math.max(1, race.horses.length);
   const trackOuterLogical = sampleRadiusLogical(laneRadius(outerLane) + 28, 140);
@@ -346,6 +350,14 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         .setVisible(false);
 
       gates = this.add.graphics().setDepth(2);
+      debugOverlay = this.add.graphics().setDepth(10000);
+      debugText = this.add.text(10, 10, '', {
+        fontFamily: 'monospace',
+        fontSize: '20px',
+        color: '#ffff00',
+        backgroundColor: '#000000dd',
+        padding: { x: 10, y: 10 },
+      }).setDepth(10001).setVisible(DEBUG_ENABLED).setScrollFactor(0);
       countdownText = this.add
         .text(this.cameras.main.width / 2, this.cameras.main.height / 2, "3", {
           fontFamily: "sans-serif",
@@ -444,6 +456,10 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       this.placeHorses();
       this.publishRanks();
       this.frameCamera(false);
+      
+      if (DEBUG_ENABLED) {
+        this.paintDebugOverlay();
+      }
 
       if (!finished && raceTime >= race.duration) {
         finished = true;
@@ -569,7 +585,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const bProgress = progressAt(b.horse.samples, raceTime);
         return bProgress - aProgress;
       });
-      const leadCount = Math.min(4, sortedByProgress.length);
+      const leadCount = actors.length;
       let packCenterX = 0;
       let packCenterY = 0;
       for (let i = 0; i < leadCount; i += 1) {
@@ -1179,6 +1195,69 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           portrait: actor.horse.portrait,
         })),
       );
+    }
+    
+    paintDebugOverlay() {
+      if (!debugOverlay) return;
+      debugOverlay.clear();
+      
+      // 무리 중심 계산
+      let packCenterX = 0;
+      let packCenterY = 0;
+      let visibleCount = 0;
+      let horsePosSum = { x: 0, y: 0 };
+      
+      actors.forEach(actor => {
+        const logical = getLogicalAt(actor.progress, actor.horse.number);
+        packCenterX += logical.x;
+        packCenterY += logical.y;
+        horsePosSum.x += actor.container.x;
+        horsePosSum.y += actor.container.y;
+      });
+      
+      packCenterX /= actors.length;
+      packCenterY /= actors.length;
+      horsePosSum.x /= actors.length;
+      horsePosSum.y /= actors.length;
+      
+      // 화면 중심 (파란 선 - 가로/세로 전체)
+      const centerX = GAME_WIDTH / 2;
+      const centerY = GAME_HEIGHT * 0.474;
+      debugOverlay.lineStyle(2, 0x0000ff, 0.6);
+      debugOverlay.lineBetween(0, centerY, GAME_WIDTH, centerY);
+      debugOverlay.lineBetween(centerX, 0, centerX, GAME_HEIGHT);
+      
+      // 실제 말 평균 위치 (초록 십자선)
+      debugOverlay.lineStyle(4, 0x00ff00, 1);
+      debugOverlay.lineBetween(horsePosSum.x - 40, horsePosSum.y, horsePosSum.x + 40, horsePosSum.y);
+      debugOverlay.lineBetween(horsePosSum.x, horsePosSum.y - 40, horsePosSum.x, horsePosSum.y + 40);
+      
+      // 각 말의 노란 점
+      actors.forEach(actor => {
+        const logical = getLogicalAt(actor.progress, actor.horse.number);
+        const projected = projectWithCamera(logical, currentCamera);
+        
+        if (projected.visible && projected.x >= 0 && projected.x <= GAME_WIDTH && projected.y >= 0 && projected.y <= GAME_HEIGHT) {
+          visibleCount++;
+        }
+        
+        debugOverlay?.fillStyle(0xffff00, 1);
+        debugOverlay?.fillCircle(actor.container.x, actor.container.y, 10);
+      });
+      
+      // 텍스트 정보
+      const offsetX = horsePosSum.x - centerX;
+      const offsetY = horsePosSum.y - centerY;
+      const infoText = [
+        `State: ${cameraState.name}`,
+        `Pack: (${horsePosSum.x.toFixed(0)}, ${horsePosSum.y.toFixed(0)})`,
+        `Offset: (${offsetX.toFixed(0)}, ${offsetY.toFixed(0)})`,
+        `Logic: (${packCenterX.toFixed(0)}, ${packCenterY.toFixed(0)})`,
+        `Center: (${centerX}, ${centerY.toFixed(0)})`,
+        `Visible: ${visibleCount}/8`,
+      ].join('\\n');
+      
+      debugText?.setText(infoText);
     }
   }
 
