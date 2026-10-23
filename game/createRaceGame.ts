@@ -14,7 +14,7 @@ import {
   type ShowBeat,
 } from "@/game/skillShow";
 import { playBang } from "@/game/bang";
-import { LANE_GAP, cutPose, laneRadius, poseAt, poseOnRadius, sampleChute, sampleRadius, viewBounds, type TrackPose } from "@/game/track";
+import { LANE_GAP, cutPose, laneRadius, poseAt, poseOnRadius, renderLane, sampleChute, sampleRadius, viewBounds, type TrackPose } from "@/game/track";
 
 const FRAME_WIDTH = 213;
 const FRAME_HEIGHT = 211;
@@ -475,12 +475,13 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           raceTime >= actor.horse.skillTime &&
           raceTime < actor.horse.cutUntil;
         const cutBlend = cutting ? (raceTime - actor.horse.skillTime) / (actor.horse.cutUntil - actor.horse.skillTime) : 0;
-        let pose = poseAt(actor.progress, actor.horse.number);
+        const displayLane = renderLane(actor.horse.number, actor.progress, race.seed);
+        let pose = poseAt(actor.progress, displayLane);
         if (cutting) {
-          pose = cutPose(actor.horse.cutFrom, actor.horse.cutTo, actor.horse.number, cutBlend);
+          pose = cutPose(actor.horse.cutFrom, actor.horse.cutTo, displayLane, cutBlend);
         } else if (swapping) {
           const blend = swapBlend;
-          const previous = poseAt(actor.horse.swapFrom, actor.horse.number);
+          const previous = poseAt(actor.horse.swapFrom, displayLane);
           pose = {
             ...pose,
             x: previous.x + (pose.x - previous.x) * blend,
