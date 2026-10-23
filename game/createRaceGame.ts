@@ -145,9 +145,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   let wallClock = 0;
   let started = false;
   let gateOpen = 0;
-  let restZoom = 0.45;
+  const restZoom = 0.45;
   let finished = false;
-  let zoom = 1;
+  const zoom = 1;
   let skillFocusNumber = 0;
   let showStart = -1;
   let showSkillTime = 0;
@@ -388,6 +388,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         countdownText?.setText(label).setPosition(camera.width / 2, camera.height * 0.42);
         if (wallClock < COUNT_STEP * 3) {
           raceTime = 0;
+          this.paintTrack();
           this.paintGates();
           this.placeHorses();
           this.publishRanks();
@@ -515,30 +516,35 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
 
       const chuteOuter = projectLogicalPoints(chuteOuterLogical, currentCamera);
       const chuteInner = projectLogicalPoints(chuteInnerLogical, currentCamera);
-      // Always render chute, even if some points are off-screen
-      if (chuteOuter.length > 1 && chuteInner.length > 1) {
+      
+      if (chuteOuter.length > 1 && chuteInner.length > 1 && chuteOuter[0] && chuteInner[0]) {
         track.fillStyle(0xc4a06a, 1);
         track.beginPath();
-        if (chuteOuter[0]) track.moveTo(chuteOuter[0].x, chuteOuter[0].y);
-        for (const point of chuteOuter) {
+        track.moveTo(chuteOuter[0].x, chuteOuter[0].y);
+        for (let i = 1; i < chuteOuter.length; i++) {
+          const point = chuteOuter[i];
           if (point) track.lineTo(point.x, point.y);
         }
-        for (let index = chuteInner.length - 1; index >= 0; index -= 1) {
-          const point = chuteInner[index];
+        for (let i = chuteInner.length - 1; i >= 0; i--) {
+          const point = chuteInner[i];
           if (point) track.lineTo(point.x, point.y);
         }
         track.closePath();
         track.fillPath();
+        
         track.lineStyle(5, 0xf7f4ee, 1);
         track.beginPath();
-        if (chuteOuter[0]) track.moveTo(chuteOuter[0].x, chuteOuter[0].y);
-        for (const point of chuteOuter) {
+        track.moveTo(chuteOuter[0].x, chuteOuter[0].y);
+        for (let i = 1; i < chuteOuter.length; i++) {
+          const point = chuteOuter[i];
           if (point) track.lineTo(point.x, point.y);
         }
         track.strokePath();
+        
         track.beginPath();
-        if (chuteInner[0]) track.moveTo(chuteInner[0].x, chuteInner[0].y);
-        for (const point of chuteInner) {
+        track.moveTo(chuteInner[0].x, chuteInner[0].y);
+        for (let i = 1; i < chuteInner.length; i++) {
+          const point = chuteInner[i];
           if (point) track.lineTo(point.x, point.y);
         }
         track.strokePath();
@@ -1222,7 +1228,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       let packCenterX = 0;
       let packCenterY = 0;
       let visibleCount = 0;
-      let horsePosSum = { x: 0, y: 0 };
+      const horsePosSum = { x: 0, y: 0 };
       
       actors.forEach(actor => {
         const logical = getLogicalAt(actor.progress, actor.horse.number);

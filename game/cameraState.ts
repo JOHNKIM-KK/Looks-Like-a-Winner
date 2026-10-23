@@ -211,10 +211,10 @@ export function getCameraForState(
       return cameraLookAt({
         targetX: packCenterX,
         targetY: packCenterY,
-        distance: 1500,
+        distance: 380,
         azimuth: 85,
-        elevation: 10,
-        focalLength: 800,
+        elevation: 8,
+        focalLength: 1100,
         });
     }
 

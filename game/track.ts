@@ -358,6 +358,17 @@ export function projectLogicalPoints(points: LogicalPoint[], camera: Camera): Tr
   return points.map(p => projectWithCamera({ x: p.x, y: p.y, tx: 0, ty: 0 }, camera));
 }
 
+export function getCameraDepth(logical: LogicalPoint, camera: Camera): number {
+  const dx = logical.x - camera.groundX;
+  const dy = logical.y - camera.groundY;
+  const cosYaw = Math.cos(camera.yaw);
+  const sinYaw = Math.sin(camera.yaw);
+  const localY = -dx * sinYaw + dy * cosYaw;
+  const cosPitch = Math.cos(camera.pitch);
+  const sinPitch = Math.sin(camera.pitch);
+  return localY * cosPitch - (-camera.height) * sinPitch;
+}
+
 export function goalLineLogical(lane: number): LogicalPoint {
   const radius = laneRadius(lane);
   const halfBack = STRAIGHT_BACK / 2;
