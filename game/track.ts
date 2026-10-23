@@ -154,7 +154,7 @@ export function createDefaultCamera(): Camera {
   };
 }
 
-function projectWithCamera(logical: Logical, camera: Camera): TrackPose {
+export function projectWithCamera(logical: Logical, camera: Camera): TrackPose {
   const dx = logical.x - camera.groundX;
   const dy = logical.y - camera.groundY;
   
@@ -328,4 +328,52 @@ export function renderLane(lane: number, progress: number, seed: number): number
   const targetLane = Math.max(1, Math.min(lane, 1 + Math.floor(hash * 3)));
   
   return lane + (targetLane - lane) * eased;
+}
+
+type LogicalPoint = {
+  x: number;
+  y: number;
+};
+
+export function sampleRadiusLogical(radius: number, steps: number): LogicalPoint[] {
+  const total = STRAIGHT * 2 + Math.PI * radius * 2;
+  const points: LogicalPoint[] = [];
+  for (let index = 0; index <= steps; index += 1) {
+    const logical = logicalFromLoop((index / steps) * total, radius);
+    points.push({ x: logical.x, y: logical.y });
+  }
+  return points;
+}
+
+export function sampleChuteLogical(radius: number, steps: number): LogicalPoint[] {
+  const points: LogicalPoint[] = [];
+  for (let index = 0; index <= steps; index += 1) {
+    const logical = logicalAtDistance((index / steps) * CHUTE, radius);
+    points.push({ x: logical.x, y: logical.y });
+  }
+  return points;
+}
+
+export function projectLogicalPoints(points: LogicalPoint[], camera: Camera): TrackPose[] {
+  return points.map(p => projectWithCamera({ x: p.x, y: p.y, tx: 0, ty: 0 }, camera));
+}
+
+export function getCameraDepth(logical: LogicalPoint, camera: Camera): number {
+  const dx = logical.x - camera.groundX;
+  const dy = logical.y - camera.groundY;
+  const cosYaw = Math.cos(camera.yaw);
+  const sinYaw = Math.sin(camera.yaw);
+  const localY = -dx * sinYaw + dy * cosYaw;
+  const cosPitch = Math.cos(camera.pitch);
+  const sinPitch = Math.sin(camera.pitch);
+  return localY * cosPitch - (-camera.height) * sinPitch;
+}
+
+export function goalLineLogical(lane: number): LogicalPoint {
+  const radius = laneRadius(lane);
+  const halfBack = STRAIGHT_BACK / 2;
+  const halfHome = STRAIGHT / 2;
+  const corner = Math.PI * radius;
+  const cursor = referenceDistance() - CHUTE - STRAIGHT_BACK - corner;
+  return { x: -halfHome + cursor, y: radius };
 }
