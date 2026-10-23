@@ -109,11 +109,57 @@ for (const check of checkTimes) {
 
   for (const horse of result.horses) {
     const progress = horse.samples[Math.floor(raceTime / 0.1)] ?? horse.samples[horse.samples.length - 1] ?? 0;
+    
+    const STRAIGHT = 1712;
+    const INNER_RADIUS = 256;
+    const LANE_GAP = 58;
+    const CHUTE = 158;
+    const STRAIGHT_BACK = 1418;
+    const REFERENCE_RADIUS = INNER_RADIUS + 3 * LANE_GAP;
+    const GOAL_ALONG = 0.920;
+    
     const radius = laneRadius(horse.number);
-    const sample = sampleRadiusLogical(radius, 1)[0];
-    if (!sample) continue;
+    const halfBack = STRAIGHT_BACK / 2;
+    const halfHome = STRAIGHT / 2;
+    const corner = Math.PI * radius;
+    const total = CHUTE + STRAIGHT_BACK + Math.PI * REFERENCE_RADIUS + GOAL_ALONG * STRAIGHT;
+    let cursor = Math.max(0, progress * total);
+    
+    let logicalX = 0;
+    let logicalY = 0;
+    
+    if (cursor <= CHUTE) {
+      logicalX = halfBack + CHUTE - cursor;
+      logicalY = -radius;
+    } else {
+      cursor -= CHUTE;
+      
+      if (cursor <= STRAIGHT_BACK) {
+        logicalX = halfBack - cursor;
+        logicalY = -radius;
+      } else {
+        cursor -= STRAIGHT_BACK;
+        
+        if (cursor <= corner) {
+          const theta = -Math.PI / 2 + cursor / radius;
+          logicalX = -halfHome + Math.cos(theta) * radius;
+          logicalY = Math.sin(theta) * radius;
+        } else {
+          cursor -= corner;
+          
+          if (cursor <= GOAL_ALONG * STRAIGHT) {
+            logicalX = -halfHome + cursor;
+            logicalY = radius;
+          } else {
+            const theta = Math.PI / 2 + (cursor - GOAL_ALONG * STRAIGHT) / radius;
+            logicalX = halfHome + Math.cos(theta) * radius;
+            logicalY = Math.sin(theta) * radius;
+          }
+        }
+      }
+    }
 
-    const pose = projectWithCamera({ x: sample.x, y: sample.y, tx: 0, ty: 0 }, camera);
+    const pose = projectWithCamera({ x: logicalX, y: logicalY, tx: 0, ty: 0 }, camera);
     
     if (!pose.visible) continue;
 
