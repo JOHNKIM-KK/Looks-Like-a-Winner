@@ -412,9 +412,10 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
 
       for (const event of race.events) {
         if (!event.cutin || fired.has(event.time)) continue;
-        if (raceTime + 0.0001 < event.time - SKILL_LEAD) continue;
+        if (raceTime + 0.0001 < event.time - INTRO) continue;
         fired.add(event.time);
         cutinQueue.push(event.cutin);
+        hooks.onComment(event.message);
       }
       if (showStart < 0 && cutinQueue.length > 0) {
         const next = cutinQueue.shift();
