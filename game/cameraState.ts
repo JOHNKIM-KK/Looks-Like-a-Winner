@@ -125,11 +125,11 @@ function cameraLookAt(target: CameraTarget): Camera {
   
   const dx = target.targetX - groundX;
   const dy = target.targetY - groundY;
-  const dh = 0 - height;
+  const dz = 0 - height;
   
-  const yaw = Math.atan2(dx, dy);
+  const yaw = Math.atan2(-dx, dy);
   const horizontalDist = Math.hypot(dx, dy);
-  const pitch = -Math.atan2(dh, horizontalDist);
+  const pitch = Math.atan2(-dz, horizontalDist);
   
   return {
     groundX,
@@ -147,60 +147,75 @@ export function getCameraForState(
   packCenterX: number,
   packCenterY: number
 ): Camera {
+  const ends = segmentEnds();
+  
   switch (state.name) {
     case "START": {
       return cameraLookAt({
         targetX: packCenterX,
-        targetY: -700,
-        distance: 450,
-        azimuth: 0,
-        elevation: 35,
-        focalLength: 850,
+        targetY: packCenterY,
+        distance: 650,
+        azimuth: 45,
+        elevation: 32,
+        focalLength: 950,
       });
     }
 
     case "STRAIGHT": {
-      return cameraLookAt({
-        targetX: packCenterX,
-        targetY: packCenterY,
-        distance: 280,
-        azimuth: 0,
-        elevation: 12,
-        focalLength: 1100,
-      });
+      const isHomeStretch = snapshot.leadProgress >= ends.cornerEnd;
+      
+      if (isHomeStretch) {
+        return cameraLookAt({
+          targetX: packCenterX,
+          targetY: packCenterY,
+          distance: 1020,
+          azimuth: 180,
+          elevation: 32,
+          focalLength: 1900,
+        });
+      } else {
+        return cameraLookAt({
+          targetX: packCenterX,
+          targetY: packCenterY,
+          distance: 130,
+          azimuth: 0,
+          elevation: 12,
+          focalLength: 850,
+        });
+      }
     }
 
     case "CORNER_IN": {
       return cameraLookAt({
-        targetX: -600,
-        targetY: -250,
-        distance: 580,
-        azimuth: -42,
-        elevation: 24,
-        focalLength: 990,
+        targetX: packCenterX,
+        targetY: packCenterY,
+        distance: 330,
+        azimuth: 225,
+        elevation: 26,
+        focalLength: 1050,
       });
     }
 
     case "CORNER_OUT": {
       return cameraLookAt({
-        targetX: 100,
-        targetY: 150,
-        distance: 480,
-        azimuth: 135,
-        elevation: 28,
-        focalLength: 1020,
+        targetX: packCenterX,
+        targetY: packCenterY,
+        distance: 900,
+        azimuth: 315,
+        elevation: 25,
+        focalLength: 1000,
       });
     }
 
     case "FINISH": {
       return cameraLookAt({
-        targetX: 0,
-        targetY: 700,
-        distance: 400,
+        targetX: packCenterX,
+        targetY: packCenterY,
+        distance: 1300,
         azimuth: 180,
-        elevation: 58,
-        focalLength: 1150,
-      });
+        elevation: 32,
+        focalLength: 1200,
+        });
     }
 
     case "CLOSEUP": {
