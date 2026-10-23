@@ -147,11 +147,11 @@ export function createDefaultCamera(): Camera {
   const outerRadius = INNER_RADIUS + 7 * LANE_GAP;
   return {
     groundX: 0,
-    groundY: outerRadius + 250,
-    height: 650,
-    pitch: -6.0 * (Math.PI / 180),
+    groundY: -(outerRadius + 1010),
+    height: 1330,
+    pitch: 15.3 * (Math.PI / 180),
     yaw: 0,
-    focalLength: 520,
+    focalLength: 162,
   };
 }
 
@@ -166,14 +166,14 @@ function projectWithCamera(logical: Logical, camera: Camera): TrackPose {
   
   const cosPitch = Math.cos(camera.pitch);
   const sinPitch = Math.sin(camera.pitch);
-  const camDepth = -localY * cosPitch - (-camera.height) * sinPitch;
+  const camDepth = localY * cosPitch - (-camera.height) * sinPitch;
   
   const nearPlane = 10;
   const visible = camDepth >= nearPlane;
   const safeDepth = Math.max(nearPlane, camDepth);
   
   const screenX = CENTER_X - (camera.focalLength * localX) / safeDepth;
-  const camVertical = -localY * sinPitch + (-camera.height) * cosPitch;
+  const camVertical = localY * sinPitch + (-camera.height) * cosPitch;
   const screenY = CENTER_Y - (camera.focalLength * camVertical) / safeDepth;
   
   const perspectiveScale = camera.focalLength / safeDepth;
@@ -188,11 +188,11 @@ function projectWithCamera(logical: Logical, camera: Camera): TrackPose {
   const dyAhead = logicalAhead.y - camera.groundY;
   const localXAhead = dxAhead * cosYaw + dyAhead * sinYaw;
   const localYAhead = -dxAhead * sinYaw + dyAhead * cosYaw;
-  const camDepthAhead = -localYAhead * cosPitch - (-camera.height) * sinPitch;
+  const camDepthAhead = localYAhead * cosPitch - (-camera.height) * sinPitch;
   const safeDepthAhead = Math.max(nearPlane, camDepthAhead);
   
   const screenXAhead = CENTER_X - (camera.focalLength * localXAhead) / safeDepthAhead;
-  const camVerticalAhead = -localYAhead * sinPitch + (-camera.height) * cosPitch;
+  const camVerticalAhead = localYAhead * sinPitch + (-camera.height) * cosPitch;
   const screenYAhead = CENTER_Y - (camera.focalLength * camVerticalAhead) / safeDepthAhead;
   
   const tangentX = screenXAhead - screenX;

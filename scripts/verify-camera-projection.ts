@@ -1,4 +1,4 @@
-import { createDefaultCamera, poseOnRadius, poseAt, laneRadius, viewBounds } from "../game/track";
+import { createDefaultCamera, poseOnRadius, poseAt, laneRadius } from "../game/track";
 
 console.log("=== 카메라 투영 검증 (강화) ===\n");
 
@@ -10,7 +10,9 @@ console.log(`  피치(기울기): ${(camera.pitch * 180 / Math.PI).toFixed(1)}°
 console.log(`  초점거리: ${camera.focalLength.toFixed(1)}\n`);
 
 const MINIMUM_SPRITE_SCALE = 0.45;
-const bounds = viewBounds(8);
+const VIEW_HEIGHT = 560;
+const VIEW_WIDTH = 1720;
+const bounds = { x: 0, y: 0, width: VIEW_WIDTH, height: VIEW_HEIGHT };
 
 let allTests = true;
 
