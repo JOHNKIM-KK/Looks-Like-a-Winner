@@ -1,11 +1,12 @@
-export const STRAIGHT = 900;
-export const INNER_RADIUS = 112;
+export const STRAIGHT = 1712;
+const STRAIGHT_BACK = 1418;
+export const INNER_RADIUS = 256;
 export const LANE_GAP = 58;
-export const CHUTE = 150;
+export const CHUTE = 158;
 export const COAST_END = 1.18;
 export const FAR_SCALE = 0.72;
 
-const GOAL_ALONG = 1.167;
+const GOAL_ALONG = 0.920;
 const CENTER_X = 860;
 const CENTER_Y = 500;
 const REFERENCE_RADIUS = INNER_RADIUS + 3 * LANE_GAP;
@@ -40,15 +41,15 @@ export function laneRadius(lane: number) {
 }
 
 export function referenceDistance() {
-  return CHUTE + STRAIGHT + Math.PI * REFERENCE_RADIUS + GOAL_ALONG * STRAIGHT;
+  return CHUTE + STRAIGHT_BACK + Math.PI * REFERENCE_RADIUS + GOAL_ALONG * STRAIGHT;
 }
 
 export function segmentEnds(): SegmentEnds {
   const total = referenceDistance();
   return {
     pocketEnd: CHUTE / total,
-    backStraightEnd: (CHUTE + STRAIGHT) / total,
-    cornerEnd: (CHUTE + STRAIGHT + Math.PI * REFERENCE_RADIUS) / total,
+    backStraightEnd: (CHUTE + STRAIGHT_BACK) / total,
+    cornerEnd: (CHUTE + STRAIGHT_BACK + Math.PI * REFERENCE_RADIUS) / total,
   };
 }
 
@@ -91,33 +92,39 @@ function logicalFromLoop(loop: number, radius: number): Logical {
 }
 
 function logicalAtDistance(distance: number, radius: number): Logical {
-  const half = STRAIGHT / 2;
+  const halfBack = STRAIGHT_BACK / 2;
+  const halfHome = STRAIGHT / 2;
   const corner = Math.PI * radius;
   let cursor = Math.max(0, distance);
+  
   if (cursor <= CHUTE) {
-    return { x: half + CHUTE - cursor, y: -radius, tx: -1, ty: 0 };
+    return { x: halfBack + CHUTE - cursor, y: -radius, tx: -1, ty: 0 };
   }
   cursor -= CHUTE;
-  if (cursor <= STRAIGHT) {
-    return { x: half - cursor, y: -radius, tx: -1, ty: 0 };
+  
+  if (cursor <= STRAIGHT_BACK) {
+    return { x: halfBack - cursor, y: -radius, tx: -1, ty: 0 };
   }
-  cursor -= STRAIGHT;
+  cursor -= STRAIGHT_BACK;
+  
   if (cursor <= corner) {
     const theta = -Math.PI / 2 + cursor / radius;
     return {
-      x: -half + Math.cos(theta) * radius,
+      x: -halfHome + Math.cos(theta) * radius,
       y: Math.sin(theta) * radius,
       tx: -Math.sin(theta),
       ty: Math.cos(theta),
     };
   }
   cursor -= corner;
-  if (cursor <= STRAIGHT) {
-    return { x: -half + cursor, y: radius, tx: 1, ty: 0 };
+  
+  if (cursor <= GOAL_ALONG * STRAIGHT) {
+    return { x: -halfHome + cursor, y: radius, tx: 1, ty: 0 };
   }
-  const theta = Math.PI / 2 + (cursor - STRAIGHT) / radius;
+  
+  const theta = Math.PI / 2 + (cursor - GOAL_ALONG * STRAIGHT) / radius;
   return {
-    x: half + Math.cos(theta) * radius,
+    x: halfHome + Math.cos(theta) * radius,
     y: Math.sin(theta) * radius,
     tx: -Math.sin(theta),
     ty: Math.cos(theta),
