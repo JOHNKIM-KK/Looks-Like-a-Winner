@@ -6,9 +6,11 @@ export const COAST_END = 1.18;
 export const FAR_SCALE = 0.72;
 
 const GOAL_ALONG = 0.62;
-const CENTER_X = 860;
-const CENTER_Y = 500;
+const CENTER_X = 270;
+const CENTER_Y = 555;
 const REFERENCE_RADIUS = INNER_RADIUS + 3 * LANE_GAP;
+const LANE_AREA_TOP = 0.15;
+const LANE_AREA_BOTTOM = 0.80;
 
 export type SegmentKind = "straight" | "corner" | "final";
 
@@ -128,11 +130,11 @@ function logicalAtDistance(distance: number, radius: number): Logical {
 function project(logical: Logical): TrackPose {
   const depth = Math.min(1, Math.max(0, (logical.y + REFERENCE_RADIUS) / (2 * REFERENCE_RADIUS)));
   const scale = 1 - (1 - FAR_SCALE) * depth;
-  const converge = 0.76 + 0.24 * (1 - depth);
-  const x = CENTER_X + logical.x * converge;
-  const y = CENTER_Y - logical.y * 0.72;
-  const tangentX = logical.tx * converge;
-  const tangentY = -logical.ty * 0.72;
+  const converge = 0.85 + 0.15 * (1 - depth);
+  const x = CENTER_X + logical.x * converge * 0.35;
+  const y = CENTER_Y - logical.y * 0.65;
+  const tangentX = logical.tx * converge * 0.35;
+  const tangentY = -logical.ty * 0.65;
   const heading = Math.atan2(tangentY, tangentX);
   const flipX = Math.cos(heading) < 0;
   let lean = heading;

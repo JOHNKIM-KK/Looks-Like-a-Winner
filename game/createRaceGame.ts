@@ -19,7 +19,8 @@ import { LANE_GAP, cutPose, laneRadius, poseAt, poseOnRadius, sampleChute, sampl
 const FRAME_WIDTH = 213;
 const FRAME_HEIGHT = 211;
 const HORSE_HEIGHT = 96;
-const VIEW_HEIGHT = 560;
+const GAME_WIDTH = 540;
+const GAME_HEIGHT = 1170;
 const HELMETS = [
   { x: 136, y: 43 },
   { x: 137, y: 42 },
@@ -358,7 +359,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
 
       gates = this.add.graphics().setDepth(2);
       countdownText = this.add
-        .text(this.cameras.main.width / 2, this.cameras.main.height / 2, "3", {
+        .text(this.cameras.main.width / 2, this.cameras.main.height * 0.47, "3", {
           fontFamily: "sans-serif",
           fontSize: "112px",
           color: "#fffaf2",
@@ -384,7 +385,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const step = Math.min(2, Math.floor(wallClock / COUNT_STEP));
         const label = ["3", "2", "1"][step] ?? "1";
         const camera = this.cameras.main;
-        countdownText?.setText(label).setPosition(camera.width / 2, camera.height * 0.42);
+        countdownText?.setText(label).setPosition(camera.width / 2, camera.height * 0.47);
         if (wallClock < COUNT_STEP * 3) {
           raceTime = 0;
           this.paintGates();
@@ -1034,11 +1035,14 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   return new Phaser.Game({
     type: Phaser.AUTO,
     parent,
-    width: Math.max(320, parent.clientWidth),
-    height: VIEW_HEIGHT,
+    width: GAME_WIDTH,
+    height: GAME_HEIGHT,
     backgroundColor: "#145c34",
     scene: RaceScene,
-    scale: { mode: Phaser.Scale.RESIZE },
+    scale: { 
+      mode: Phaser.Scale.FIT,
+      autoCenter: Phaser.Scale.CENTER_HORIZONTALLY,
+    },
     banner: false,
   });
 }
