@@ -144,14 +144,13 @@ function logicalAtDistance(distance: number, radius: number): Logical {
 }
 
 export function createDefaultCamera(): Camera {
-  const outerRadius = INNER_RADIUS + 7 * LANE_GAP;
   return {
     groundX: 0,
-    groundY: -(outerRadius + 1010),
-    height: 1330,
-    pitch: 15.3 * (Math.PI / 180),
+    groundY: -1050,
+    height: 1730,
+    pitch: 60.0 * (Math.PI / 180),
     yaw: 0,
-    focalLength: 162,
+    focalLength: 1720,
   };
 }
 
