@@ -81,7 +81,12 @@ export default function HomePage() {
 
       {race && phase !== "idle" ? (
         <div className="relative">
-          <RaceGame key={race.seed} race={race} onComplete={() => setPhase("done")} />
+          <RaceGame 
+            key={race.seed} 
+            race={race} 
+            onComplete={() => setPhase("done")} 
+            isRacing={phase === "racing"}
+          />
           {phase === "done" ? <RaceResult race={race} onRematch={start} /> : null}
         </div>
       ) : null}

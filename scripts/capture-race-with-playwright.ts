@@ -1,40 +1,70 @@
 import { chromium } from 'playwright';
 
-async function captureRaceScreenshots() {
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
-    viewport: { width: 1080, height: 2340 },
-  });
-  const page = await context.newPage();
+const VIEWPORTS = [
+  { width: 390, height: 844, name: 'iPhone13' },
+  { width: 360, height: 800, name: 'Android' },
+  { width: 430, height: 932, name: 'iPhone14Pro' },
+];
 
-  console.log('서버에 접속 중...');
-  await page.goto('http://localhost:3000', { waitUntil: 'networkidle' });
+async function captureRaceScreenshots() {
+  console.log('🎬 레이스 스크린샷 캡처 시작');
+  console.log('=====================================');
   
-  console.log('출발 버튼 클릭...');
-  await page.click('text=출발');
-  
-  // 레이스 시작 대기
-  await page.waitForTimeout(500);
-  
-  console.log('스크린샷 촬영 중...');
-  
-  // 출발 직후 (3초)
-  await page.waitForTimeout(2500);
-  await page.screenshot({ path: '/opt/cursor/artifacts/race-new-start.png' });
-  console.log('  출발 직후 촬영 완료');
-  
-  // 코너 (20초)
-  await page.waitForTimeout(17000);
-  await page.screenshot({ path: '/opt/cursor/artifacts/race-new-corner.png' });
-  console.log('  코너 촬영 완료');
-  
-  // 골 직전 (37초)
-  await page.waitForTimeout(17000);
-  await page.screenshot({ path: '/opt/cursor/artifacts/race-new-finish.png' });
-  console.log('  골 직전 촬영 완료');
-  
-  await browser.close();
-  console.log('완료!');
+  const browser = await chromium.launch({ headless: true });
+
+  try {
+    for (const viewport of VIEWPORTS) {
+      console.log(`\n📱 ${viewport.name} (${viewport.width}x${viewport.height}) 캡처 중...`);
+      
+      const context = await browser.newContext({
+        viewport: { width: viewport.width, height: viewport.height },
+        deviceScaleFactor: 2,
+      });
+
+      const page = await context.newPage();
+      
+      try {
+        await page.goto('http://localhost:3000', { 
+          waitUntil: 'networkidle',
+          timeout: 15000,
+        });
+
+        await page.click('text=출발');
+        await page.waitForTimeout(3000);
+
+        // 1. 출발 직후
+        console.log('  📸 출발 직후 캡처...');
+        await page.screenshot({
+          path: `/opt/cursor/artifacts/race-start-${viewport.name}-${viewport.width}x${viewport.height}.png`,
+        });
+
+        // 2. 코너 (약 13초 후)
+        await page.waitForTimeout(10000);
+        console.log('  📸 코너 구간 캡처...');
+        await page.screenshot({
+          path: `/opt/cursor/artifacts/race-corner-${viewport.name}-${viewport.width}x${viewport.height}.png`,
+        });
+
+        // 3. 골 직전 (약 24초 더, 총 37초)
+        await page.waitForTimeout(24000);
+        console.log('  📸 골 직전 캡처...');
+        await page.screenshot({
+          path: `/opt/cursor/artifacts/race-finish-${viewport.name}-${viewport.width}x${viewport.height}.png`,
+        });
+
+        console.log(`✅ ${viewport.name} 캡처 완료`);
+      } catch (error) {
+        console.error(`❌ ${viewport.name} 캡처 실패:`, error);
+      }
+
+      await context.close();
+    }
+  } finally {
+    await browser.close();
+  }
+
+  console.log('\n=====================================');
+  console.log('✅ 모든 스크린샷 캡처 완료');
 }
 
 captureRaceScreenshots().catch(console.error);
