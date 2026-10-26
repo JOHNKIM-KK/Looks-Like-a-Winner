@@ -58,6 +58,28 @@ describe("transition durations", () => {
   });
 });
 
+describe("lead-horse thresholds", () => {
+  test("corner in cuts to corner out at 50% of the corner, and the goal camera starts at lead 90%", () => {
+    const ends = segmentEnds();
+    const cornerMid = ends.backStraightEnd + (ends.cornerEnd - ends.backStraightEnd) * 0.5;
+    const leadState = (lead: number, prev: CameraState): CameraState =>
+      nextCameraState(prev, {
+        raceTime: 20,
+        started: true,
+        gateOpen: 1,
+        leadProgress: lead,
+        horses: [{ index: 0, progress: lead }],
+      });
+
+    expect(leadState(cornerMid - 1e-6, { name: "CORNER_IN" }).name).toBe("CORNER_IN");
+    expect(leadState(cornerMid, { name: "CORNER_IN" }).name).toBe("CORNER_OUT");
+    expect(cameraTransitionSeconds({ name: "CORNER_IN" }, { name: "CORNER_OUT" })).toBe(0);
+
+    expect(leadState(0.9 - 1e-6, { name: "STRAIGHT" }).name).toBe("STRAIGHT");
+    expect(leadState(0.9, { name: "STRAIGHT" }).name).toBe("FINISH");
+  });
+});
+
 describe("easeInOutSine endpoints", () => {
   test("easing is 0 at the start, 1 at the end, and the camera matches those endpoints", () => {
     expect(easeInOutSine(0)).toBe(0);

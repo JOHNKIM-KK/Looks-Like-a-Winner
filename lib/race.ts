@@ -160,7 +160,7 @@ function buildStats(biases: HorseStats, random: () => number): HorseStats {
   return stats;
 }
 
-function gateProgress(stats: HorseStats) {
+export function gateProgress(stats: HorseStats) {
   return 0;
 }
 
