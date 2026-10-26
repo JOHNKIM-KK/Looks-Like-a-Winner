@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { RaceResult, SkillCutin } from "@/lib/race";
+import type { RaceResult } from "@/lib/race";
 import type { RankRow } from "@/game/createRaceGame";
+import { overlayLayout, type RaceOverlaySnapshot } from "@/game/overlayLayout";
+import { RaceOverlay } from "@/components/RaceOverlay";
 
 type Props = {
   race: RaceResult;
@@ -10,12 +12,18 @@ type Props = {
   isRacing: boolean;
 };
 
+const EMPTY_OVERLAY: RaceOverlaySnapshot = {
+  phase: "countdown",
+  countdown: "3",
+  horses: [],
+};
+
 export function RaceGame({ race, onComplete, isRacing }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const onCompleteRef = useRef(onComplete);
   const [comment, setComment] = useState("게이트 앞에서 대기 중입니다.");
-  const [cutin, setCutin] = useState<SkillCutin | null>(null);
   const [ranks, setRanks] = useState<RankRow[]>([]);
+  const [overlay, setOverlay] = useState<RaceOverlaySnapshot>(EMPTY_OVERLAY);
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
@@ -31,8 +39,10 @@ export function RaceGame({ race, onComplete, isRacing }: Props) {
       if (dead || !hostRef.current) return;
       game = createRaceGame(hostRef.current, race, {
         onComment: setComment,
-        onCutin: setCutin,
+        // Skill cut-ins stay in the Phaser scene. The overlay slot is empty.
+        onCutin: () => {},
         onRanks: setRanks,
+        onPresentation: setOverlay,
         onComplete: () => onCompleteRef.current(),
       });
     });
@@ -45,18 +55,18 @@ export function RaceGame({ race, onComplete, isRacing }: Props) {
 
   if (isRacing) {
     return (
-      <div 
+      <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-[#145c34]"
         style={{
-          paddingTop: 'env(safe-area-inset-top)',
-          paddingRight: 'env(safe-area-inset-right)',
-          paddingBottom: 'env(safe-area-inset-bottom)',
-          paddingLeft: 'env(safe-area-inset-left)',
+          paddingTop: overlayLayout.safeArea.top,
+          paddingRight: overlayLayout.safeArea.right,
+          paddingBottom: overlayLayout.safeArea.bottom,
+          paddingLeft: overlayLayout.safeArea.left,
         }}
       >
         <div className="relative h-full w-full max-w-[540px] overflow-hidden">
           <div ref={hostRef} className="h-full w-full" />
-          {cutin ? <SkillCutinBanner key={`${cutin.number}-${cutin.skillName}`} cutin={cutin} /> : null}
+          <RaceOverlay hostRef={hostRef} snapshot={overlay} comment={comment} />
         </div>
       </div>
     );
@@ -99,7 +109,6 @@ export function RaceGame({ race, onComplete, isRacing }: Props) {
       </ol>
       <div className="relative overflow-hidden border-4 border-[#ffe14a] shadow-[6px_6px_0_#ff4fd8]">
         <div ref={hostRef} className="w-full" />
-        {cutin ? <SkillCutinBanner key={`${cutin.number}-${cutin.skillName}`} cutin={cutin} /> : null}
       </div>
     </section>
   );
@@ -110,31 +119,4 @@ function placeColor(place: number) {
   if (place === 2) return "#d5dbe6";
   if (place === 3) return "#e0a15a";
   return "#5ce1ff";
-}
-
-function SkillCutinBanner({ cutin }: { cutin: SkillCutin }) {
-  return (
-    <div className="pointer-events-none absolute inset-x-2 bottom-2 z-10 sm:inset-x-4 sm:bottom-4">
-      <div
-        className="flex items-center gap-3 border-4 border-[#ffe14a] bg-[#12081c]/94 px-3 py-3 shadow-[4px_4px_0_#ff4fd8] sm:gap-4 sm:px-4"
-        style={{ animation: "skill-in 220ms ease-out" }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={cutin.portrait}
-          alt=""
-          className="h-16 w-16 shrink-0 border-4 object-cover sm:h-20 sm:w-20"
-          style={{ borderColor: cutin.color }}
-        />
-        <div className="min-w-0">
-          <p className="text-xs font-black tracking-widest text-[#5ce1ff]">{cutin.number}번 관상</p>
-          <p className="truncate text-lg font-black text-[#ffe14a] sm:text-2xl">{cutin.horseName}</p>
-          <p className="text-sm font-bold text-white sm:text-base">
-            {cutin.skillName} {cutin.hit ? "발동" : "빗나감"}
-          </p>
-          <p className="text-sm leading-5 text-[#fff6ea] sm:text-base">{cutin.effect}</p>
-        </div>
-      </div>
-    </div>
-  );
 }

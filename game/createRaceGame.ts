@@ -34,6 +34,8 @@ import {
 } from "@/game/cameraBlend";
 import { frameHorseLook, createFrameMemory, grassBelowRailFraction, horseFit, type FrameMemory } from "@/game/cameraFrame";
 import { laneColor, laneColorValue, recolorRacingSilks } from "@/game/laneColors";
+import type { RaceOverlaySnapshot } from "@/game/overlayLayout";
+import { orderByPresentation } from "@/game/rankOrder";
 
 const FRAME_WIDTH = 213;
 const FRAME_HEIGHT = 211;
@@ -61,6 +63,7 @@ type Hooks = {
   onComment: (message: string) => void;
   onCutin: (cutin: SkillCutin | null) => void;
   onRanks: (ranks: RankRow[]) => void;
+  onPresentation: (snapshot: RaceOverlaySnapshot) => void;
   onComplete: () => void;
 };
 
@@ -118,6 +121,11 @@ function getLogicalAt(progress: number, lane: number) {
 const COUNT_STEP = 0.8;
 const SKILL_LEAD = 0.1;
 
+function countdownLabel(wallClock: number) {
+  const step = Math.min(2, Math.floor(wallClock / COUNT_STEP));
+  return ["3", "2", "1"][step] ?? "1";
+}
+
 export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hooks) {
   const actors: Actor[] = [];
   const bounds = viewBounds(race.horses.length);
@@ -154,8 +162,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   let slash: Phaser.GameObjects.Image | null = null;
   let sparks: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
   let rankKey = "";
+  let lastPhaseSig = "";
+  let lastPresentationAt = -1;
   let lastComment = "";
-  let countdownText: Phaser.GameObjects.Text | null = null;
   let gates: Phaser.GameObjects.Graphics | null = null;
   let debugOverlay: Phaser.GameObjects.Graphics | null = null;
   let debugText: Phaser.GameObjects.Text | null = null;
@@ -359,24 +368,12 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         backgroundColor: '#000000dd',
         padding: { x: 10, y: 10 },
       }).setDepth(10001).setVisible(DEBUG_ENABLED).setScrollFactor(0);
-      countdownText = this.add
-        .text(this.cameras.main.width / 2, this.cameras.main.height / 2, "3", {
-          fontFamily: "sans-serif",
-          fontSize: "112px",
-          color: "#fffaf2",
-          fontStyle: "bold",
-          stroke: "#24180f",
-          strokeThickness: 12,
-        })
-        .setScrollFactor(0)
-        .setOrigin(0.5)
-        .setDepth(5000);
       lastComment = "게이트 앞에서 대기 중입니다.";
       hooks.onComment(lastComment);
       this.paintGates();
       this.placeHorses();
       this.frameCamera(true);
-      this.publishRanks();
+      this.publishField("countdown", "3");
     }
 
     update(_time: number, delta: number) {
@@ -388,16 +385,13 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       frameDt = wall;
       wallClock += wall;
       if (!started) {
-        const step = Math.min(2, Math.floor(wallClock / COUNT_STEP));
-        const label = ["3", "2", "1"][step] ?? "1";
-        const camera = this.cameras.main;
-        countdownText?.setText(label).setPosition(camera.width / 2, camera.height * 0.42);
+        const label = countdownLabel(wallClock);
         if (wallClock < COUNT_STEP * 3) {
           raceTime = 0;
           this.paintTrack();
           this.paintGates();
           this.placeHorses();
-          this.publishRanks();
+          this.publishField("countdown", label);
           this.frameCamera(false);
           if (DEBUG_ENABLED) {
             this.paintDebugOverlay();
@@ -406,7 +400,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         }
         started = true;
         playBang();
-        countdownText?.setVisible(false);
         lastComment = "게이트가 열렸습니다.";
         hooks.onComment(lastComment);
       }
@@ -464,7 +457,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       this.paintTrack();
       this.paintGates();
       this.placeHorses();
-      this.publishRanks();
+      this.publishField("racing", null);
       this.frameCamera(false);
       
       if (DEBUG_ENABLED) {
@@ -1190,27 +1183,50 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       camera.scrollY = 0;
     }
 
-    publishRanks() {
-      const finished = (actor: Actor) => raceTime + 0.0001 >= actor.horse.finishTime;
-      const ordered = [...actors].sort((a, b) => {
-        const aDone = finished(a);
-        const bDone = finished(b);
-        if (aDone && bDone) return a.horse.rank - b.horse.rank;
-        if (aDone !== bDone) return aDone ? -1 : 1;
-        return b.shown - a.shown || a.horse.number - b.horse.number;
-      });
-      const nextKey = ordered.map((actor) => actor.horse.id).join(">");
-      if (nextKey === rankKey) return;
-      rankKey = nextKey;
-      hooks.onRanks(
-        ordered.map((actor, index) => ({
+    publishField(phase: "countdown" | "racing", countdown: string | null) {
+      const raceNow = phase === "racing" ? raceTime : 0;
+      const ordered = orderByPresentation(
+        actors.map((actor) => ({
           id: actor.horse.id,
           name: actor.horse.name,
-          place: index + 1,
-          color: actor.horse.color,
+          number: actor.horse.number,
           portrait: actor.horse.portrait,
+          color: actor.horse.color,
+          shown: actor.shown,
+          finishTime: actor.horse.finishTime,
+          rank: actor.horse.rank,
         })),
+        raceNow,
       );
+      const nextKey = ordered.map((horse) => horse.id).join(">");
+      if (nextKey !== rankKey) {
+        rankKey = nextKey;
+        hooks.onRanks(
+          ordered.map((horse, index) => ({
+            id: horse.id,
+            name: horse.name,
+            place: index + 1,
+            color: horse.color,
+            portrait: horse.portrait,
+          })),
+        );
+      }
+      const phaseSig = `${phase}|${countdown ?? ""}|${nextKey}`;
+      if (phaseSig === lastPhaseSig && wallClock - lastPresentationAt < 0.1) return;
+      lastPhaseSig = phaseSig;
+      lastPresentationAt = wallClock;
+      hooks.onPresentation({
+        phase,
+        countdown,
+        horses: ordered.map((horse, index) => ({
+          id: horse.id,
+          name: horse.name,
+          number: horse.number,
+          place: index + 1,
+          portrait: horse.portrait,
+          progress: horse.shown,
+        })),
+      });
     }
     
     paintDebugOverlay() {
