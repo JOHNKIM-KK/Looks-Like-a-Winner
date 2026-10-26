@@ -2,6 +2,7 @@
 
 import { useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
 import { laneColor } from "@/game/laneColors";
+import type { RankSlotMode } from "@/game/rankDisplay";
 import {
   overlayLayout,
   placeAccent,
@@ -13,6 +14,7 @@ type Props = {
   hostRef: RefObject<HTMLDivElement | null>;
   snapshot: RaceOverlaySnapshot;
   comment: string;
+  slotMode?: RankSlotMode;
 };
 
 type Frame = { left: number; top: number; scale: number };
@@ -26,7 +28,7 @@ type RankMetrics = {
   chipGap: number;
 };
 
-export function RaceOverlay({ hostRef, snapshot, comment }: Props) {
+export function RaceOverlay({ hostRef, snapshot, comment, slotMode = "name" }: Props) {
   const frame = useCanvasFrame(hostRef);
   const showHud = snapshot.phase === "racing";
 
@@ -47,7 +49,7 @@ export function RaceOverlay({ hostRef, snapshot, comment }: Props) {
           {showHud ? (
             <>
               <Minimap horses={snapshot.horses} />
-              <Ranking horses={snapshot.horses} />
+              <Ranking horses={snapshot.horses} slotMode={slotMode} />
             </>
           ) : (
             <Countdown label={snapshot.countdown ?? "3"} />
@@ -164,7 +166,7 @@ function Minimap({ horses }: { horses: OverlayHorse[] }) {
   );
 }
 
-function Ranking({ horses }: { horses: OverlayHorse[] }) {
+function Ranking({ horses, slotMode }: { horses: OverlayHorse[]; slotMode: RankSlotMode }) {
   const band = overlayLayout.ranking;
   const podium = horses.filter((horse) => horse.place >= 1 && horse.place <= 3);
   const chase = horses.filter((horse) => horse.place >= 4 && horse.place <= 8);
@@ -186,12 +188,12 @@ function Ranking({ horses }: { horses: OverlayHorse[] }) {
     >
       <ol style={rowStyle(band.podium.gap)}>
         {podium.map((horse) => (
-          <RankChip key={horse.id} horse={horse} metrics={band.podium} />
+          <RankChip key={horse.id} horse={horse} metrics={band.podium} slotMode={slotMode} />
         ))}
       </ol>
       <ol style={{ ...rowStyle(band.chase.gap), marginTop: band.rowGap }}>
         {chase.map((horse) => (
-          <RankChip key={horse.id} horse={horse} metrics={band.chase} />
+          <RankChip key={horse.id} horse={horse} metrics={band.chase} slotMode={slotMode} />
         ))}
       </ol>
     </div>
@@ -210,7 +212,9 @@ function rowStyle(gap: number): CSSProperties {
   };
 }
 
-function RankChip({ horse, metrics }: { horse: OverlayHorse; metrics: RankMetrics }) {
+function RankChip({ horse, metrics, slotMode }: { horse: OverlayHorse; metrics: RankMetrics; slotMode: RankSlotMode }) {
+  const nameWidth = metrics.face >= 32 ? 108 : 64;
+  const nameFont = metrics.face >= 32 ? 12 : 8;
   return (
     <li
       style={{
@@ -223,20 +227,42 @@ function RankChip({ horse, metrics }: { horse: OverlayHorse; metrics: RankMetric
       }}
     >
       <span style={labelStyle(metrics.fontSize, placeAccent(horse.place) ?? overlayLayout.style.textColor)}>{horse.place}</span>
-      {/* Portrait is a local mock illustration. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={horse.portrait}
-        alt=""
-        width={metrics.face}
-        height={metrics.face}
-        style={{
-          width: metrics.face,
-          height: metrics.face,
-          objectFit: "cover",
-          display: "block",
-        }}
-      />
+      {slotMode === "name" ? (
+        <span
+          data-testid="rank-slot-name"
+          style={{
+            width: nameWidth,
+            height: metrics.face,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            overflow: "hidden",
+            textAlign: "center",
+            color: "#ffffff",
+            fontFamily: overlayLayout.style.fontFamily,
+            fontWeight: 700,
+            fontSize: nameFont,
+            lineHeight: 1.05,
+          }}
+        >
+          {horse.name}
+        </span>
+      ) : (
+        // Portrait is a local mock illustration.
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={horse.portrait}
+          alt=""
+          width={metrics.face}
+          height={metrics.face}
+          style={{
+            width: metrics.face,
+            height: metrics.face,
+            objectFit: "cover",
+            display: "block",
+          }}
+        />
+      )}
     </li>
   );
 }

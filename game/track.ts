@@ -1,7 +1,7 @@
 import { cameraConfig } from "./cameraConfig";
 
 export const STRAIGHT = 1712;
-const STRAIGHT_BACK = 1418;
+export const STRAIGHT_BACK = 1418;
 export const INNER_RADIUS = 256;
 export const LANE_GAP = 58;
 export const CHUTE = 158;
@@ -48,6 +48,8 @@ type Logical = {
   y: number;
   tx: number;
   ty: number;
+  /** Meters above the ground plane. Omitted points stay on z = 0. */
+  z?: number;
 };
 
 export function laneRadius(lane: number) {
@@ -167,14 +169,16 @@ export function projectWithCamera(logical: Logical, camera: Camera): TrackPose {
   
   const cosPitch = Math.cos(camera.pitch);
   const sinPitch = Math.sin(camera.pitch);
-  const camDepth = localY * cosPitch - (-camera.height) * sinPitch;
+  // z = 0 keeps the previous ground-plane formula. Raised points (rails, strips) pass z.
+  const pointZ = logical.z ?? 0;
+  const camDepth = localY * cosPitch - (pointZ - camera.height) * sinPitch;
   
   const nearPlane = 10;
   const visible = camDepth >= nearPlane;
   const safeDepth = Math.max(nearPlane, camDepth);
   
   const screenX = CENTER_X - (camera.focalLength * localX) / safeDepth;
-  const camVertical = localY * sinPitch + (-camera.height) * cosPitch;
+  const camVertical = localY * sinPitch + (pointZ - camera.height) * cosPitch;
   const screenY = CENTER_Y - (camera.focalLength * camVertical) / safeDepth;
   
   const perspectiveScale = camera.focalLength / safeDepth;
@@ -428,7 +432,11 @@ export type TrackLogical = {
  * and that bend is the rendered outer curve so corner cameras can see it.
  */
 export function presentationLogical(progress: number, lane: number): TrackLogical {
-  const radius = laneRadius(lane);
+  return presentationOnRadius(progress, laneRadius(lane));
+}
+
+/** Same path as `presentationLogical`, on an explicit radius instead of a lane. */
+export function presentationOnRadius(progress: number, radius: number): TrackLogical {
   const ends = segmentEnds();
   const half = STRAIGHT / 2;
   const halfBack = STRAIGHT_BACK / 2;
@@ -462,4 +470,16 @@ export function presentationLogical(progress: number, lane: number): TrackLogica
   const homeSpan = Math.max(1e-6, 1 - ends.cornerEnd);
   const u = (along - ends.cornerEnd) / homeSpan;
   return { x: -half + u * GOAL_ALONG * STRAIGHT, y: radius, tx: 1, ty: 0 };
+}
+
+/** Closed oval samples, evenly spaced. The first point is not repeated at the end. */
+export function sampleLoopLogical(radius: number, steps: number): TrackLogical[] {
+  const total = STRAIGHT * 2 + Math.PI * radius * 2;
+  const count = Math.max(3, Math.floor(steps));
+  const points: TrackLogical[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const logical = logicalFromLoop((index / count) * total, radius);
+    points.push({ x: logical.x, y: logical.y, tx: logical.tx, ty: logical.ty });
+  }
+  return points;
 }

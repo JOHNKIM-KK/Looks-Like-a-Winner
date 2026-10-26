@@ -14,13 +14,23 @@ function nextSeed() {
   return Math.floor(Math.random() * 1_000_000_000) + 1;
 }
 
+function seedFromSearch() {
+  if (typeof window === "undefined") return null;
+  const raw = new URLSearchParams(window.location.search).get("seed");
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return null;
+  const seed = Math.floor(value);
+  return seed > 0 ? seed : null;
+}
+
 export default function HomePage() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [race, setRace] = useState<RaceData | null>(null);
 
   function start() {
     primeStartSound();
-    setRace(simulateRace(mockHorses, nextSeed()));
+    setRace(simulateRace(mockHorses, seedFromSearch() ?? nextSeed()));
     setPhase("racing");
     window.scrollTo(0, 0);
   }
