@@ -14,15 +14,23 @@ import {
   type ShowBeat,
 } from "@/game/skillShow";
 import { playBang } from "@/game/bang";
-import { LANE_GAP, cutPose, laneRadius, renderLane, viewBounds, projectWithCamera, sampleRadiusLogical, sampleChuteLogical, projectLogicalPoints, goalLineLogical, type TrackPose } from "@/game/track";
+import { LANE_GAP, cutPose, laneRadius, renderLane, viewBounds, projectWithCamera, sampleRadiusLogical, sampleChuteLogical, projectLogicalPoints, goalLineLogical, segmentEnds, type TrackPose } from "@/game/track";
 import {
   createInitialState,
   nextCameraState,
-  getCameraForState,
+  getCameraLookForState,
+  cameraFromLook,
   shouldScaleHorseInCorner,
   type CameraState,
+  type CameraStateName,
   type RaceSnapshot,
 } from "@/game/cameraState";
+import {
+  advanceCameraPresentation,
+  cameraBlendProgress,
+  createCameraPresentation,
+  type CameraPresentation,
+} from "@/game/cameraBlend";
 
 const FRAME_WIDTH = 213;
 const FRAME_HEIGHT = 211;
@@ -77,6 +85,36 @@ type Actor = {
 
 function sheetFor(horse: RaceHorse) {
   return SILKS[(horse.number - 1) % SILKS.length] ?? SILKS[0];
+}
+
+type RaceCameraDebug = {
+  state: string;
+  from: string | null;
+  to: string | null;
+  blend: number;
+  duration: number;
+  raceTime: number;
+  wallClock: number;
+  leadProgress: number;
+  settled: boolean;
+};
+
+type CameraDebugHost = Window & {
+  __raceCamera?: RaceCameraDebug;
+  __raceCameraWant?: { from: CameraStateName; to: CameraStateName } | null;
+  __cameraFreeze?: boolean;
+  __raceCameraFrozen?: RaceCameraDebug;
+};
+
+function cameraDebugHost(): CameraDebugHost {
+  return window as CameraDebugHost;
+}
+
+function cameraStateLabel(state: CameraState, lead: number): string {
+  if (state.name === "STRAIGHT") {
+    return lead >= segmentEnds().cornerEnd ? "STRAIGHT-home" : "STRAIGHT-early";
+  }
+  return state.name;
 }
 
 function getLogicalAt(progress: number, lane: number) {
@@ -182,14 +220,20 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   const fired = new Set<number>();
   const releasedSkills = new Set<number>();
   const cutinQueue: SkillCutin[] = [];
-  let cameraState: CameraState = createInitialState();
-  let currentCamera = getCameraForState(cameraState, {
+  const initialSnapshot: RaceSnapshot = {
     raceTime: 0,
     started: false,
     gateOpen: 0,
     leadProgress: 0,
     horses: [],
-  }, 0, 0);
+  };
+  let cameraState: CameraState = createInitialState();
+  let cameraPresentation: CameraPresentation = createCameraPresentation(
+    cameraState,
+    getCameraLookForState(cameraState, initialSnapshot, 0, 0),
+  );
+  let currentCamera = cameraFromLook(cameraPresentation.look);
+  let lastLeadProgress = 0;
   
   const DEBUG_ENABLED = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
 
@@ -379,6 +423,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
 
     update(_time: number, delta: number) {
+      if (DEBUG_ENABLED && cameraDebugHost().__cameraFreeze) return;
       const wall = Math.min(delta, 40) / 1000;
       wallClock += wall;
       if (!started) {
@@ -463,6 +508,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       
       if (DEBUG_ENABLED) {
         this.paintDebugOverlay();
+        this.holdDebugShot();
       }
 
       if (!finished && raceTime >= race.duration) {
@@ -604,7 +650,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         })),
       };
 
-      cameraState = nextCameraState(cameraState, snapshot);
+      const nextState = nextCameraState(cameraPresentation.state, snapshot);
 
       const sortedByProgress = [...actors].sort((a, b) => {
         const aProgress = progressAt(a.horse.samples, raceTime);
@@ -626,7 +672,12 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       packCenterX /= leadCount;
       packCenterY /= leadCount;
 
-      currentCamera = getCameraForState(cameraState, snapshot, packCenterX, packCenterY);
+      const desiredLook = getCameraLookForState(nextState, snapshot, packCenterX, packCenterY);
+      // Blends advance on the presentation clock (wallClock), never raceTime.
+      cameraPresentation = advanceCameraPresentation(cameraPresentation, nextState, desiredLook, wallClock);
+      cameraState = cameraPresentation.state;
+      lastLeadProgress = snapshot.leadProgress;
+      currentCamera = cameraFromLook(cameraPresentation.look);
 
       for (const actor of actors) {
         const sample = progressAt(actor.horse.samples, raceTime);
@@ -1274,8 +1325,17 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       // 텍스트 정보
       const offsetX = horsePosSum.x - centerX;
       const offsetY = horsePosSum.y - centerY;
+      const blend = cameraPresentation.blend;
+      const blend01 = cameraBlendProgress(blend, wallClock);
+      const blendLine = blend
+        ? `${blend.fromName}→${blend.toName} ${Math.round(blend01 * 100)}% (${Math.max(0, wallClock - blend.startedAt).toFixed(2)}/${blend.duration.toFixed(2)}s)`
+        : "settled";
+      const stateLabel = cameraStateLabel(cameraState, lastLeadProgress);
       const infoText = [
-        `State: ${cameraState.name}`,
+        `State: ${stateLabel}`,
+        `Blend: ${blendLine}`,
+        `Race: ${raceTime.toFixed(3)}s`,
+        `Wall: ${wallClock.toFixed(3)}s`,
         `Pack: (${horsePosSum.x.toFixed(0)}, ${horsePosSum.y.toFixed(0)})`,
         `Offset: (${offsetX.toFixed(0)}, ${offsetY.toFixed(0)})`,
         `Logic: (${packCenterX.toFixed(0)}, ${packCenterY.toFixed(0)})`,
@@ -1284,6 +1344,28 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       ].join("\n");
       
       debugText?.setText(infoText);
+      cameraDebugHost().__raceCamera = {
+        state: stateLabel,
+        from: blend?.fromName ?? null,
+        to: blend?.toName ?? null,
+        blend: blend01,
+        duration: blend?.duration ?? 0,
+        raceTime,
+        wallClock,
+        leadProgress: lastLeadProgress,
+        settled: !blend,
+      };
+    }
+
+    holdDebugShot() {
+      const host = cameraDebugHost();
+      const info = host.__raceCamera;
+      const want = host.__raceCameraWant;
+      if (!info || !want || host.__cameraFreeze) return;
+      if (info.from === want.from && info.to === want.to && info.duration > 0 && info.blend >= 0.5) {
+        host.__cameraFreeze = true;
+        host.__raceCameraFrozen = { ...info };
+      }
     }
   }
 

@@ -106,7 +106,7 @@ export function exitCloseup(current: CameraState): CameraState {
   };
 }
 
-type CameraTarget = {
+export type CameraLook = {
   targetX: number;
   targetY: number;
   distance: number;
@@ -115,22 +115,22 @@ type CameraTarget = {
   focalLength: number;
 };
 
-function cameraLookAt(target: CameraTarget): Camera {
+export function cameraFromLook(target: CameraLook): Camera {
   const azimuthRad = target.azimuth * (Math.PI / 180);
   const elevationRad = target.elevation * (Math.PI / 180);
-  
+
   const groundX = target.targetX - target.distance * Math.cos(elevationRad) * Math.sin(azimuthRad);
   const groundY = target.targetY - target.distance * Math.cos(elevationRad) * Math.cos(azimuthRad);
   const height = target.distance * Math.sin(elevationRad);
-  
+
   const dx = target.targetX - groundX;
   const dy = target.targetY - groundY;
   const dz = 0 - height;
-  
+
   const yaw = Math.atan2(-dx, dy);
   const horizontalDist = Math.hypot(dx, dy);
   const pitch = Math.atan2(-dz, horizontalDist);
-  
+
   return {
     groundX,
     groundY,
@@ -141,111 +141,113 @@ function cameraLookAt(target: CameraTarget): Camera {
   };
 }
 
-export function getCameraForState(
+export function getCameraLookForState(
   state: CameraState,
   snapshot: RaceSnapshot,
   packCenterX: number,
-  packCenterY: number
-): Camera {
+  packCenterY: number,
+): CameraLook {
   const ends = segmentEnds();
-  
+
   switch (state.name) {
-    case "START": {
-      return cameraLookAt({
+    case "START":
+      return {
         targetX: packCenterX,
         targetY: packCenterY - 100,
         distance: 650,
         azimuth: 32,
         elevation: 15,
         focalLength: 1000,
-      });
-    }
+      };
 
     case "STRAIGHT": {
       const isHomeStretch = snapshot.leadProgress >= ends.cornerEnd;
-      
       if (isHomeStretch) {
-        return cameraLookAt({
+        return {
           targetX: packCenterX,
           targetY: packCenterY,
           distance: 1020,
           azimuth: 180,
           elevation: 32,
           focalLength: 1900,
-        });
-      } else {
-        return cameraLookAt({
-          targetX: packCenterX,
-          targetY: packCenterY,
-          distance: 130,
-          azimuth: 0,
-          elevation: 12,
-          focalLength: 850,
-        });
+        };
       }
+      return {
+        targetX: packCenterX,
+        targetY: packCenterY,
+        distance: 130,
+        azimuth: 0,
+        elevation: 12,
+        focalLength: 850,
+      };
     }
 
-    case "CORNER_IN": {
-      return cameraLookAt({
+    case "CORNER_IN":
+      return {
         targetX: packCenterX,
         targetY: packCenterY,
         distance: 420,
         azimuth: 225,
         elevation: 26,
         focalLength: 1100,
-      });
-    }
+      };
 
-    case "CORNER_OUT": {
-      return cameraLookAt({
+    case "CORNER_OUT":
+      return {
         targetX: packCenterX,
         targetY: packCenterY,
         distance: 520,
         azimuth: 315,
         elevation: 24,
         focalLength: 1000,
-      });
-    }
+      };
 
-    case "FINISH": {
+    case "FINISH":
       // Aim ahead of the pack, toward +x, where the home-straight goal sits.
-      return cameraLookAt({
+      return {
         targetX: packCenterX + 250,
         targetY: packCenterY,
         distance: 1800,
         azimuth: 90,
         elevation: 18,
         focalLength: 2600,
-      });
-    }
+      };
 
     case "CLOSEUP": {
       const horseIndex = state.closeupHorseIndex ?? 0;
       const horse = snapshot.horses[horseIndex];
       if (!horse) {
-        return getCameraForState({ name: "STRAIGHT" }, snapshot, packCenterX, packCenterY);
+        return getCameraLookForState({ name: "STRAIGHT" }, snapshot, packCenterX, packCenterY);
       }
-
-      return cameraLookAt({
+      return {
         targetX: packCenterX,
         targetY: packCenterY,
         distance: 180,
         azimuth: 0,
         elevation: 18,
         focalLength: 1400,
-      });
+      };
     }
 
     default:
-      return cameraLookAt({
+      return {
         targetX: 0,
         targetY: 0,
         distance: 1500,
         azimuth: 0,
         elevation: 55,
         focalLength: 650,
-      });
+      };
   }
+}
+
+export function getCameraForState(
+  state: CameraState,
+  snapshot: RaceSnapshot,
+  packCenterX: number,
+  packCenterY: number,
+): Camera {
+  return cameraFromLook(getCameraLookForState(state, snapshot, packCenterX, packCenterY));
 }
 
 export function shouldScaleHorseInCorner(state: CameraState): boolean {
