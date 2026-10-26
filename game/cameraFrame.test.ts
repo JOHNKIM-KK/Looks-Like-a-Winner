@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest";
+import { cameraConfig } from "./cameraConfig";
 import { simulateRace, progressAt } from "../lib/race";
 import { mockHorses } from "../lib/mockHorses";
+import { orderByPresentation } from "./rankOrder";
 import { LANE_COLORS } from "./laneColors";
 import {
   advanceCameraPresentation,
@@ -29,11 +31,19 @@ import {
   anchorVisible,
   cornerLowerThanStraights,
   cornerRailSagitta,
+  activeFrameIncludes,
   createFrameMemory,
   frameHorseLook,
+  framingRuleFor,
   grassBelowRailFraction,
+  horseFit,
+  requestFrameInclude,
+  requiredFrameSubjects,
+  resetFrameIncludes,
   spriteRect,
+  subjectsForFrameRule,
   type FrameMemory,
+  type FrameSubject,
 } from "./cameraFrame";
 import {
   STRAIGHT,
@@ -139,21 +149,43 @@ describe("corner viewpoint", () => {
 });
 
 describe("horse framing", () => {
-  test("eight seeds keep every sprite inside the safe rect", () => {
+  test("eight seeds keep topN or all horses inside the safe rect", () => {
+    resetFrameIncludes();
+    expect(cameraConfig.framing.topN).toBe(5);
     type Stat = {
       samples: number;
       worst: number;
       heights: number[];
+      leaderHeights: number[];
+      span: number[];
+      hMargin: number[];
+      vMargin: number[];
       grass: number;
       sagitta: number;
       postOut: number;
+      postFrames: number;
       outsideFail: number;
+      trailerOut: number;
     };
     const byState = new Map<string, Stat>();
     const ensure = (name: string) => {
       let stat = byState.get(name);
       if (!stat) {
-        stat = { samples: 0, worst: Infinity, heights: [], grass: 0, sagitta: Infinity, postOut: 0, outsideFail: 0 };
+        stat = {
+          samples: 0,
+          worst: Infinity,
+          heights: [],
+          leaderHeights: [],
+          span: [],
+          hMargin: [],
+          vMargin: [],
+          grass: 0,
+          sagitta: Infinity,
+          postOut: 0,
+          postFrames: 0,
+          outsideFail: 0,
+          trailerOut: 0,
+        };
         byState.set(name, stat);
       }
       return stat;
@@ -193,35 +225,92 @@ describe("horse framing", () => {
         const desired = getCameraLookForState(next, snapshot, packX, packY);
         const presentationTime = 2.4 + raceTime;
         pres = advanceCameraPresentation(pres, next, desired, presentationTime);
+        const ranked = orderByPresentation(
+          subjects.map((subject) => ({
+            id: subject.horse.id,
+            number: subject.horse.number,
+            shown: subject.progress,
+            finishTime: subject.horse.finishTime,
+            rank: subject.horse.rank,
+          })),
+          started ? raceTime : 0,
+        );
+        const rankById = new Map(ranked.map((horse, index) => [horse.id, index + 1]));
+        const framedSubjects: FrameSubject[] = subjects.map((subject) => ({
+          ...subject.logical,
+          id: subject.horse.id,
+          rank: rankById.get(subject.horse.id) ?? subject.horse.number,
+        }));
         const anchors = pres.state.name === "FINISH" ? [post, { x: post.x, y: outerRailRadius(8) }] : [];
         const framed = frameHorseLook(
           pres.look,
-          subjects.map((subject) => subject.logical),
+          framedSubjects,
           pres.state.name,
           anchors,
           memory,
           raceTime === 0 ? 0 : 0.1,
+          leadProgress,
         );
         memory = framed.memory;
         const camera = cameraFromLook(framed.look);
         const label = stateLabel(pres.state, leadProgress);
+        const rule = framingRuleFor(pres.state.name, leadProgress);
+        if (label === "START" || label === "STRAIGHT-early") expect(rule, label).toBe("all");
+        if (label === "CORNER_IN" || label === "CORNER_OUT" || label === "STRAIGHT-home" || label === "FINISH") {
+          expect(rule, label).toBe("topN");
+        }
+        const topN = cameraConfig.framing.topN;
         const stat = ensure(label);
         stat.samples += 1;
         const heights: number[] = [];
-        for (const subject of subjects) {
-          const pose = projectWithCamera(subject.logical, camera);
-          expect(pose.visible, `${label} seed ${seed} t ${raceTime}`).toBe(true);
+        const leaderHeights: number[] = [];
+        let boxL = Infinity;
+        let boxR = -Infinity;
+        let hMargin = Infinity;
+        let vMargin = Infinity;
+        let trailerLeft = false;
+        for (const subject of framedSubjects) {
+          const pose = projectWithCamera(subject, camera);
+          const mustFit = rule === "all" || (subject.rank ?? Number.POSITIVE_INFINITY) <= topN;
+          if (pose.visible) {
+            heights.push(spriteRect(pose).height);
+          }
+          if (!mustFit) {
+            if (!pose.visible) {
+              trailerLeft = true;
+              continue;
+            }
+            const rect = spriteRect(pose);
+            const inside =
+              rect.minX >= FRAME_LEFT - 0.6 &&
+              rect.maxX <= FRAME_RIGHT + 0.6 &&
+              rect.minY >= FRAME_TOP - 0.6 &&
+              rect.maxY <= FRAME_BOTTOM + 0.6;
+            if (!inside) trailerLeft = true;
+            continue;
+          }
+          expect(pose.visible, `${label} seed ${seed} t ${raceTime} rank ${subject.rank}`).toBe(true);
           const rect = spriteRect(pose);
-          heights.push(rect.height);
+          leaderHeights.push(rect.height);
+          boxL = Math.min(boxL, rect.minX);
+          boxR = Math.max(boxR, rect.maxX);
+          hMargin = Math.min(hMargin, rect.minX - FRAME_LEFT, FRAME_RIGHT - rect.maxX);
+          vMargin = Math.min(vMargin, rect.minY - FRAME_TOP, FRAME_BOTTOM - rect.maxY);
           const margin = Math.min(rect.minX - FRAME_LEFT, FRAME_RIGHT - rect.maxX, rect.minY - FRAME_TOP, FRAME_BOTTOM - rect.maxY);
           stat.worst = Math.min(stat.worst, margin);
-          expect(rect.minX, `${label} seed ${seed} t ${raceTime.toFixed(1)} left`).toBeGreaterThanOrEqual(FRAME_LEFT - 0.6);
-          expect(rect.maxX, `${label} seed ${seed} t ${raceTime.toFixed(1)} right`).toBeLessThanOrEqual(FRAME_RIGHT + 0.6);
-          expect(rect.minY, `${label} seed ${seed} t ${raceTime.toFixed(1)} top`).toBeGreaterThanOrEqual(FRAME_TOP - 0.6);
-          expect(rect.maxY, `${label} seed ${seed} t ${raceTime.toFixed(1)} bottom`).toBeLessThanOrEqual(FRAME_BOTTOM + 0.6);
+          expect(rect.minX, `${label} seed ${seed} t ${raceTime.toFixed(1)} rank ${subject.rank} left`).toBeGreaterThanOrEqual(FRAME_LEFT - 0.6);
+          expect(rect.maxX, `${label} seed ${seed} t ${raceTime.toFixed(1)} rank ${subject.rank} right`).toBeLessThanOrEqual(FRAME_RIGHT + 0.6);
+          expect(rect.minY, `${label} seed ${seed} t ${raceTime.toFixed(1)} rank ${subject.rank} top`).toBeGreaterThanOrEqual(FRAME_TOP - 0.6);
+          expect(rect.maxY, `${label} seed ${seed} t ${raceTime.toFixed(1)} rank ${subject.rank} bottom`).toBeLessThanOrEqual(FRAME_BOTTOM + 0.6);
         }
+        if (trailerLeft) stat.trailerOut += 1;
         heights.sort((a, b) => a - b);
+        leaderHeights.sort((a, b) => a - b);
         stat.heights.push(heights[Math.floor((heights.length - 1) / 2)] ?? 0);
+        stat.leaderHeights.push(leaderHeights[Math.floor((leaderHeights.length - 1) / 2)] ?? 0);
+        stat.span.push(boxR - boxL);
+        stat.hMargin.push(hMargin);
+        stat.vMargin.push(vMargin);
         stat.grass = Math.max(stat.grass, grassBelowRailFraction(camera));
         const settled = !pres.blend;
         if (settled && (pres.state.name === "CORNER_IN" || pres.state.name === "CORNER_OUT")) {
@@ -237,6 +326,7 @@ describe("horse framing", () => {
           expect(outside, `${label} t ${raceTime.toFixed(1)}`).toBe(true);
         }
         if (settled && pres.state.name === "FINISH" && leadProgress >= 0.9) {
+          stat.postFrames += 1;
           if (!anchorVisible(framed.look, post)) stat.postOut += 1;
         }
       }
@@ -247,20 +337,125 @@ describe("horse framing", () => {
       const heights = [...stat.heights].sort((a, b) => a - b);
       const median = heights[Math.floor((heights.length - 1) / 2)] ?? 0;
       const minMedian = heights[0] ?? 0;
+      const leaders = [...stat.leaderHeights].sort((a, b) => a - b);
+      const spans = [...stat.span].sort((a, b) => a - b);
+      const hMargins = [...stat.hMargin].sort((a, b) => a - b);
+      const vMargins = [...stat.vMargin].sort((a, b) => a - b);
+      const mid = (values: number[]) => values[Math.floor((values.length - 1) / 2)] ?? 0;
       lines.push(
         [
           name,
           `n=${stat.samples}`,
           `worstMargin=${stat.worst.toFixed(1)}px`,
           `medianHorse=${median.toFixed(1)}px`,
+          `leaderMedian=${mid(leaders).toFixed(1)}px`,
+          `span=${mid(spans).toFixed(0)}/${(FRAME_RIGHT - FRAME_LEFT).toFixed(0)}`,
+          `hMargin=${mid(hMargins).toFixed(1)}`,
+          `vMargin=${mid(vMargins).toFixed(1)}`,
           `minFrameMedian=${minMedian.toFixed(1)}px`,
           `worstGrass=${(stat.grass * 100).toFixed(1)}%`,
           stat.sagitta < Infinity ? `minSagitta=${stat.sagitta.toFixed(0)}px` : "sagitta=n/a",
-          `postMiss=${stat.postOut}`,
+          `postMiss=${stat.postOut}/${stat.postFrames}`,
           `outsideFail=${stat.outsideFail}`,
+          `trailerOut=${stat.trailerOut}`,
         ].join(" | "),
       );
     }
     console.log(lines.join("\n"));
+    const medianOf = (name: string) => {
+      const heights = [...(byState.get(name)?.heights ?? [])].sort((a, b) => a - b);
+      return heights[Math.floor((heights.length - 1) / 2)] ?? 0;
+    };
+    expect(medianOf("START")).toBeCloseTo(125.3, 0);
+    expect(medianOf("STRAIGHT-early")).toBeCloseTo(82.5, 0);
+    expect(medianOf("CORNER_IN")).toBeGreaterThanOrEqual(95);
+    expect(medianOf("CORNER_OUT")).toBeGreaterThanOrEqual(95);
+    expect(medianOf("STRAIGHT-home")).toBeGreaterThanOrEqual(100);
+    expect(medianOf("FINISH")).toBeGreaterThanOrEqual(95);
+    const finish = byState.get("FINISH");
+    const postRatio = finish && finish.postFrames > 0 ? (finish.postFrames - finish.postOut) / finish.postFrames : 0;
+    console.log(
+      `finishPostVisible=${(postRatio * 100).toFixed(1)}% (${(finish?.postFrames ?? 0) - (finish?.postOut ?? 0)}/${finish?.postFrames ?? 0})`,
+    );
+    expect(postRatio).toBe(1);
   }, 120000);
+
+  test("requestFrameInclude widens for a dummy horse, and cut does not", () => {
+    resetFrameIncludes();
+    expect(cameraConfig.framing.includePolicy).toBe("widen");
+    const ends = segmentEnds();
+    const progress = ends.backStraightEnd + (ends.cornerEnd - ends.backStraightEnd) * 0.25;
+    const leaders: FrameSubject[] = [1, 2, 3, 4, 5].map((lane) => ({
+      ...presentationLogical(progress, lane),
+      id: `lane-${lane}`,
+      rank: lane,
+    }));
+    const packX = leaders.reduce((sum, horse) => sum + horse.x, 0) / leaders.length;
+    const packY = leaders.reduce((sum, horse) => sum + horse.y, 0) / leaders.length;
+    const base = getCameraLookForState(
+      { name: "CORNER_IN" },
+      { raceTime: 12, started: true, gateOpen: 1, leadProgress: progress, horses: [] },
+      packX,
+      packY,
+    );
+    const lead = progress;
+    const baseCamera = cameraFromLook(base);
+    let dummy: FrameSubject | null = null;
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+      [1, 1],
+      [-1, 1],
+    ] as const) {
+      const len = Math.hypot(dx, dy);
+      for (let dist = 80; dist <= 4800; dist += 80) {
+        const candidate: FrameSubject = {
+          x: packX + (dx / len) * dist,
+          y: packY + (dy / len) * dist,
+          tx: 0,
+          ty: 1,
+          id: "dummy",
+          rank: 8,
+        };
+        const pose = projectWithCamera(candidate, baseCamera);
+        if (!pose.visible) break;
+        if (!horseFit(base, [candidate]).ok) {
+          dummy = candidate;
+          break;
+        }
+      }
+      if (dummy) break;
+    }
+    expect(dummy, "a visible horse outside the state camera").not.toBeNull();
+    if (!dummy) return;
+
+    const parked = frameHorseLook(base, [...leaders, dummy], "CORNER_IN", [], createFrameMemory(base), 0, lead).look;
+    expect(horseFit(parked, leaders).ok, "leaders stay inside without the dummy").toBe(true);
+    expect(requiredFrameSubjects([...leaders, dummy], "CORNER_IN", lead).some((subject) => subject.id === "dummy")).toBe(
+      false,
+    );
+
+    requestFrameInclude("dummy", 1.25);
+    expect(activeFrameIncludes()).toEqual([{ horseId: "dummy", remaining: 1.25 }]);
+    const widened = frameHorseLook(base, [...leaders, dummy], "CORNER_IN", [], createFrameMemory(base), 0, lead);
+    expect(horseFit(widened.look, [dummy]).ok).toBe(true);
+    expect(horseFit(widened.look, leaders).ok).toBe(true);
+    expect(widened.look.distance).toBeGreaterThan(parked.distance);
+    expect(widened.look.focalLength).toBeLessThan(parked.focalLength);
+
+    const ids = (policy: "widen" | "cut") =>
+      subjectsForFrameRule([...leaders, dummy], "topN", policy).map((subject) => subject.id);
+    expect(ids("widen")).toContain("dummy");
+    expect(ids("cut")).not.toContain("dummy");
+    expect(activeFrameIncludes().map((item) => item.horseId)).toEqual(["dummy"]);
+
+    frameHorseLook(base, [...leaders, dummy], "CORNER_IN", [], widened.memory, 1.25, lead);
+    expect(activeFrameIncludes()).toEqual([]);
+    expect(requiredFrameSubjects([...leaders, dummy], "CORNER_IN", lead).some((subject) => subject.id === "dummy")).toBe(
+      false,
+    );
+    resetFrameIncludes();
+  });
 });

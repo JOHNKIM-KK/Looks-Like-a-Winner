@@ -1,8 +1,20 @@
 /**
  * Retune the race camera here. State looks, the safe-frame margins, damping,
  * and the background targets all live in this object.
- * Framing only widens a state look (never zooms in past it).
+ * "all" states only widen a state look. "topN" states pick a distance and focal
+ * length so the leaders' box fills the safe width, and never zoom in past
+ * `framing.maxZoom`.
  */
+
+export type FrameFitRule = "all" | "topN";
+
+/**
+ * How `requestFrameInclude` pulls one horse into view.
+ * "widen" pulls the state camera out until that horse fits.
+ * "cut" records the request and leaves the pack frame alone, so a short cut can show them.
+ */
+export type FrameIncludePolicy = "widen" | "cut";
+
 export const cameraConfig = {
   view: {
     width: 540,
@@ -15,8 +27,15 @@ export const cameraConfig = {
     bannerTop: 0.8,
   },
   framing: {
-    /** Seconds to ease a widen / recover. A hard clip still snaps wide enough to fit. */
+    /** Seconds to ease a zoom / widen. A hard clip still snaps wide enough to fit. */
     dampSec: 0.3,
+    /**
+     * Closest a topN fit may pull the state camera, as a multiple of its distance
+     * and focal length. 2.5 allows 0.4× the distance and 2.5× the focal length.
+     * The fit may dolly farther than the state camera, and it stops once the
+     * leaders fill the safe width.
+     */
+    maxZoom: 2.5,
     /** Soft grass target for later retuning. Not a pass/fail gate. */
     grassTarget: 0.08,
     /** Straights may show grass under the rail up to this fraction of screen height. */
@@ -27,6 +46,23 @@ export const cameraConfig = {
     laneAreaBottom: 0.8,
     /** Soft screen-space bow of the corner rail, in pixels. Reported, not enforced. */
     cornerSagittaMin: 56,
+    /**
+     * Leaders that must stay inside the safe rect when a state's rule is "topN".
+     * Horses ranked below this may leave the frame.
+     */
+    topN: 5,
+    /** See FrameIncludePolicy. Skills are not wired to this. */
+    includePolicy: "widen" as FrameIncludePolicy,
+    /** "all" fits every horse. "topN" fits only the current top `topN`. */
+    rules: {
+      START: "all",
+      STRAIGHT_EARLY: "all",
+      STRAIGHT_HOME: "topN",
+      CORNER_IN: "topN",
+      CORNER_OUT: "topN",
+      FINISH: "topN",
+      CLOSEUP: "all",
+    } satisfies Record<string, FrameFitRule>,
     /** Slides the look target along the view direction. 0 keeps the pack centered. */
     lookBias: {
       START: 0,
