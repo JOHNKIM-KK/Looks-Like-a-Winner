@@ -211,11 +211,11 @@ export function getCameraForState(
       return cameraLookAt({
         targetX: packCenterX,
         targetY: packCenterY,
-        distance: 380,
-        azimuth: 85,
-        elevation: 8,
-        focalLength: 1100,
-        });
+        distance: 2050,
+        azimuth: 100,
+        elevation: 6,
+        focalLength: 2800,
+      });
     }
 
     case "CLOSEUP": {

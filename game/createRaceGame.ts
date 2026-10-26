@@ -393,6 +393,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           this.placeHorses();
           this.publishRanks();
           this.frameCamera(false);
+          if (DEBUG_ENABLED) {
+            this.paintDebugOverlay();
+          }
           return;
         }
         started = true;
@@ -1278,7 +1281,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         `Logic: (${packCenterX.toFixed(0)}, ${packCenterY.toFixed(0)})`,
         `Center: (${centerX}, ${centerY.toFixed(0)})`,
         `Visible: ${visibleCount}/8`,
-      ].join('\\n');
+      ].join("\n");
       
       debugText?.setText(infoText);
     }
