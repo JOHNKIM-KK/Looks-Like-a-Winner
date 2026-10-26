@@ -17,6 +17,7 @@ import {
   createInitialState,
   getCameraLookForState,
   nextCameraState,
+  shouldShowFinishMark,
   type CameraState,
   type RaceSnapshot,
 } from "./cameraState";
@@ -31,7 +32,6 @@ import {
   createFrameMemory,
   frameHorseLook,
   grassBelowRailFraction,
-  laneBackgroundFraction,
   spriteRect,
   type FrameMemory,
 } from "./cameraFrame";
@@ -90,6 +90,14 @@ describe("presentation path", () => {
     expect(post.y).toBeLessThan(innerRailRadius());
     expect(innerRailRadius() - post.y).toBeLessThan(40);
     expect(post.y).toBeGreaterThan(0);
+    expect(post.x).toBeGreaterThan(-STRAIGHT / 2);
+    expect(post.x).toBeLessThan(STRAIGHT / 2);
+    const ends = segmentEnds();
+    expect(shouldShowFinishMark("CORNER_IN", (ends.backStraightEnd + ends.cornerEnd) / 2)).toBe(false);
+    expect(shouldShowFinishMark("CORNER_OUT", (ends.backStraightEnd + ends.cornerEnd) / 2)).toBe(false);
+    expect(shouldShowFinishMark("STRAIGHT", ends.backStraightEnd)).toBe(false);
+    expect(shouldShowFinishMark("STRAIGHT", ends.cornerEnd)).toBe(true);
+    expect(shouldShowFinishMark("FINISH", 0.95)).toBe(true);
   });
 });
 
@@ -124,7 +132,7 @@ describe("corner viewpoint", () => {
       expect(Math.hypot(camDx, camDy)).toBeGreaterThan(outerRailRadius(8));
       expect(packDx * camDx + packDy * camDy).toBeGreaterThan(0);
       console.log(
-        `${name} base sagitta=${cornerRailSagitta(camera).toFixed(1)}px grass=${(grassBelowRailFraction(camera) * 100).toFixed(1)}% laneBg=${(laneBackgroundFraction(camera) * 100).toFixed(1)}%`,
+        `${name} base sagitta=${cornerRailSagitta(camera).toFixed(1)}px grass=${(grassBelowRailFraction(camera) * 100).toFixed(1)}%`,
       );
     }
   });
@@ -137,7 +145,6 @@ describe("horse framing", () => {
       worst: number;
       heights: number[];
       grass: number;
-      background: number;
       sagitta: number;
       postOut: number;
       outsideFail: number;
@@ -146,7 +153,7 @@ describe("horse framing", () => {
     const ensure = (name: string) => {
       let stat = byState.get(name);
       if (!stat) {
-        stat = { samples: 0, worst: Infinity, heights: [], grass: 0, background: 0, sagitta: Infinity, postOut: 0, outsideFail: 0 };
+        stat = { samples: 0, worst: Infinity, heights: [], grass: 0, sagitta: Infinity, postOut: 0, outsideFail: 0 };
         byState.set(name, stat);
       }
       return stat;
@@ -215,9 +222,7 @@ describe("horse framing", () => {
         }
         heights.sort((a, b) => a - b);
         stat.heights.push(heights[Math.floor((heights.length - 1) / 2)] ?? 0);
-        const grass = grassBelowRailFraction(camera);
-        stat.grass = Math.max(stat.grass, grass);
-        stat.background = Math.max(stat.background, laneBackgroundFraction(camera));
+        stat.grass = Math.max(stat.grass, grassBelowRailFraction(camera));
         const settled = !pres.blend;
         if (settled && (pres.state.name === "CORNER_IN" || pres.state.name === "CORNER_OUT")) {
           stat.sagitta = Math.min(stat.sagitta, cornerRailSagitta(camera));
@@ -250,7 +255,6 @@ describe("horse framing", () => {
           `medianHorse=${median.toFixed(1)}px`,
           `minFrameMedian=${minMedian.toFixed(1)}px`,
           `worstGrass=${(stat.grass * 100).toFixed(1)}%`,
-          `worstLaneBg=${(stat.background * 100).toFixed(1)}%`,
           stat.sagitta < Infinity ? `minSagitta=${stat.sagitta.toFixed(0)}px` : "sagitta=n/a",
           `postMiss=${stat.postOut}`,
           `outsideFail=${stat.outsideFail}`,

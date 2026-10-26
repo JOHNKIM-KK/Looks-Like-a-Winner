@@ -170,26 +170,7 @@ export function grassBelowRailFraction(camera: Camera, lanes = 8) {
   return worst;
 }
 
-/** Share of the lane band (screen 15–80%) that is stands, trees, sky, or grass rather than dirt. */
-export function laneBackgroundFraction(camera: Camera, lanes = 8) {
-  const outer = outerRailRadius(lanes);
-  const top = GAME_HEIGHT * LANE_AREA_TOP;
-  const bottom = GAME_HEIGHT * LANE_AREA_BOTTOM;
-  const cols = 8;
-  const rows = 8;
-  let background = 0;
-  let total = 0;
-  for (let c = 1; c < cols; c += 1) {
-    const sx = (c / cols) * GAME_WIDTH;
-    for (let r = 0; r < rows; r += 1) {
-      const sy = top + ((r + 0.5) / rows) * (bottom - top);
-      total += 1;
-      const sample = groundAt(camera, sx, sy);
-      if (!sample.ok || radial(sample.x, sample.y) > outer) background += 1;
-    }
-  }
-  return total === 0 ? 1 : background / total;
-}
+const LANE_CENTER_Y = (GAME_HEIGHT * (LANE_AREA_TOP + LANE_AREA_BOTTOM)) / 2;
 
 /** Screen-space bow of the left-hand outer rail that actually falls inside the view. */
 export function cornerRailSagitta(camera: Camera, lanes = 8) {
@@ -234,6 +215,54 @@ function widened(look: CameraLook, factor: number): CameraLook {
   };
 }
 
+function packSpriteCenterY(look: CameraLook, subjects: FrameSubject[]) {
+  const camera = cameraFromLook(look);
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const subject of subjects) {
+    const pose = projectWithCamera(subject, camera);
+    if (!pose.visible) return null;
+    const rect = spriteRect(pose);
+    minY = Math.min(minY, rect.minY);
+    maxY = Math.max(maxY, rect.maxY);
+  }
+  if (!Number.isFinite(minY) || !Number.isFinite(maxY)) return null;
+  return (minY + maxY) / 2;
+}
+
+/**
+ * After the fit widen, slide the look target along the view until the pack's
+ * sprite box sits on the lane-band center. Stops if another step would clip.
+ */
+function recenterPack(look: CameraLook, subjects: FrameSubject[]) {
+  if (subjects.length === 0) return look;
+  let lo = -480;
+  let hi = 480;
+  let best = look;
+  const initial = packSpriteCenterY(look, subjects);
+  if (initial === null) return look;
+  let bestError = Math.abs(initial - LANE_CENTER_Y);
+  for (let step = 0; step < 8; step += 1) {
+    const mid = (lo + hi) / 2;
+    const candidate = shiftLook(look, mid);
+    if (!horseFit(candidate, subjects).ok) {
+      if (mid > 0) hi = mid;
+      else lo = mid;
+      continue;
+    }
+    const centerY = packSpriteCenterY(candidate, subjects);
+    if (centerY === null) return best;
+    const error = Math.abs(centerY - LANE_CENTER_Y);
+    if (error < bestError) {
+      best = candidate;
+      bestError = error;
+    }
+    if (centerY < LANE_CENTER_Y) lo = mid;
+    else hi = mid;
+  }
+  return best;
+}
+
 /** Smallest uniform widen that keeps every sprite inside the safe rect. */
 function widenToFit(look: CameraLook, subjects: FrameSubject[]) {
   if (subjects.length === 0 || horseFit(look, subjects).ok) return look;
@@ -266,7 +295,8 @@ export function solveFramedLook(
 ): { look: CameraLook; bias: number } {
   void anchors;
   const bias = cameraConfig.framing.lookBias[state] ?? 0;
-  return { look: widenToFit(shiftLook(base, bias), subjects), bias };
+  const fitted = widenToFit(shiftLook(base, bias), subjects);
+  return { look: recenterPack(fitted, subjects), bias };
 }
 
 export function frameHorseLook(
@@ -287,7 +317,7 @@ export function frameHorseLook(
   const distance = Math.max(base.distance, damp(memory.distance, solved.look.distance, dt));
   const focalLength = Math.min(base.focalLength, damp(memory.focalLength, solved.look.focalLength, dt));
   const bias = damp(memory.bias, solved.bias, dt);
-  const look = widenToFit(shiftLook({ ...base, distance, focalLength }, bias), subjects);
+  const look = recenterPack(widenToFit(shiftLook({ ...base, distance, focalLength }, bias), subjects), subjects);
   return {
     look,
     memory: { distance: look.distance, focalLength: look.focalLength, bias, seeded: true },

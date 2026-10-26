@@ -14,13 +14,14 @@ import {
   type ShowBeat,
 } from "@/game/skillShow";
 import { playBang } from "@/game/bang";
-import { LANE_GAP, cutPose, laneRadius, renderLane, viewBounds, projectWithCamera, sampleRadiusLogical, sampleChuteLogical, projectLogicalPoints, presentationLogical, finishPostLogical, finishOuterLogical, innerRailRadius, outerRailRadius, segmentEnds, type TrackPose } from "@/game/track";
+import { LANE_GAP, laneRadius, renderLane, viewBounds, projectWithCamera, sampleRadiusLogical, sampleChuteLogical, projectLogicalPoints, presentationLogical, finishPostLogical, finishOuterLogical, innerRailRadius, outerRailRadius, segmentEnds } from "@/game/track";
 import {
   createInitialState,
   nextCameraState,
   getCameraLookForState,
   cameraFromLook,
   shouldScaleHorseInCorner,
+  shouldShowFinishMark,
   type CameraState,
   type CameraStateName,
   type RaceSnapshot,
@@ -182,8 +183,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   const DEBUG_ENABLED = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
 
   const outerLane = Math.max(1, race.horses.length);
-  const trackOuterLogical = sampleRadiusLogical(outerRailRadius(outerLane), 140);
-  const trackInnerLogical = sampleRadiusLogical(innerRailRadius(), 140);
+  const trackOuterLogical = sampleRadiusLogical(outerRailRadius(outerLane), 520);
+  const trackInnerLogical = sampleRadiusLogical(innerRailRadius(), 520);
   const railOutLogical = trackOuterLogical;
   const railInLogical = trackInnerLogical;
   const chuteOuterLogical = sampleChuteLogical(outerRailRadius(outerLane), 24);
@@ -568,9 +569,10 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         }
       });
 
+      const showFinishMark = shouldShowFinishMark(cameraState.name, lastLeadProgress);
       const goalInner = projectWithCamera({ x: goalInnerLogical.x, y: goalInnerLogical.y, tx: 0, ty: 0 }, currentCamera);
       const goalOuter = projectWithCamera({ x: goalOuterLogical.x, y: goalOuterLogical.y, tx: 0, ty: 0 }, currentCamera);
-      if (goalInner.visible && goalOuter.visible && track) {
+      if (showFinishMark && goalInner.visible && goalOuter.visible && track) {
         const steps = 12;
         for (let index = 0; index < steps; index += 1) {
           const from = index / steps;
@@ -584,7 +586,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           );
         }
       }
-      if (goalInner.visible && track) {
+      if (showFinishMark && goalInner.visible && track) {
         track.lineStyle(7, 0xf7f4ee, 1);
         track.lineBetween(goalInner.x, goalInner.y, goalInner.x, goalInner.y - 86);
         track.fillStyle(0xc62828, 1);
@@ -806,27 +808,49 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const span = horse.cutUntil - horse.skillTime;
         if (age < 0 || age > span + 0.8) continue;
         const fade = age <= span ? 1 : 1 - (age - span) / 0.8;
-        const points: TrackPose[] = [];
-        for (let step = 0; step <= 16; step += 1) {
-          points.push(cutPose(horse.cutFrom, horse.cutTo, horse.number, step / 16));
-        }
-        const stroke = (width: number, color: number, alpha: number) => {
-          cutPath?.lineStyle(width, color, alpha * fade);
-          const first = points[0];
-          if (!first) return;
+        const lane = renderLane(horse.number, actor.progress, race.seed);
+        const from = getLogicalAt(horse.cutFrom, lane);
+        const to = getLogicalAt(horse.cutTo, lane);
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const length = Math.hypot(dx, dy) || 1;
+        const nx = -dy / length;
+        const ny = dx / length;
+        const tNow = Math.min(1, Math.max(0, age / Math.max(span, 1e-6)));
+        const t0 = Math.max(0, tNow - 90 / length);
+        const t1 = Math.min(1, tNow + 24 / length);
+        const at = (t: number) => projectWithCamera({
+          x: from.x + dx * t,
+          y: from.y + dy * t,
+          tx: dx / length,
+          ty: dy / length,
+        }, currentCamera);
+        if (!at(tNow).visible) continue;
+        const steps = 8;
+        const fillStrip = (half: number, color: number, alpha: number) => {
+          const edge = (t: number, side: number) => projectWithCamera({
+            x: from.x + dx * t + nx * half * side,
+            y: from.y + dy * t + ny * half * side,
+            tx: dx / length,
+            ty: dy / length,
+          }, currentCamera);
+          cutPath?.fillStyle(color, alpha * fade);
           cutPath?.beginPath();
+          const first = edge(t0, 1);
           cutPath?.moveTo(first.x, first.y);
-          for (const point of points) cutPath?.lineTo(point.x, point.y);
-          cutPath?.strokePath();
+          for (let step = 1; step <= steps; step += 1) {
+            const point = edge(t0 + (t1 - t0) * (step / steps), 1);
+            cutPath?.lineTo(point.x, point.y);
+          }
+          for (let step = steps; step >= 0; step -= 1) {
+            const point = edge(t0 + (t1 - t0) * (step / steps), -1);
+            cutPath?.lineTo(point.x, point.y);
+          }
+          cutPath?.closePath();
+          cutPath?.fillPath();
         };
-        stroke(46, 0x2f6b3a, 0.95);
-        stroke(24, 0xe7d7a8, 1);
-        cutPath.lineStyle(8, 0xcbb98a, 0.9 * fade);
-        for (let index = 1; index < points.length - 1; index += 2) {
-          const point = points[index];
-          if (!point) continue;
-          cutPath.lineBetween(point.x - point.tangentY * 16, point.y + point.tangentX * 16, point.x + point.tangentY * 16, point.y - point.tangentX * 16);
-        }
+        fillStrip(16, 0x2f6b3a, 0.95);
+        fillStrip(8, 0xc4a06a, 1);
       }
     }
 
@@ -1103,6 +1127,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     paintGates() {
       if (!gates) return;
       gates.clear();
+      // Door arms are sized in screen pixels for the start. Once the field leaves
+      // the chute, a wide camera would draw that same gate as a broken stair.
+      if (started && gateOpen >= 1 && lastLeadProgress > segmentEnds().pocketEnd + 0.08) return;
       const lanes = race.horses.length;
       
       for (let lane = 0; lane <= lanes; lane += 1) {

@@ -218,3 +218,9 @@ export function getCameraForState(
 export function shouldScaleHorseInCorner(state: CameraState): boolean {
   return state.name === "CORNER_IN" || state.name === "CORNER_OUT";
 }
+
+/** Finish post and the checkered line belong on the home straight and at the finish. */
+export function shouldShowFinishMark(stateName: CameraStateName, leadProgress: number) {
+  if (stateName === "FINISH") return true;
+  return stateName === "STRAIGHT" && leadProgress >= segmentEnds().cornerEnd;
+}
