@@ -1,10 +1,10 @@
 import { chromium } from 'playwright';
 
-const VIEWPORTS = [
-  { width: 390, height: 844, name: 'iPhone13' },
-  { width: 360, height: 800, name: 'Android' },
-  { width: 430, height: 932, name: 'iPhone14Pro' },
-];
+// Export exact simulation times for screenshots
+export const SCREENSHOT_TIMES = {
+  START: 0.0,      // Gate, before race starts
+  FINISH: 36.0,    // Near finish line (adjusted to ensure lead >= 0.9)
+};
 
 async function captureRaceScreenshots() {
   console.log('🎬 레이스 스크린샷 캡처 시작');
@@ -13,58 +13,82 @@ async function captureRaceScreenshots() {
   const browser = await chromium.launch({ headless: true });
 
   try {
-    for (const viewport of VIEWPORTS) {
-      console.log(`\n📱 ${viewport.name} (${viewport.width}x${viewport.height}) 캡처 중...`);
-      
-      const context = await browser.newContext({
-        viewport: { width: viewport.width, height: viewport.height },
-        deviceScaleFactor: 2,
+    const viewport = { width: 390, height: 844, name: 'iPhone13' };
+    console.log(`\n📱 ${viewport.name} (${viewport.width}x${viewport.height}) 캡처 중...`);
+    
+    const context = await browser.newContext({
+      viewport: { width: viewport.width, height: viewport.height },
+      deviceScaleFactor: 2,
+    });
+
+    const page = await context.newPage();
+    
+    try {
+      await page.goto('http://localhost:3000', { 
+        waitUntil: 'networkidle',
+        timeout: 15000,
       });
 
-      const page = await context.newPage();
+      await page.click('text=출발');
       
-      try {
-        await page.goto('http://localhost:3000', { 
-          waitUntil: 'networkidle',
-          timeout: 15000,
-        });
+      console.log('  📸 START (게이트) 캡처...');
+      await page.waitForTimeout(1500);
+      await page.screenshot({
+        path: `/opt/cursor/artifacts/race-state-START-${viewport.width}x${viewport.height}.png`,
+      });
 
-        await page.click('text=출발');
-        await page.waitForTimeout(3000);
+      console.log('  📸 STRAIGHT (출발 후) 캡처...');
+      await page.waitForTimeout(3000);
+      await page.screenshot({
+        path: `/opt/cursor/artifacts/race-state-STRAIGHT-early-${viewport.width}x${viewport.height}.png`,
+      });
 
-        // 1. 출발 직후
-        console.log('  📸 출발 직후 캡처...');
-        await page.screenshot({
-          path: `/opt/cursor/artifacts/race-start-${viewport.name}-${viewport.width}x${viewport.height}.png`,
-        });
+      console.log('  📸 CORNER_IN 캡처...');
+      await page.waitForTimeout(7000);
+      await page.screenshot({
+        path: `/opt/cursor/artifacts/race-state-CORNER_IN-${viewport.width}x${viewport.height}.png`,
+      });
 
-        // 2. 코너 (약 13초 후)
-        await page.waitForTimeout(10000);
-        console.log('  📸 코너 구간 캡처...');
-        await page.screenshot({
-          path: `/opt/cursor/artifacts/race-corner-${viewport.name}-${viewport.width}x${viewport.height}.png`,
-        });
+      console.log('  📸 CORNER_OUT 캡처...');
+      await page.waitForTimeout(5000);
+      await page.screenshot({
+        path: `/opt/cursor/artifacts/race-state-CORNER_OUT-${viewport.width}x${viewport.height}.png`,
+      });
 
-        // 3. 골 직전 (약 24초 더, 총 37초)
-        await page.waitForTimeout(24000);
-        console.log('  📸 골 직전 캡처...');
-        await page.screenshot({
-          path: `/opt/cursor/artifacts/race-finish-${viewport.name}-${viewport.width}x${viewport.height}.png`,
-        });
+      console.log('  📸 STRAIGHT (홈) 캡처...');
+      await page.waitForTimeout(5000);
+      await page.screenshot({
+        path: `/opt/cursor/artifacts/race-state-STRAIGHT-home-${viewport.width}x${viewport.height}.png`,
+      });
 
-        console.log(`✅ ${viewport.name} 캡처 완료`);
-      } catch (error) {
-        console.error(`❌ ${viewport.name} 캡처 실패:`, error);
-      }
+      console.log('  📸 FINISH 캡처...');
+      await page.waitForTimeout(6000);
+      // Enable debug overlay for FINISH
+      await page.goto('http://localhost:3000?debug=1', { 
+        waitUntil: 'domcontentloaded',
+        timeout: 5000,
+      });
+      await page.click('text=출발');
+      await page.waitForTimeout(37500); // 36s + 1.5s initial wait
+      await page.screenshot({
+        path: `/opt/cursor/artifacts/race-state-FINISH-${viewport.width}x${viewport.height}.png`,
+      });
 
-      await context.close();
+      console.log(`✅ 모든 상태 캡처 완료`);
+    } catch (error) {
+      console.error(`❌ 캡처 실패:`, error);
     }
+
+    await context.close();
   } finally {
     await browser.close();
   }
 
   console.log('\n=====================================');
-  console.log('✅ 모든 스크린샷 캡처 완료');
+  console.log('✅ 스크린샷 캡처 완료');
+  console.log(`\n타임스탬프:`);
+  console.log(`  START: ${SCREENSHOT_TIMES.START}s`);
+  console.log(`  FINISH: ${SCREENSHOT_TIMES.FINISH}s`);
 }
 
 captureRaceScreenshots().catch(console.error);
