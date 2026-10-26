@@ -1,4 +1,4 @@
-import { cameraConfig } from "./cameraConfig";
+import { cameraConfig, type FrameFitRule, type FrameIncludePolicy } from "./cameraConfig";
 import {
   CORNER_IN_ELEVATION,
   CORNER_OUT_ELEVATION,
@@ -12,6 +12,7 @@ import {
   STRAIGHT,
   outerRailRadius,
   projectWithCamera,
+  segmentEnds,
   type Camera,
 } from "./track";
 
@@ -43,7 +44,103 @@ export type FrameSubject = {
   y: number;
   tx: number;
   ty: number;
+  /** Stable id for `requestFrameInclude`. Omitted subjects cannot be force-included. */
+  id?: string;
+  /** 1-based live rank. Missing rank is outside the top-N set. */
+  rank?: number;
 };
+
+/** State-camera key used by `cameraConfig.framing.rules`. STRAIGHT splits on the home straight. */
+export type FramingStateKey =
+  | "START"
+  | "STRAIGHT_EARLY"
+  | "STRAIGHT_HOME"
+  | "CORNER_IN"
+  | "CORNER_OUT"
+  | "FINISH"
+  | "CLOSEUP";
+
+export type FrameInclude = {
+  horseId: string;
+  remaining: number;
+};
+
+const frameIncludes: FrameInclude[] = [];
+
+export function framingStateKey(state: CameraStateName, leadProgress: number): FramingStateKey {
+  if (state === "STRAIGHT") {
+    return leadProgress >= segmentEnds().cornerEnd ? "STRAIGHT_HOME" : "STRAIGHT_EARLY";
+  }
+  return state;
+}
+
+export function framingRuleFor(state: CameraStateName, leadProgress: number): FrameFitRule {
+  return cameraConfig.framing.rules[framingStateKey(state, leadProgress)];
+}
+
+export function resetFrameIncludes() {
+  frameIncludes.length = 0;
+}
+
+/**
+ * Force `horseId` into the safe rect for `durationSec` of framing time (the `dt` passed to `frameHorseLook`).
+ * `includePolicy` "widen" pulls the state camera out. "cut" only records the request so a short cut can show the horse.
+ * No skill calls this.
+ */
+export function requestFrameInclude(horseId: string, durationSec: number) {
+  if (!horseId || !Number.isFinite(durationSec) || durationSec <= 0) return;
+  const existing = frameIncludes.find((item) => item.horseId === horseId);
+  if (existing) existing.remaining = Math.max(existing.remaining, durationSec);
+  else frameIncludes.push({ horseId, remaining: durationSec });
+}
+
+export function activeFrameIncludes(): FrameInclude[] {
+  return frameIncludes.filter((item) => item.remaining > 0).map((item) => ({ ...item }));
+}
+
+function tickFrameIncludes(dt: number) {
+  if (dt <= 0) return;
+  for (let index = frameIncludes.length - 1; index >= 0; index -= 1) {
+    const item = frameIncludes[index];
+    if (!item) continue;
+    item.remaining -= dt;
+    if (item.remaining <= 0) frameIncludes.splice(index, 1);
+  }
+}
+
+/** Horses the widen step must keep inside the safe rect. */
+export function subjectsForFrameRule(
+  subjects: readonly FrameSubject[],
+  rule: FrameFitRule,
+  policy: FrameIncludePolicy,
+  includeIds: readonly string[] = activeFrameIncludes().map((item) => item.horseId),
+  topN: number = cameraConfig.framing.topN,
+): FrameSubject[] {
+  const ranked =
+    rule === "all"
+      ? [...subjects]
+      : subjects.filter((subject) => (subject.rank ?? Number.POSITIVE_INFINITY) <= topN);
+  if (policy !== "widen" || includeIds.length === 0) return ranked;
+  const chosen = new Set(ranked);
+  const wanted = new Set(includeIds);
+  const extra: FrameSubject[] = [];
+  for (const subject of subjects) {
+    if (subject.id && wanted.has(subject.id) && !chosen.has(subject)) extra.push(subject);
+  }
+  return extra.length === 0 ? ranked : ranked.concat(extra);
+}
+
+export function requiredFrameSubjects(
+  subjects: readonly FrameSubject[],
+  state: CameraStateName,
+  leadProgress: number,
+): FrameSubject[] {
+  return subjectsForFrameRule(
+    subjects,
+    framingRuleFor(state, leadProgress),
+    cameraConfig.framing.includePolicy,
+  );
+}
 
 export type FrameAnchor = {
   x: number;
@@ -263,7 +360,7 @@ function recenterPack(look: CameraLook, subjects: FrameSubject[]) {
   return best;
 }
 
-/** Smallest uniform widen that keeps every sprite inside the safe rect. */
+/** Smallest uniform widen that keeps the supplied sprites inside the safe rect. */
 function widenToFit(look: CameraLook, subjects: FrameSubject[]) {
   if (subjects.length === 0 || horseFit(look, subjects).ok) return look;
   let lo = 1;
@@ -283,20 +380,28 @@ function damp(current: number, target: number, dt: number) {
   return current + (target - current) * alpha;
 }
 
+function fitLook(base: CameraLook, subjects: FrameSubject[], state: CameraStateName) {
+  const bias = cameraConfig.framing.lookBias[state] ?? 0;
+  const shifted = shiftLook(base, bias);
+  const fitted = widenToFit(shifted, subjects);
+  return { look: recenterPack(fitted, subjects), bias };
+}
+
 /**
- * Pull the blended state camera out just enough that every horse sprite stays
- * inside the safe rect. Distance only increases and focal only drops.
+ * Pull the blended state camera out just enough that the horses selected by
+ * the state's framing rule stay inside the safe rect. Distance only increases
+ * and focal only drops. A state whose rule is "topN" ignores horses ranked below N
+ * unless `requestFrameInclude` is widening for them.
  */
 export function solveFramedLook(
   base: CameraLook,
   subjects: FrameSubject[],
   state: CameraStateName,
   anchors: FrameAnchor[],
+  leadProgress = 0,
 ): { look: CameraLook; bias: number } {
   void anchors;
-  const bias = cameraConfig.framing.lookBias[state] ?? 0;
-  const fitted = widenToFit(shiftLook(base, bias), subjects);
-  return { look: recenterPack(fitted, subjects), bias };
+  return fitLook(base, requiredFrameSubjects(subjects, state, leadProgress), state);
 }
 
 export function frameHorseLook(
@@ -306,8 +411,12 @@ export function frameHorseLook(
   anchors: FrameAnchor[],
   memory: FrameMemory,
   dt: number,
+  leadProgress = 0,
 ): { look: CameraLook; memory: FrameMemory } {
-  const solved = solveFramedLook(base, subjects, state, anchors);
+  tickFrameIncludes(dt);
+  const required = requiredFrameSubjects(subjects, state, leadProgress);
+  const solved = fitLook(base, required, state);
+  void anchors;
   if (!memory.seeded || dt <= 0) {
     return {
       look: solved.look,
@@ -317,7 +426,7 @@ export function frameHorseLook(
   const distance = Math.max(base.distance, damp(memory.distance, solved.look.distance, dt));
   const focalLength = Math.min(base.focalLength, damp(memory.focalLength, solved.look.focalLength, dt));
   const bias = damp(memory.bias, solved.bias, dt);
-  const look = recenterPack(widenToFit(shiftLook({ ...base, distance, focalLength }, bias), subjects), subjects);
+  const look = recenterPack(widenToFit(shiftLook({ ...base, distance, focalLength }, bias), required), required);
   return {
     look,
     memory: { distance: look.distance, focalLength: look.focalLength, bias, seeded: true },

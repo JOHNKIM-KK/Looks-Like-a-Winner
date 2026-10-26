@@ -32,7 +32,17 @@ import {
   createCameraPresentation,
   type CameraPresentation,
 } from "@/game/cameraBlend";
-import { frameHorseLook, createFrameMemory, grassBelowRailFraction, horseFit, type FrameMemory } from "@/game/cameraFrame";
+import {
+  frameHorseLook,
+  createFrameMemory,
+  framingRuleFor,
+  grassBelowRailFraction,
+  horseFit,
+  requiredFrameSubjects,
+  resetFrameIncludes,
+  type FrameMemory,
+} from "@/game/cameraFrame";
+import { cameraConfig } from "@/game/cameraConfig";
 import { laneColor, laneColorValue, recolorRacingSilks } from "@/game/laneColors";
 import type { RaceOverlaySnapshot } from "@/game/overlayLayout";
 import { orderByPresentation } from "@/game/rankOrder";
@@ -118,6 +128,14 @@ function getLogicalAt(progress: number, lane: number) {
   return presentationLogical(progress, lane);
 }
 
+/** Same presentation progress the ranking HUD sorts by, including an in-progress position swap. */
+function liveShown(horse: RaceHorse, progress: number, time: number) {
+  const swapping = horse.swapUntil > 0 && time >= horse.swapUntil - 0.6 && time < horse.swapUntil;
+  if (!swapping) return progress;
+  const swapBlend = 1 - (horse.swapUntil - time) / 0.6;
+  return horse.swapFrom + (progress - horse.swapFrom) * swapBlend;
+}
+
 const COUNT_STEP = 0.8;
 const SKILL_LEAD = 0.1;
 
@@ -183,6 +201,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     cameraState,
     getCameraLookForState(cameraState, initialSnapshot, 0, 0),
   );
+  resetFrameIncludes();
   let frameMemory: FrameMemory = createFrameMemory(cameraPresentation.look);
   let frameDt = 0;
   let frameMargin = 0;
@@ -610,12 +629,29 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
 
       const nextState = nextCameraState(cameraPresentation.state, snapshot);
 
-      const subjects = actors.map((actor) => {
+      const placed = actors.map((actor) => {
         const sample = progressAt(actor.horse.samples, raceTime);
         const progress = !started ? 0 : gateOpen < 1 ? sample * gateOpen : sample;
         const displayLane = renderLane(actor.horse.number, progress, race.seed);
-        return getLogicalAt(progress, displayLane);
+        return { actor, progress, logical: getLogicalAt(progress, displayLane) };
       });
+      const rankClock = started ? raceTime : 0;
+      const ranked = orderByPresentation(
+        placed.map((item) => ({
+          id: item.actor.horse.id,
+          number: item.actor.horse.number,
+          shown: liveShown(item.actor.horse, item.progress, rankClock),
+          finishTime: item.actor.horse.finishTime,
+          rank: item.actor.horse.rank,
+        })),
+        rankClock,
+      );
+      const rankById = new Map(ranked.map((horse, index) => [horse.id, index + 1]));
+      const subjects = placed.map((item) => ({
+        ...item.logical,
+        id: item.actor.horse.id,
+        rank: rankById.get(item.actor.horse.id) ?? item.actor.horse.number,
+      }));
       let packCenterX = 0;
       let packCenterY = 0;
       for (const logical of subjects) {
@@ -631,9 +667,20 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       cameraState = cameraPresentation.state;
       lastLeadProgress = snapshot.leadProgress;
       const anchors = cameraState.name === "FINISH" ? [goalInnerLogical, goalOuterLogical] : [];
-      const framed = frameHorseLook(cameraPresentation.look, subjects, cameraState.name, anchors, frameMemory, frameDt);
+      const framed = frameHorseLook(
+        cameraPresentation.look,
+        subjects,
+        cameraState.name,
+        anchors,
+        frameMemory,
+        frameDt,
+        snapshot.leadProgress,
+      );
       frameMemory = framed.memory;
-      frameMargin = horseFit(framed.look, subjects).worst;
+      frameMargin = horseFit(
+        framed.look,
+        requiredFrameSubjects(subjects, cameraState.name, snapshot.leadProgress),
+      ).worst;
       currentCamera = cameraFromLook(framed.look);
 
       for (const actor of actors) {
@@ -1301,6 +1348,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         `Logic: (${packCenterX.toFixed(0)}, ${packCenterY.toFixed(0)})`,
         `Center: (${centerX}, ${centerY.toFixed(0)})`,
         `Visible: ${visibleCount}/8`,
+        `Frame: ${framingRuleFor(cameraState.name, lastLeadProgress) === "all" ? "all" : `top${cameraConfig.framing.topN}`}`,
         `Grass: ${(grassBelowRailFraction(currentCamera, actors.length) * 100).toFixed(1)}%`,
         `Margin: ${frameMargin.toFixed(1)}px`,
       ].join("\n");

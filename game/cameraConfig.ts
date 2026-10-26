@@ -3,6 +3,16 @@
  * and the background targets all live in this object.
  * Framing only widens a state look (never zooms in past it).
  */
+
+export type FrameFitRule = "all" | "topN";
+
+/**
+ * How `requestFrameInclude` pulls one horse into view.
+ * "widen" pulls the state camera out until that horse fits.
+ * "cut" records the request and leaves the pack frame alone, so a short cut can show them.
+ */
+export type FrameIncludePolicy = "widen" | "cut";
+
 export const cameraConfig = {
   view: {
     width: 540,
@@ -27,6 +37,23 @@ export const cameraConfig = {
     laneAreaBottom: 0.8,
     /** Soft screen-space bow of the corner rail, in pixels. Reported, not enforced. */
     cornerSagittaMin: 56,
+    /**
+     * Leaders that must stay inside the safe rect when a state's rule is "topN".
+     * Horses ranked below this may leave the frame.
+     */
+    topN: 5,
+    /** See FrameIncludePolicy. Skills are not wired to this. */
+    includePolicy: "widen" as FrameIncludePolicy,
+    /** "all" fits every horse. "topN" fits only the current top `topN`. */
+    rules: {
+      START: "all",
+      STRAIGHT_EARLY: "all",
+      STRAIGHT_HOME: "topN",
+      CORNER_IN: "topN",
+      CORNER_OUT: "topN",
+      FINISH: "topN",
+      CLOSEUP: "all",
+    } satisfies Record<string, FrameFitRule>,
     /** Slides the look target along the view direction. 0 keeps the pack centered. */
     lookBias: {
       START: 0,
