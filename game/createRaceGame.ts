@@ -61,10 +61,10 @@ import {
   assignRiderSheet,
   createMountedSlots,
   horseSheetKey,
-  riderSheetKey,
   type MountedSlots,
   type SpriteSheetRef,
 } from "@/game/mountedPair";
+import { RIDE_ANGLES, ridePose } from "@/game/jockeyRide";
 import { createTrackRenderer, trackViewFor } from "@/game/trackRenderer";
 import type { RaceOverlaySnapshot } from "@/game/overlayLayout";
 import { orderByPresentation } from "@/game/rankOrder";
@@ -141,28 +141,37 @@ function cameraStateLabel(state: CameraState, lead: number): string {
   return state.name;
 }
 
-/** Warm multiply vignette plus a light add, above the track and under the debug overlay. */
+/**
+ * Golden grade over the frame. The playfield stays near white in multiply so the
+ * pre-desaturated turf is not lifted toward beige. Warmth is the 1.07:0.93:0.78
+ * ratio (1 : 0.87 : 0.73) only toward the corners, plus a small upper-left sun.
+ */
 function paintGoldenGrade(scene: Phaser.Scene) {
   const width = GAME_WIDTH;
   const height = GAME_HEIGHT;
   const vignette = scene.textures.createCanvas("grade-vignette", width, height);
   if (vignette) {
     const context = vignette.getContext();
-    const ink = context.createRadialGradient(width / 2, height * 0.46, height * 0.18, width / 2, height * 0.5, height * 0.78);
-    ink.addColorStop(0, "rgba(255,244,220,1)");
-    ink.addColorStop(1, "rgba(92,64,36,1)");
+    const ink = context.createRadialGradient(width * 0.42, height * 0.28, height * 0.2, width / 2, height * 0.45, height * 0.85);
+    ink.addColorStop(0, "rgba(255,255,255,1)");
+    ink.addColorStop(0.72, "rgba(255,255,255,1)");
+    ink.addColorStop(1, "rgba(255,222,186,1)");
     context.fillStyle = ink;
     context.fillRect(0, 0, width, height);
     vignette.refresh();
     scene.add.image(width / 2, height / 2, "grade-vignette").setScrollFactor(0).setDepth(8000).setBlendMode(Phaser.BlendModes.MULTIPLY);
   }
-  const warm = scene.textures.createCanvas("grade-warm", width, height);
-  if (warm) {
-    const context = warm.getContext();
-    context.fillStyle = "rgba(255, 176, 72, 0.16)";
+  const sun = scene.textures.createCanvas("grade-sun", width, height);
+  if (sun) {
+    const context = sun.getContext();
+    context.clearRect(0, 0, width, height);
+    const glow = context.createRadialGradient(width * 0.12, height * 0.08, 0, width * 0.2, height * 0.16, height * 0.42);
+    glow.addColorStop(0, "rgba(255, 196, 120, 0.07)");
+    glow.addColorStop(1, "rgba(255, 196, 120, 0)");
+    context.fillStyle = glow;
     context.fillRect(0, 0, width, height);
-    warm.refresh();
-    scene.add.image(width / 2, height / 2, "grade-warm").setScrollFactor(0).setDepth(8001).setBlendMode(Phaser.BlendModes.ADD);
+    sun.refresh();
+    scene.add.image(width / 2, height / 2, "grade-sun").setScrollFactor(0).setDepth(8001).setBlendMode(Phaser.BlendModes.ADD);
   }
 }
 
@@ -319,6 +328,10 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         for (const angle of HORSE_ANGLES[set]) {
           this.load.image(`horse-color-${set}-${angle.index}`, `/horses/${angle.colorFile}`);
           this.load.image(`horse-mask-${set}-${angle.index}`, `/horses/${angle.maskFile}`);
+        }
+        for (const angle of RIDE_ANGLES[set]) {
+          this.load.image(`ride-color-${set}-${angle.index}`, `/jockey/${angle.colorFile}`);
+          this.load.image(`ride-mask-${set}-${angle.index}`, `/jockey/${angle.maskFile}`);
         }
       }
       for (const horse of race.horses) {
@@ -735,20 +748,31 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const frame = gallopFrame(actor.horse.number, actor.animTime);
         const baked = coats?.bakedKey(picked.set, picked.index, actor.horse.number) ?? `horse-color-${picked.set}-${picked.index}`;
         const horseKey = horseSheetKey(actor.mount, baked);
-        const riderKey = riderSheetKey(actor.mount, baked);
         const horseSheet = actor.mount.horse;
-        const riderSheet = actor.mount.rider;
         paintGallop(actor.sprite, horseKey, frame, horseSheet?.anchorX ?? angle.anchorX, horseSheet?.anchorY ?? angle.anchorY, horseSheet?.frameWidth ?? angle.frameW, horseSheet?.frameHeight ?? angle.frameH, drawn, picked.flip);
-        const riderDrawn = riderSheet ? drawn : drawn;
-        paintGallop(actor.rider, riderKey, frame, riderSheet?.anchorX ?? angle.anchorX, riderSheet?.anchorY ?? angle.anchorY, riderSheet?.frameWidth ?? angle.frameW, riderSheet?.frameHeight ?? angle.frameH, riderDrawn, picked.flip);
         const mounted = !onFoot || sucking;
         actor.sprite.setVisible(mounted);
-        actor.rider.setVisible(mounted);
         const recoil = castingNow && kind === "shot" && payoffAge < 0.45 && payoffAge % 0.08 < 0.05;
         const recoilX = recoil ? (picked.flip ? 14 : -14) : 0;
         const recoilY = sucking ? (-footAge / 0.4) * 420 : 0;
         actor.sprite.setPosition(recoilX, recoilY);
-        actor.rider.setPosition(recoilX, recoilY);
+        const customRide = actor.mount.rider;
+        const rideBaked = actor.mount.rideEnabled ? coats?.rideKey(picked.set, picked.index, actor.horse.number) ?? null : null;
+        const rideVisible = mounted && actor.mount.rideEnabled && (customRide != null || (rideBaked != null && this.textures.exists(rideBaked)));
+        actor.rider.setVisible(rideVisible);
+        if (rideVisible && customRide) {
+          const rideFrame = frame % Math.max(1, customRide.frames);
+          paintGallop(actor.rider, customRide.key, rideFrame, customRide.anchorX, customRide.anchorY, customRide.frameWidth, customRide.frameHeight, drawn, picked.flip);
+          actor.rider.setPosition(recoilX, recoilY);
+        } else if (rideVisible && rideBaked) {
+          const seated = ridePose(picked.set, picked.index, frame, angle.anchorX, angle.anchorY, drawn, picked.flip);
+          if (seated) {
+            paintGallop(actor.rider, rideBaked, frame, seated.originX * seated.frameW, seated.originY * seated.frameH, seated.frameW, seated.frameH, drawn, picked.flip);
+            actor.rider.setPosition(recoilX + seated.x, recoilY + seated.y);
+          } else {
+            actor.rider.setVisible(false);
+          }
+        }
         const fade = sucking ? 1 - footAge / 0.4 : 1;
         actor.sprite.setAlpha(fade);
         actor.rider.setAlpha(fade);

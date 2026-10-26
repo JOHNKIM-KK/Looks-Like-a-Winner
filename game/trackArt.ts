@@ -1,10 +1,8 @@
 import {
   LOGICAL_PER_METER,
-  RAIL_FAR_Y_M,
-  RAIL_NEAR_Y_M,
-  STANDS_Y_M,
+  STANDS_BEHIND_RAIL_M,
   TILE_M,
-  TREES_Y_M,
+  TREES_BEHIND_RAIL_M,
   farRailRadius,
   nearRailRadius,
 } from "./artScale";
@@ -83,11 +81,11 @@ export function offsetAlong(points: readonly Vec2[], direction: Vec2, meters: nu
 }
 
 export function treesOffsetM() {
-  return Math.abs(TREES_Y_M - RAIL_FAR_Y_M);
+  return TREES_BEHIND_RAIL_M;
 }
 
 export function standsOffsetM() {
-  return Math.abs(STANDS_Y_M - RAIL_FAR_Y_M);
+  return STANDS_BEHIND_RAIL_M;
 }
 
 export function finishCheckerQuad() {

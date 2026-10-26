@@ -9,6 +9,7 @@ import {
   tintHorsePixels,
   type AngleSetName,
 } from "./horseVisual";
+import { RIDE_ANGLES } from "./jockeyRide";
 
 type SheetPixels = {
   color: Uint8ClampedArray;
@@ -19,6 +20,7 @@ type SheetPixels = {
 
 export type HorseCoatLibrary = {
   bakedKey(set: AngleSetName, angleIndex: number, lane: number): string;
+  rideKey(set: AngleSetName, angleIndex: number, lane: number): string;
   shadowKey(set: AngleSetName, angleIndex: number, frame: number, flip: boolean): string;
   shadowOrigin(set: AngleSetName, angleIndex: number): { x: number; y: number };
 };
@@ -49,6 +51,47 @@ export function createHorseCoatLibrary(scene: Phaser.Scene): HorseCoatLibrary {
     if (scene.textures.exists(key)) return key;
     const angle = HORSE_ANGLES[set][angleIndex];
     const source = pixelsFor(set, angleIndex);
+    if (!angle || !source) return key;
+    const canvas = document.createElement("canvas");
+    canvas.width = source.width;
+    canvas.height = source.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return key;
+    const out = new Uint8ClampedArray(source.color.length);
+    tintHorsePixels(source.color, source.mask, laneRgb(lane), out);
+    context.putImageData(new ImageData(out, source.width, source.height), 0, 0);
+    const texture = scene.textures.addCanvas(key, canvas);
+    if (texture) {
+      for (let frame = 0; frame < HORSE_FRAMES; frame += 1) {
+        texture.add(frame, 0, frame * angle.frameW, 0, angle.frameW, angle.frameH);
+      }
+    }
+    return key;
+  }
+
+  function ridePixels(set: AngleSetName, index: number): SheetPixels | null {
+    const key = `ride-${set}-${index}`;
+    const cached = sheets.get(key);
+    if (cached) return cached;
+    const angle = RIDE_ANGLES[set][index];
+    if (!angle) return null;
+    const colorTex = scene.textures.get(`ride-color-${set}-${index}`);
+    const maskTex = scene.textures.get(`ride-mask-${set}-${index}`);
+    if (!colorTex || !maskTex) return null;
+    const width = angle.frameW * HORSE_FRAMES;
+    const height = angle.frameH;
+    const color = readPixels(colorTex.getSourceImage() as CanvasImageSource, width, height);
+    const mask = readPixels(maskTex.getSourceImage() as CanvasImageSource, width, height);
+    const stored = { color, mask, width, height };
+    sheets.set(key, stored);
+    return stored;
+  }
+
+  function rideKey(set: AngleSetName, angleIndex: number, lane: number) {
+    const key = `ride-baked-${set}-${angleIndex}-l${lane}`;
+    if (scene.textures.exists(key)) return key;
+    const angle = RIDE_ANGLES[set][angleIndex];
+    const source = ridePixels(set, angleIndex);
     if (!angle || !source) return key;
     const canvas = document.createElement("canvas");
     canvas.width = source.width;
@@ -118,7 +161,7 @@ export function createHorseCoatLibrary(scene: Phaser.Scene): HorseCoatLibrary {
     return { x: layout.groundX / layout.width, y: layout.groundY / layout.height };
   }
 
-  return { bakedKey, shadowKey, shadowOrigin };
+  return { bakedKey, rideKey, shadowKey, shadowOrigin };
 }
 
 function readPixels(image: CanvasImageSource, width: number, height: number) {
