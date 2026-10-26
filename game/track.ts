@@ -369,6 +369,11 @@ export function getCameraDepth(logical: LogicalPoint, camera: Camera): number {
   return localY * cosPitch - (-camera.height) * sinPitch;
 }
 
+export function trackPoint(progress: number, lane: number): LogicalPoint {
+  const logical = logicalAtDistance(Math.max(0, progress) * referenceDistance(), laneRadius(lane));
+  return { x: logical.x, y: logical.y };
+}
+
 export function goalLineLogical(lane: number): LogicalPoint {
   const radius = laneRadius(lane);
   const halfBack = STRAIGHT_BACK / 2;

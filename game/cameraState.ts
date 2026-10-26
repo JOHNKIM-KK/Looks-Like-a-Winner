@@ -208,13 +208,14 @@ export function getCameraForState(
     }
 
     case "FINISH": {
+      // Aim ahead of the pack, toward +x, where the home-straight goal sits.
       return cameraLookAt({
-        targetX: packCenterX,
+        targetX: packCenterX + 250,
         targetY: packCenterY,
-        distance: 2050,
-        azimuth: 100,
-        elevation: 6,
-        focalLength: 2800,
+        distance: 1800,
+        azimuth: 90,
+        elevation: 18,
+        focalLength: 2600,
       });
     }
 
