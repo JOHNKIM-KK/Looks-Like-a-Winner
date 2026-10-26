@@ -125,9 +125,9 @@ describe("shortest azimuth", () => {
     const ends = segmentEnds();
     const out = look({ name: "CORNER_OUT" }, 0, 0, ends.cornerEnd);
     const home = look({ name: "STRAIGHT" }, 0, 0, ends.cornerEnd);
-    expect(out.azimuth).toBe(315);
+    expect(out.azimuth).toBe(135);
     expect(home.azimuth).toBe(180);
-    expect(lerpCameraLook(out, home, 0.5).azimuth).toBeCloseTo(247.5);
+    expect(lerpCameraLook(out, home, 0.5).azimuth).toBeCloseTo(157.5);
   });
 });
 
@@ -300,7 +300,7 @@ describe("interrupted transitions", () => {
     const pres = advanceCameraPresentation(settle({ name: "CORNER_IN" }, 10, 20), { name: "CORNER_OUT" }, out, 4);
     expect(pres.blend).toBeNull();
     expect(pres.look).toEqual(out);
-    expect(Math.abs(inn.distance - out.distance)).toBe(100);
+    expect(Math.abs(inn.distance - out.distance)).toBe(140);
     expect(Math.abs(shortestAngleDelta(inn.azimuth, out.azimuth))).toBe(90);
   });
 });

@@ -1,3 +1,5 @@
+import { cameraConfig } from "./cameraConfig";
+
 export const STRAIGHT = 1712;
 const STRAIGHT_BACK = 1418;
 export const INNER_RADIUS = 256;
@@ -381,4 +383,83 @@ export function goalLineLogical(lane: number): LogicalPoint {
   const corner = Math.PI * radius;
   const cursor = referenceDistance() - CHUTE - STRAIGHT_BACK - corner;
   return { x: -halfHome + cursor, y: radius };
+}
+
+/** Drawn inner rail sits this far inside lane 1. */
+export const INNER_RAIL_INSET = cameraConfig.track.innerRailInset;
+/** Drawn outer rail sits this far outside the last lane. */
+export const OUTER_RAIL_OUTSET = cameraConfig.track.outerRailOutset;
+/** Finish post sits this far into the infield, past the inner rail. */
+export const FINISH_POST_INFIELD_GAP = cameraConfig.track.finishPostInfieldGap;
+
+export function innerRailRadius() {
+  return Math.max(70, laneRadius(1) - INNER_RAIL_INSET);
+}
+
+export function outerRailRadius(lanes = 8) {
+  return laneRadius(Math.max(1, lanes)) + OUTER_RAIL_OUTSET;
+}
+
+/** Reference-lane finish x, shared by the visual home straight. */
+export function finishGoalX() {
+  return -STRAIGHT / 2 + GOAL_ALONG * STRAIGHT;
+}
+
+/** Post just outside the inner rail, on the infield, not on the dirt. */
+export function finishPostLogical(): LogicalPoint {
+  return { x: finishGoalX(), y: innerRailRadius() - FINISH_POST_INFIELD_GAP };
+}
+
+/** Outer end of the finish line, on the outer rail. */
+export function finishOuterLogical(lanes = 8): LogicalPoint {
+  return { x: finishGoalX(), y: outerRailRadius(lanes) };
+}
+
+export type TrackLogical = {
+  x: number;
+  y: number;
+  tx: number;
+  ty: number;
+};
+
+/**
+ * On-screen path. The race simulator keeps `logicalAtDistance` (via poseAt / cutLength).
+ * This path stays on the drawn oval: the back straight meets the left-hand bend,
+ * and that bend is the rendered outer curve so corner cameras can see it.
+ */
+export function presentationLogical(progress: number, lane: number): TrackLogical {
+  const radius = laneRadius(lane);
+  const ends = segmentEnds();
+  const half = STRAIGHT / 2;
+  const halfBack = STRAIGHT_BACK / 2;
+  const along = Math.max(0, progress);
+
+  if (along < ends.pocketEnd) {
+    const chuteSpan = Math.max(ends.pocketEnd, 1e-6);
+    const cursor = (along / chuteSpan) * CHUTE;
+    return { x: halfBack + CHUTE - cursor, y: -radius, tx: -1, ty: 0 };
+  }
+
+  if (along < ends.backStraightEnd) {
+    const span = ends.backStraightEnd - ends.pocketEnd;
+    const u = span <= 0 ? 1 : (along - ends.pocketEnd) / span;
+    const x = halfBack + ( -half - halfBack) * u;
+    return { x, y: -radius, tx: -1, ty: 0 };
+  }
+
+  if (along < ends.cornerEnd) {
+    const span = ends.cornerEnd - ends.backStraightEnd;
+    const u = span <= 0 ? 1 : (along - ends.backStraightEnd) / span;
+    const angle = (3 * Math.PI) / 2 - u * Math.PI;
+    return {
+      x: -half + Math.cos(angle) * radius,
+      y: Math.sin(angle) * radius,
+      tx: Math.sin(angle),
+      ty: -Math.cos(angle),
+    };
+  }
+
+  const homeSpan = Math.max(1e-6, 1 - ends.cornerEnd);
+  const u = (along - ends.cornerEnd) / homeSpan;
+  return { x: -half + u * GOAL_ALONG * STRAIGHT, y: radius, tx: 1, ty: 0 };
 }

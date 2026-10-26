@@ -1,3 +1,4 @@
+import { cameraConfig, type CameraConfigState } from "./cameraConfig";
 import { segmentEnds } from "./track";
 import type { Camera } from "./track";
 
@@ -106,6 +107,28 @@ export function exitCloseup(current: CameraState): CameraState {
   };
 }
 
+/** Straights sit above the corner viewpoints. Corners stay lower and outside the bend. */
+export const STRAIGHT_EARLY_ELEVATION = cameraConfig.states.STRAIGHT_EARLY.elevation;
+export const STRAIGHT_HOME_ELEVATION = cameraConfig.states.STRAIGHT_HOME.elevation;
+export const CORNER_IN_ELEVATION = cameraConfig.states.CORNER_IN.elevation;
+export const CORNER_OUT_ELEVATION = cameraConfig.states.CORNER_OUT.elevation;
+/** Look inward from outside the entry of the left-hand bend. */
+export const CORNER_IN_AZIMUTH = cameraConfig.states.CORNER_IN.azimuth;
+/** Look inward from outside the exit of the left-hand bend. */
+export const CORNER_OUT_AZIMUTH = cameraConfig.states.CORNER_OUT.azimuth;
+
+function lookAtPack(name: CameraConfigState, packCenterX: number, packCenterY: number): CameraLook {
+  const spec = cameraConfig.states[name];
+  return {
+    targetX: packCenterX + spec.targetXOffset,
+    targetY: packCenterY + spec.targetYOffset,
+    distance: spec.distance,
+    azimuth: spec.azimuth,
+    elevation: spec.elevation,
+    focalLength: spec.focalLength,
+  };
+}
+
 export type CameraLook = {
   targetX: number;
   targetY: number;
@@ -151,67 +174,23 @@ export function getCameraLookForState(
 
   switch (state.name) {
     case "START":
-      return {
-        targetX: packCenterX,
-        targetY: packCenterY - 100,
-        distance: 650,
-        azimuth: 32,
-        elevation: 15,
-        focalLength: 1000,
-      };
+      return lookAtPack("START", packCenterX, packCenterY);
 
     case "STRAIGHT": {
       const isHomeStretch = snapshot.leadProgress >= ends.cornerEnd;
-      if (isHomeStretch) {
-        return {
-          targetX: packCenterX,
-          targetY: packCenterY,
-          distance: 1020,
-          azimuth: 180,
-          elevation: 32,
-          focalLength: 1900,
-        };
-      }
-      return {
-        targetX: packCenterX,
-        targetY: packCenterY,
-        distance: 130,
-        azimuth: 0,
-        elevation: 12,
-        focalLength: 850,
-      };
+      return lookAtPack(isHomeStretch ? "STRAIGHT_HOME" : "STRAIGHT_EARLY", packCenterX, packCenterY);
     }
 
     case "CORNER_IN":
-      return {
-        targetX: packCenterX,
-        targetY: packCenterY,
-        distance: 420,
-        azimuth: 225,
-        elevation: 26,
-        focalLength: 1100,
-      };
+      // Outside the left-hand bend, lower than either straight.
+      return lookAtPack("CORNER_IN", packCenterX, packCenterY);
 
     case "CORNER_OUT":
-      return {
-        targetX: packCenterX,
-        targetY: packCenterY,
-        distance: 520,
-        azimuth: 315,
-        elevation: 24,
-        focalLength: 1000,
-      };
+      return lookAtPack("CORNER_OUT", packCenterX, packCenterY);
 
     case "FINISH":
       // Aim ahead of the pack, toward +x, where the home-straight goal sits.
-      return {
-        targetX: packCenterX + 250,
-        targetY: packCenterY,
-        distance: 1800,
-        azimuth: 90,
-        elevation: 18,
-        focalLength: 2600,
-      };
+      return lookAtPack("FINISH", packCenterX, packCenterY);
 
     case "CLOSEUP": {
       const horseIndex = state.closeupHorseIndex ?? 0;
@@ -219,25 +198,11 @@ export function getCameraLookForState(
       if (!horse) {
         return getCameraLookForState({ name: "STRAIGHT" }, snapshot, packCenterX, packCenterY);
       }
-      return {
-        targetX: packCenterX,
-        targetY: packCenterY,
-        distance: 180,
-        azimuth: 0,
-        elevation: 18,
-        focalLength: 1400,
-      };
+      return lookAtPack("CLOSEUP", packCenterX, packCenterY);
     }
 
     default:
-      return {
-        targetX: 0,
-        targetY: 0,
-        distance: 1500,
-        azimuth: 0,
-        elevation: 55,
-        focalLength: 650,
-      };
+      return lookAtPack("STRAIGHT_EARLY", packCenterX, packCenterY);
   }
 }
 
@@ -252,4 +217,10 @@ export function getCameraForState(
 
 export function shouldScaleHorseInCorner(state: CameraState): boolean {
   return state.name === "CORNER_IN" || state.name === "CORNER_OUT";
+}
+
+/** Finish post and the checkered line belong on the home straight and at the finish. */
+export function shouldShowFinishMark(stateName: CameraStateName, leadProgress: number) {
+  if (stateName === "FINISH") return true;
+  return stateName === "STRAIGHT" && leadProgress >= segmentEnds().cornerEnd;
 }

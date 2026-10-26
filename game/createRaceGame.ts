@@ -14,13 +14,14 @@ import {
   type ShowBeat,
 } from "@/game/skillShow";
 import { playBang } from "@/game/bang";
-import { LANE_GAP, cutPose, laneRadius, renderLane, viewBounds, projectWithCamera, sampleRadiusLogical, sampleChuteLogical, projectLogicalPoints, goalLineLogical, segmentEnds, type TrackPose } from "@/game/track";
+import { LANE_GAP, laneRadius, renderLane, viewBounds, projectWithCamera, sampleRadiusLogical, sampleChuteLogical, projectLogicalPoints, presentationLogical, finishPostLogical, finishOuterLogical, innerRailRadius, outerRailRadius, segmentEnds } from "@/game/track";
 import {
   createInitialState,
   nextCameraState,
   getCameraLookForState,
   cameraFromLook,
   shouldScaleHorseInCorner,
+  shouldShowFinishMark,
   type CameraState,
   type CameraStateName,
   type RaceSnapshot,
@@ -31,6 +32,8 @@ import {
   createCameraPresentation,
   type CameraPresentation,
 } from "@/game/cameraBlend";
+import { frameHorseLook, createFrameMemory, grassBelowRailFraction, horseFit, type FrameMemory } from "@/game/cameraFrame";
+import { laneColor, laneColorValue, recolorRacingSilks } from "@/game/laneColors";
 
 const FRAME_WIDTH = 213;
 const FRAME_HEIGHT = 211;
@@ -44,13 +47,6 @@ const HELMETS = [
   { x: 129, y: 42 },
   { x: 129, y: 45 },
   { x: 126, y: 45 },
-];
-
-const SILKS = [
-  "/horses/silk-red.png",
-  "/horses/silk-teal.png",
-  "/horses/silk-gold.png",
-  "/horses/silk-violet.png",
 ];
 
 export type RankRow = {
@@ -83,10 +79,6 @@ type Actor = {
   shown: number;
 };
 
-function sheetFor(horse: RaceHorse) {
-  return SILKS[(horse.number - 1) % SILKS.length] ?? SILKS[0];
-}
-
 type RaceCameraDebug = {
   state: string;
   from: string | null;
@@ -104,6 +96,8 @@ type CameraDebugHost = Window & {
   __raceCameraWant?: { from: CameraStateName; to: CameraStateName } | null;
   __cameraFreeze?: boolean;
   __raceCameraFrozen?: RaceCameraDebug;
+  /** When false, debug markers and the text overlay are cleared. The frame stays frozen. */
+  __raceDebugVisible?: boolean;
 };
 
 function cameraDebugHost(): CameraDebugHost {
@@ -118,59 +112,7 @@ function cameraStateLabel(state: CameraState, lead: number): string {
 }
 
 function getLogicalAt(progress: number, lane: number) {
-  const STRAIGHT = 1712;
-  const INNER_RADIUS = 256;
-  const LANE_GAP = 58;
-  const CHUTE = 158;
-  const STRAIGHT_BACK = 1418;
-  const REFERENCE_RADIUS = INNER_RADIUS + 3 * LANE_GAP;
-  const GOAL_ALONG = 0.920;
-  
-  const radius = laneRadius(lane);
-  const halfBack = STRAIGHT_BACK / 2;
-  const halfHome = STRAIGHT / 2;
-  const corner = Math.PI * radius;
-  const total = CHUTE + STRAIGHT_BACK + Math.PI * REFERENCE_RADIUS + GOAL_ALONG * STRAIGHT;
-  let cursor = Math.max(0, progress * total);
-  
-  if (cursor <= CHUTE) {
-    const x = halfBack + CHUTE - cursor;
-    const y = -radius;
-    return { x, y, tx: -1, ty: 0 };
-  }
-  cursor -= CHUTE;
-  
-  if (cursor <= STRAIGHT_BACK) {
-    const x = halfBack - cursor;
-    const y = -radius;
-    return { x, y, tx: -1, ty: 0 };
-  }
-  cursor -= STRAIGHT_BACK;
-  
-  if (cursor <= corner) {
-    const theta = -Math.PI / 2 + cursor / radius;
-    return {
-      x: -halfHome + Math.cos(theta) * radius,
-      y: Math.sin(theta) * radius,
-      tx: -Math.sin(theta),
-      ty: Math.cos(theta),
-    };
-  }
-  cursor -= corner;
-  
-  if (cursor <= GOAL_ALONG * STRAIGHT) {
-    const x = -halfHome + cursor;
-    const y = radius;
-    return { x, y, tx: 1, ty: 0 };
-  }
-  
-  const theta = Math.PI / 2 + (cursor - GOAL_ALONG * STRAIGHT) / radius;
-  return {
-    x: halfHome + Math.cos(theta) * radius,
-    y: Math.sin(theta) * radius,
-    tx: -Math.sin(theta),
-    ty: Math.cos(theta),
-  };
+  return presentationLogical(progress, lane);
 }
 
 const COUNT_STEP = 0.8;
@@ -232,21 +174,24 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     cameraState,
     getCameraLookForState(cameraState, initialSnapshot, 0, 0),
   );
+  let frameMemory: FrameMemory = createFrameMemory(cameraPresentation.look);
+  let frameDt = 0;
+  let frameMargin = 0;
   let currentCamera = cameraFromLook(cameraPresentation.look);
   let lastLeadProgress = 0;
   
   const DEBUG_ENABLED = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
 
   const outerLane = Math.max(1, race.horses.length);
-  const trackOuterLogical = sampleRadiusLogical(laneRadius(outerLane) + 28, 140);
-  const trackInnerLogical = sampleRadiusLogical(Math.max(70, laneRadius(1) - 34), 140);
+  const trackOuterLogical = sampleRadiusLogical(outerRailRadius(outerLane), 520);
+  const trackInnerLogical = sampleRadiusLogical(innerRailRadius(), 520);
   const railOutLogical = trackOuterLogical;
   const railInLogical = trackInnerLogical;
-  const chuteOuterLogical = sampleChuteLogical(laneRadius(outerLane) + 28, 24);
-  const chuteInnerLogical = sampleChuteLogical(Math.max(70, laneRadius(1) - 34), 24);
+  const chuteOuterLogical = sampleChuteLogical(outerRailRadius(outerLane), 24);
+  const chuteInnerLogical = sampleChuteLogical(innerRailRadius(), 24);
   const crowdLogical = sampleRadiusLogical(laneRadius(outerLane) + 78, 90);
-  const goalInnerLogical = goalLineLogical(1);
-  const goalOuterLogical = goalLineLogical(outerLane);
+  const goalInnerLogical = finishPostLogical();
+  const goalOuterLogical = finishOuterLogical(outerLane);
   let track: Phaser.GameObjects.Graphics | null = null;
 
   class RaceScene extends Phaser.Scene {
@@ -255,11 +200,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
 
     preload() {
+      this.load.image("silk-base", "/horses/silk-red.png");
       for (const horse of race.horses) {
-        this.load.spritesheet(horse.id, sheetFor(horse), {
-          frameWidth: FRAME_WIDTH,
-          frameHeight: FRAME_HEIGHT,
-        });
         this.load.image(`portrait-${horse.id}`, horse.portrait);
       }
       this.load.image("crack-plate", "/fx/screen-crack.jpg");
@@ -269,7 +211,20 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       this.cameras.main.setBackgroundColor("#145c34");
       track = this.add.graphics().setDepth(1);
 
+      const silkSource = this.textures.get("silk-base").getSourceImage() as CanvasImageSource;
+      const silkWidth = "width" in silkSource ? Number(silkSource.width) : FRAME_WIDTH * 6;
+      const silkHeight = "height" in silkSource ? Number(silkSource.height) : FRAME_HEIGHT;
       for (const horse of race.horses) {
+        const cloth = document.createElement("canvas");
+        cloth.width = silkWidth;
+        cloth.height = silkHeight;
+        recolorRacingSilks(silkSource, horse.number, cloth);
+        const texture = this.textures.addCanvas(horse.id, cloth);
+        if (texture) {
+          for (let frame = 0; frame < 6; frame += 1) {
+            texture.add(frame, 0, frame * FRAME_WIDTH, 0, FRAME_WIDTH, FRAME_HEIGHT);
+          }
+        }
         const key = `gallop-${horse.id}`;
         this.anims.create({
           key,
@@ -312,6 +267,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
             fontStyle: "bold",
             stroke: "#24180f",
             strokeThickness: 4,
+            backgroundColor: laneColor(horse.number),
+            padding: { x: 5, y: 2 },
           })
           .setOrigin(0.5);
         const name = this.add
@@ -423,8 +380,12 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
 
     update(_time: number, delta: number) {
-      if (DEBUG_ENABLED && cameraDebugHost().__cameraFreeze) return;
+      if (DEBUG_ENABLED && cameraDebugHost().__cameraFreeze) {
+        if (cameraDebugHost().__raceDebugVisible === false) this.paintDebugOverlay();
+        return;
+      }
       const wall = Math.min(delta, 40) / 1000;
+      frameDt = wall;
       wallClock += wall;
       if (!started) {
         const step = Math.min(2, Math.floor(wallClock / COUNT_STEP));
@@ -608,9 +569,10 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         }
       });
 
+      const showFinishMark = shouldShowFinishMark(cameraState.name, lastLeadProgress);
       const goalInner = projectWithCamera({ x: goalInnerLogical.x, y: goalInnerLogical.y, tx: 0, ty: 0 }, currentCamera);
       const goalOuter = projectWithCamera({ x: goalOuterLogical.x, y: goalOuterLogical.y, tx: 0, ty: 0 }, currentCamera);
-      if (goalInner.visible && goalOuter.visible && track) {
+      if (showFinishMark && goalInner.visible && goalOuter.visible && track) {
         const steps = 12;
         for (let index = 0; index < steps; index += 1) {
           const from = index / steps;
@@ -623,11 +585,14 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
             goalInner.y + (goalOuter.y - goalInner.y) * to,
           );
         }
-        if (track) {
-          track.fillStyle(0xc62828, 1);
-          track.fillCircle(goalInner.x, goalInner.y, 11);
-          track.fillCircle(goalOuter.x, goalOuter.y, 11);
-        }
+      }
+      if (showFinishMark && goalInner.visible && track) {
+        track.lineStyle(7, 0xf7f4ee, 1);
+        track.lineBetween(goalInner.x, goalInner.y, goalInner.x, goalInner.y - 86);
+        track.fillStyle(0xc62828, 1);
+        track.fillCircle(goalInner.x, goalInner.y - 86, 12);
+        track.fillStyle(0xf7f4ee, 1);
+        track.fillCircle(goalInner.x, goalInner.y, 8);
       }
     }
 
@@ -652,32 +617,31 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
 
       const nextState = nextCameraState(cameraPresentation.state, snapshot);
 
-      const sortedByProgress = [...actors].sort((a, b) => {
-        const aProgress = progressAt(a.horse.samples, raceTime);
-        const bProgress = progressAt(b.horse.samples, raceTime);
-        return bProgress - aProgress;
+      const subjects = actors.map((actor) => {
+        const sample = progressAt(actor.horse.samples, raceTime);
+        const progress = !started ? 0 : gateOpen < 1 ? sample * gateOpen : sample;
+        const displayLane = renderLane(actor.horse.number, progress, race.seed);
+        return getLogicalAt(progress, displayLane);
       });
-      const leadCount = actors.length;
       let packCenterX = 0;
       let packCenterY = 0;
-      for (let i = 0; i < leadCount; i += 1) {
-        const actor = sortedByProgress[i];
-        if (actor) {
-          const displayLane = renderLane(actor.horse.number, progressAt(actor.horse.samples, raceTime), race.seed);
-          const logical = getLogicalAt(progressAt(actor.horse.samples, raceTime), displayLane);
-          packCenterX += logical.x;
-          packCenterY += logical.y;
-        }
+      for (const logical of subjects) {
+        packCenterX += logical.x;
+        packCenterY += logical.y;
       }
-      packCenterX /= leadCount;
-      packCenterY /= leadCount;
+      packCenterX /= Math.max(1, subjects.length);
+      packCenterY /= Math.max(1, subjects.length);
 
       const desiredLook = getCameraLookForState(nextState, snapshot, packCenterX, packCenterY);
       // Blends advance on the presentation clock (wallClock), never raceTime.
       cameraPresentation = advanceCameraPresentation(cameraPresentation, nextState, desiredLook, wallClock);
       cameraState = cameraPresentation.state;
       lastLeadProgress = snapshot.leadProgress;
-      currentCamera = cameraFromLook(cameraPresentation.look);
+      const anchors = cameraState.name === "FINISH" ? [goalInnerLogical, goalOuterLogical] : [];
+      const framed = frameHorseLook(cameraPresentation.look, subjects, cameraState.name, anchors, frameMemory, frameDt);
+      frameMemory = framed.memory;
+      frameMargin = horseFit(framed.look, subjects).worst;
+      currentCamera = cameraFromLook(framed.look);
 
       for (const actor of actors) {
         const sample = progressAt(actor.horse.samples, raceTime);
@@ -702,63 +666,12 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           raceTime < actor.horse.cutUntil;
         const cutBlend = cutting ? (raceTime - actor.horse.skillTime) / (actor.horse.cutUntil - actor.horse.skillTime) : 0;
         const displayLane = renderLane(actor.horse.number, actor.progress, race.seed);
-        
-        const logicalFromLoop = (progress: number, lane: number) => {
-          const radius = laneRadius(lane);
-          const STRAIGHT = 1712;
-          const INNER_RADIUS = 256;
-          const LANE_GAP = 58;
-          const CHUTE = 158;
-          const STRAIGHT_BACK = 1418;
-          const REFERENCE_RADIUS = INNER_RADIUS + 3 * LANE_GAP;
-          const GOAL_ALONG = 0.920;
-          
-          const halfBack = STRAIGHT_BACK / 2;
-          const halfHome = STRAIGHT / 2;
-          const corner = Math.PI * radius;
-          const total = CHUTE + STRAIGHT_BACK + Math.PI * REFERENCE_RADIUS + GOAL_ALONG * STRAIGHT;
-          let cursor = Math.max(0, progress * total);
-          
-          if (cursor <= CHUTE) {
-            return { x: halfBack + CHUTE - cursor, y: -radius, tx: -1, ty: 0 };
-          }
-          cursor -= CHUTE;
-          
-          if (cursor <= STRAIGHT_BACK) {
-            return { x: halfBack - cursor, y: -radius, tx: -1, ty: 0 };
-          }
-          cursor -= STRAIGHT_BACK;
-          
-          if (cursor <= corner) {
-            const theta = -Math.PI / 2 + cursor / radius;
-            return {
-              x: -halfHome + Math.cos(theta) * radius,
-              y: Math.sin(theta) * radius,
-              tx: -Math.sin(theta),
-              ty: Math.cos(theta),
-            };
-          }
-          cursor -= corner;
-          
-          if (cursor <= GOAL_ALONG * STRAIGHT) {
-            return { x: -halfHome + cursor, y: radius, tx: 1, ty: 0 };
-          }
-          
-          const theta = Math.PI / 2 + (cursor - GOAL_ALONG * STRAIGHT) / radius;
-          return {
-            x: halfHome + Math.cos(theta) * radius,
-            y: Math.sin(theta) * radius,
-            tx: -Math.sin(theta),
-            ty: Math.cos(theta),
-          };
-        };
-
-        const logical = logicalFromLoop(actor.progress, displayLane);
+        const logical = getLogicalAt(actor.progress, displayLane);
         let pose = projectWithCamera(logical, currentCamera);
         
         if (cutting) {
-          const cutFrom = logicalFromLoop(actor.horse.cutFrom, displayLane);
-          const cutTo = logicalFromLoop(actor.horse.cutTo, displayLane);
+          const cutFrom = getLogicalAt(actor.horse.cutFrom, displayLane);
+          const cutTo = getLogicalAt(actor.horse.cutTo, displayLane);
           const cutLogical = {
             x: cutFrom.x + (cutTo.x - cutFrom.x) * cutBlend,
             y: cutFrom.y + (cutTo.y - cutFrom.y) * cutBlend,
@@ -768,7 +681,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           pose = projectWithCamera(cutLogical, currentCamera);
         } else if (swapping) {
           const blend = swapBlend;
-          const previous = logicalFromLoop(actor.horse.swapFrom, displayLane);
+          const previous = getLogicalAt(actor.horse.swapFrom, displayLane);
           const swapLogical = {
             x: previous.x + (logical.x - previous.x) * blend,
             y: previous.y + (logical.y - previous.y) * blend,
@@ -895,27 +808,49 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const span = horse.cutUntil - horse.skillTime;
         if (age < 0 || age > span + 0.8) continue;
         const fade = age <= span ? 1 : 1 - (age - span) / 0.8;
-        const points: TrackPose[] = [];
-        for (let step = 0; step <= 16; step += 1) {
-          points.push(cutPose(horse.cutFrom, horse.cutTo, horse.number, step / 16));
-        }
-        const stroke = (width: number, color: number, alpha: number) => {
-          cutPath?.lineStyle(width, color, alpha * fade);
-          const first = points[0];
-          if (!first) return;
+        const lane = renderLane(horse.number, actor.progress, race.seed);
+        const from = getLogicalAt(horse.cutFrom, lane);
+        const to = getLogicalAt(horse.cutTo, lane);
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const length = Math.hypot(dx, dy) || 1;
+        const nx = -dy / length;
+        const ny = dx / length;
+        const tNow = Math.min(1, Math.max(0, age / Math.max(span, 1e-6)));
+        const t0 = Math.max(0, tNow - 90 / length);
+        const t1 = Math.min(1, tNow + 24 / length);
+        const at = (t: number) => projectWithCamera({
+          x: from.x + dx * t,
+          y: from.y + dy * t,
+          tx: dx / length,
+          ty: dy / length,
+        }, currentCamera);
+        if (!at(tNow).visible) continue;
+        const steps = 8;
+        const fillStrip = (half: number, color: number, alpha: number) => {
+          const edge = (t: number, side: number) => projectWithCamera({
+            x: from.x + dx * t + nx * half * side,
+            y: from.y + dy * t + ny * half * side,
+            tx: dx / length,
+            ty: dy / length,
+          }, currentCamera);
+          cutPath?.fillStyle(color, alpha * fade);
           cutPath?.beginPath();
+          const first = edge(t0, 1);
           cutPath?.moveTo(first.x, first.y);
-          for (const point of points) cutPath?.lineTo(point.x, point.y);
-          cutPath?.strokePath();
+          for (let step = 1; step <= steps; step += 1) {
+            const point = edge(t0 + (t1 - t0) * (step / steps), 1);
+            cutPath?.lineTo(point.x, point.y);
+          }
+          for (let step = steps; step >= 0; step -= 1) {
+            const point = edge(t0 + (t1 - t0) * (step / steps), -1);
+            cutPath?.lineTo(point.x, point.y);
+          }
+          cutPath?.closePath();
+          cutPath?.fillPath();
         };
-        stroke(46, 0x2f6b3a, 0.95);
-        stroke(24, 0xe7d7a8, 1);
-        cutPath.lineStyle(8, 0xcbb98a, 0.9 * fade);
-        for (let index = 1; index < points.length - 1; index += 2) {
-          const point = points[index];
-          if (!point) continue;
-          cutPath.lineBetween(point.x - point.tangentY * 16, point.y + point.tangentX * 16, point.x + point.tangentY * 16, point.y - point.tangentX * 16);
-        }
+        fillStrip(16, 0x2f6b3a, 0.95);
+        fillStrip(8, 0xc4a06a, 1);
       }
     }
 
@@ -1192,6 +1127,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     paintGates() {
       if (!gates) return;
       gates.clear();
+      // Door arms are sized in screen pixels for the start. Once the field leaves
+      // the chute, a wide camera would draw that same gate as a broken stair.
+      if (started && gateOpen >= 1 && lastLeadProgress > segmentEnds().pocketEnd + 0.08) return;
       const lanes = race.horses.length;
       
       for (let lane = 0; lane <= lanes; lane += 1) {
@@ -1219,13 +1157,14 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
             const rfy = rightPost.y - rightPost.tangentY * front;
             
             gates.setDepth(!started || gateOpen < 0.85 ? 4000 : 2);
-            gates.fillStyle(0x8a6239, 1);
-            gates.fillCircle(lx, ly, 7);
-            gates.fillCircle(rx, ry, 7);
+            gates.fillStyle(laneColorValue(lane + 1), 1);
+            gates.fillCircle(lx, ly, 8);
+            gates.fillCircle(rx, ry, 8);
+            gates.lineStyle(8, laneColorValue(lane + 1), 1);
+            gates.lineBetween(lx, ly, rx, ry);
             gates.lineStyle(7, 0x5c3b22, 1);
             gates.lineBetween(lx, ly, lfx, lfy);
             gates.lineBetween(rx, ry, rfx, rfy);
-            gates.lineBetween(lx, ly, rx, ry);
             
             const mx = (lfx + rfx) / 2;
             const my = (lfy + rfy) / 2;
@@ -1277,6 +1216,11 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     paintDebugOverlay() {
       if (!debugOverlay) return;
       debugOverlay.clear();
+      if (cameraDebugHost().__raceDebugVisible === false) {
+        debugText?.setVisible(false);
+        return;
+      }
+      debugText?.setVisible(true);
       
       // 무리 중심 계산
       let packCenterX = 0;
@@ -1341,6 +1285,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         `Logic: (${packCenterX.toFixed(0)}, ${packCenterY.toFixed(0)})`,
         `Center: (${centerX}, ${centerY.toFixed(0)})`,
         `Visible: ${visibleCount}/8`,
+        `Grass: ${(grassBelowRailFraction(currentCamera, actors.length) * 100).toFixed(1)}%`,
+        `Margin: ${frameMargin.toFixed(1)}px`,
       ].join("\n");
       
       debugText?.setText(infoText);
