@@ -1,7 +1,9 @@
 /**
  * Retune the race camera here. State looks, the safe-frame margins, damping,
  * and the background targets all live in this object.
- * Framing only widens a state look (never zooms in past it).
+ * "all" states only widen a state look. "topN" states pick a distance and focal
+ * length so the leaders' box fills the safe width, and never zoom in past
+ * `framing.maxZoom`.
  */
 
 export type FrameFitRule = "all" | "topN";
@@ -25,8 +27,15 @@ export const cameraConfig = {
     bannerTop: 0.8,
   },
   framing: {
-    /** Seconds to ease a widen / recover. A hard clip still snaps wide enough to fit. */
+    /** Seconds to ease a zoom / widen. A hard clip still snaps wide enough to fit. */
     dampSec: 0.3,
+    /**
+     * Closest a topN fit may pull the state camera, as a multiple of its distance
+     * and focal length. 2.5 allows 0.4× the distance and 2.5× the focal length.
+     * The fit may dolly farther than the state camera, and it stops once the
+     * leaders fill the safe width.
+     */
+    maxZoom: 2.5,
     /** Soft grass target for later retuning. Not a pass/fail gate. */
     grassTarget: 0.08,
     /** Straights may show grass under the rail up to this fraction of screen height. */

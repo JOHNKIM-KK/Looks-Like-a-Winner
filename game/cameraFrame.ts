@@ -328,10 +328,10 @@ function packSpriteCenterY(look: CameraLook, subjects: FrameSubject[]) {
 }
 
 /**
- * After the fit widen, slide the look target along the view until the pack's
+ * After the fit, slide the look target along the view until the pack's
  * sprite box sits on the lane-band center. Stops if another step would clip.
  */
-function recenterPack(look: CameraLook, subjects: FrameSubject[]) {
+function recenterPack(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[] = []) {
   if (subjects.length === 0) return look;
   let lo = -480;
   let hi = 480;
@@ -342,7 +342,7 @@ function recenterPack(look: CameraLook, subjects: FrameSubject[]) {
   for (let step = 0; step < 8; step += 1) {
     const mid = (lo + hi) / 2;
     const candidate = shiftLook(look, mid);
-    if (!horseFit(candidate, subjects).ok) {
+    if (!layoutOk(candidate, subjects, points)) {
       if (mid > 0) hi = mid;
       else lo = mid;
       continue;
@@ -360,15 +360,212 @@ function recenterPack(look: CameraLook, subjects: FrameSubject[]) {
   return best;
 }
 
-/** Smallest uniform widen that keeps the supplied sprites inside the safe rect. */
-function widenToFit(look: CameraLook, subjects: FrameSubject[]) {
-  if (subjects.length === 0 || horseFit(look, subjects).ok) return look;
+function withTarget(look: CameraLook, targetX: number, targetY: number): CameraLook {
+  return { ...look, targetX, targetY };
+}
+
+/** Move the target on the world axis that shifts screen X, until the box is centered in the safe width. */
+function centerScreenX(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[]) {
+  if (subjects.length === 0 && points.length === 0) return look;
+  const goal = (FRAME_LEFT + FRAME_RIGHT) / 2;
+  const centerOf = (box: ContentBox) => (box.minX + box.maxX) / 2;
+  const boxAt = (targetX: number, targetY: number) => contentBox(withTarget(look, targetX, targetY), subjects, points);
+  const origin = boxAt(look.targetX, look.targetY);
+  if (!origin) return look;
+  const nudge = 48;
+  const movedX = boxAt(look.targetX + nudge, look.targetY);
+  const movedY = boxAt(look.targetX, look.targetY + nudge);
+  const gainX = movedX ? centerOf(movedX) - centerOf(origin) : 0;
+  const gainY = movedY ? centerOf(movedY) - centerOf(origin) : 0;
+  const alongX = Math.abs(gainX) >= Math.abs(gainY);
+  const gain = (alongX ? gainX : gainY) / nudge;
+  if (Math.abs(gain) < 0.02) return look;
+  const errorAt = (offset: number) => {
+    const box = alongX
+      ? boxAt(look.targetX + offset, look.targetY)
+      : boxAt(look.targetX, look.targetY + offset);
+    if (!box) return 1e9;
+    return Math.abs(centerOf(box) - goal);
+  };
+  let lo = -900;
+  let hi = 900;
+  let best = 0;
+  let bestError = errorAt(0);
+  for (let step = 0; step < 12; step += 1) {
+    const left = lo + (hi - lo) / 3;
+    const right = hi - (hi - lo) / 3;
+    const leftError = errorAt(left);
+    const rightError = errorAt(right);
+    if (leftError < bestError) {
+      bestError = leftError;
+      best = left;
+    }
+    if (rightError < bestError) {
+      bestError = rightError;
+      best = right;
+    }
+    if (leftError < rightError) hi = right;
+    else lo = left;
+  }
+  return alongX ? withTarget(look, look.targetX + best, look.targetY) : withTarget(look, look.targetX, look.targetY + best);
+}
+
+function composeTopN(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[]) {
+  let current = look;
+  for (let pass = 0; pass < 2; pass += 1) {
+    current = recenterPack(current, subjects, points);
+    current = centerScreenX(current, subjects, points);
+  }
+  return current;
+}
+
+function tightest(lo: number, hi: number, fits: (value: number) => boolean) {
+  if (!fits(hi)) return hi;
+  if (fits(lo)) return lo;
+  let lower = lo;
+  let upper = hi;
+  for (let step = 0; step < 12; step += 1) {
+    const mid = (lower + upper) / 2;
+    if (fits(mid)) upper = mid;
+    else lower = mid;
+  }
+  return upper;
+}
+
+function fittedHeight(look: CameraLook, subjects: FrameSubject[]) {
+  const camera = cameraFromLook(look);
+  const heights: number[] = [];
+  for (const subject of subjects) {
+    const pose = projectWithCamera(subject, camera);
+    if (!pose.visible) return -1;
+    heights.push(spriteRect(pose).height);
+  }
+  if (heights.length === 0) return -1;
+  heights.sort((a, b) => a - b);
+  return heights[0] ?? -1;
+}
+
+/**
+ * Longest focal length at this distance that still keeps the box in the safe rect.
+ * Focal is clamped to `maxFocal` (the config max zoom).
+ */
+function focalFill(look: CameraLook, distance: number, maxFocal: number, subjects: FrameSubject[], points: FrameAnchor[]) {
+  const at = (focalLength: number) => composeTopN({ ...look, distance, focalLength }, subjects, points);
+  const fits = (focalLength: number) => layoutOk(at(focalLength), subjects, points);
+  let lo = Math.min(look.focalLength * 0.08, maxFocal);
+  if (!fits(lo)) {
+    while (!fits(lo) && lo > look.focalLength * 0.015) lo *= 0.5;
+    if (!fits(lo)) return null;
+  }
+  if (fits(maxFocal)) return at(maxFocal);
+  let hi = maxFocal;
+  for (let step = 0; step < 12; step += 1) {
+    const mid = (lo + hi) / 2;
+    if (fits(mid)) lo = mid;
+    else hi = mid;
+  }
+  return at(lo);
+}
+
+/**
+ * Choose distance and focal so the top-N box (and the finish post, when passed)
+ * fills the safe width. A tight pack zooms in; a wide pack zooms out. Among the
+ * framings that fit, keep the one with the largest horses. Never closer, and
+ * never a longer lens, than `maxZoom`.
+ */
+function zoomToFill(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[]) {
+  if (subjects.length === 0 && points.length === 0) return look;
+  const maxZoom = cameraConfig.framing.maxZoom;
+  const minFactor = 1 / maxZoom;
+  const widenedAt = (factor: number) => composeTopN(widened(look, factor), subjects, points);
+  const widenedFits = (factor: number) => layoutOk(widenedAt(factor), subjects, points);
+  let hi = Math.max(1, minFactor);
+  if (!widenedFits(hi)) {
+    while (!widenedFits(hi) && hi < 24) hi *= 1.6;
+  }
+  const candidates: CameraLook[] = [];
+  if (widenedFits(hi)) candidates.push(widenedAt(tightest(minFactor, hi, widenedFits)));
+  else candidates.push(widenedAt(Math.min(hi, 24)));
+
+  const maxFocal = look.focalLength * maxZoom;
+  const minDistance = look.distance / maxZoom;
+  // Closer dollies spread a side-on pack, so corners prefer the widened diagonal above.
+  // Farther dollies with a longer lens keep a head-on pack larger. Score picks per frame.
+  for (const distScale of [0.75, 1, 1.5, 2.2]) {
+    const filled = focalFill(look, Math.max(look.distance * distScale, minDistance), maxFocal, subjects, points);
+    if (filled) candidates.push(filled);
+  }
+
+  let best = candidates[0] ?? look;
+  let bestHeight = fittedHeight(best, subjects);
+  for (const candidate of candidates.slice(1)) {
+    const height = fittedHeight(candidate, subjects);
+    if (height > bestHeight) {
+      best = candidate;
+      bestHeight = height;
+    }
+  }
+  return best;
+}
+
+const FIT_SLACK = 0.4;
+
+type ContentBox = { minX: number; maxX: number; minY: number; maxY: number };
+
+function contentBox(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[]): ContentBox | null {
+  const camera = cameraFromLook(look);
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  let any = false;
+  for (const subject of subjects) {
+    const pose = projectWithCamera(subject, camera);
+    if (!pose.visible) return null;
+    const rect = spriteRect(pose);
+    minX = Math.min(minX, rect.minX);
+    maxX = Math.max(maxX, rect.maxX);
+    minY = Math.min(minY, rect.minY);
+    maxY = Math.max(maxY, rect.maxY);
+    any = true;
+  }
+  for (const point of points) {
+    const pose = projectWithCamera({ x: point.x, y: point.y, tx: 0, ty: 0 }, camera);
+    if (!pose.visible) return null;
+    minX = Math.min(minX, pose.x);
+    maxX = Math.max(maxX, pose.x);
+    minY = Math.min(minY, pose.y);
+    maxY = Math.max(maxY, pose.y);
+    any = true;
+  }
+  if (!any) return null;
+  return { minX, maxX, minY, maxY };
+}
+
+function layoutOk(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[]) {
+  if (subjects.length === 0 && points.length === 0) return true;
+  const box = contentBox(look, subjects, points);
+  if (!box) return false;
+  const worst = Math.min(box.minX - FRAME_LEFT, FRAME_RIGHT - box.maxX, box.minY - FRAME_TOP, FRAME_BOTTOM - box.maxY);
+  return worst >= -FIT_SLACK;
+}
+
+/** Finish keeps the post inside the same fit once the lead has reached the finish camera. */
+function finishPostPoints(state: CameraStateName, anchors: FrameAnchor[], leadProgress: number): FrameAnchor[] {
+  if (state !== "FINISH" || leadProgress < 0.9) return [];
+  const post = anchors[0];
+  return post ? [post] : [];
+}
+
+/** Smallest uniform widen that keeps the supplied sprites (and points) inside the safe rect. */
+function widenToFit(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[] = []) {
+  if (layoutOk(look, subjects, points)) return look;
   let lo = 1;
   let hi = 2;
-  while (!horseFit(widened(look, hi), subjects).ok && hi < 24) hi *= 2;
+  while (!layoutOk(widened(look, hi), subjects, points) && hi < 24) hi *= 2;
   for (let step = 0; step < 10; step += 1) {
     const mid = (lo + hi) / 2;
-    if (horseFit(widened(look, mid), subjects).ok) hi = mid;
+    if (layoutOk(widened(look, mid), subjects, points)) hi = mid;
     else lo = mid;
   }
   return widened(look, hi);
@@ -380,18 +577,27 @@ function damp(current: number, target: number, dt: number) {
   return current + (target - current) * alpha;
 }
 
-function fitLook(base: CameraLook, subjects: FrameSubject[], state: CameraStateName) {
+function fitLook(
+  base: CameraLook,
+  subjects: FrameSubject[],
+  state: CameraStateName,
+  anchors: FrameAnchor[],
+  leadProgress: number,
+) {
   const bias = cameraConfig.framing.lookBias[state] ?? 0;
   const shifted = shiftLook(base, bias);
-  const fitted = widenToFit(shifted, subjects);
-  return { look: recenterPack(fitted, subjects), bias };
+  const rule = framingRuleFor(state, leadProgress);
+  if (rule !== "topN") {
+    return { look: recenterPack(widenToFit(shifted, subjects), subjects), bias, rule };
+  }
+  const points = finishPostPoints(state, anchors, leadProgress);
+  return { look: zoomToFill(shifted, subjects, points), bias, rule, points };
 }
 
 /**
- * Pull the blended state camera out just enough that the horses selected by
- * the state's framing rule stay inside the safe rect. Distance only increases
- * and focal only drops. A state whose rule is "topN" ignores horses ranked below N
- * unless `requestFrameInclude` is widening for them.
+ * Frame the horses selected by the state's rule.
+ * "all" only widens. "topN" zooms in or out so that box fills the safe width,
+ * damped over `dampSec`, and never closer than `maxZoom`.
  */
 export function solveFramedLook(
   base: CameraLook,
@@ -400,8 +606,8 @@ export function solveFramedLook(
   anchors: FrameAnchor[],
   leadProgress = 0,
 ): { look: CameraLook; bias: number } {
-  void anchors;
-  return fitLook(base, requiredFrameSubjects(subjects, state, leadProgress), state);
+  const solved = fitLook(base, requiredFrameSubjects(subjects, state, leadProgress), state, anchors, leadProgress);
+  return { look: solved.look, bias: solved.bias };
 }
 
 export function frameHorseLook(
@@ -415,18 +621,40 @@ export function frameHorseLook(
 ): { look: CameraLook; memory: FrameMemory } {
   tickFrameIncludes(dt);
   const required = requiredFrameSubjects(subjects, state, leadProgress);
-  const solved = fitLook(base, required, state);
-  void anchors;
+  const solved = fitLook(base, required, state, anchors, leadProgress);
   if (!memory.seeded || dt <= 0) {
     return {
       look: solved.look,
       memory: { distance: solved.look.distance, focalLength: solved.look.focalLength, bias: solved.bias, seeded: true },
     };
   }
-  const distance = Math.max(base.distance, damp(memory.distance, solved.look.distance, dt));
-  const focalLength = Math.min(base.focalLength, damp(memory.focalLength, solved.look.focalLength, dt));
+  const maxZoom = cameraConfig.framing.maxZoom;
+  const distanceTarget = damp(memory.distance, solved.look.distance, dt);
+  const focalTarget = damp(memory.focalLength, solved.look.focalLength, dt);
+  const distance =
+    solved.rule === "topN"
+      ? Math.max(base.distance / maxZoom, distanceTarget)
+      : Math.max(base.distance, distanceTarget);
+  const focalLength =
+    solved.rule === "topN"
+      ? Math.min(base.focalLength * maxZoom, focalTarget)
+      : Math.min(base.focalLength, focalTarget);
   const bias = damp(memory.bias, solved.bias, dt);
-  const look = recenterPack(widenToFit(shiftLook({ ...base, distance, focalLength }, bias), required), required);
+  const shifted = shiftLook({ ...base, distance, focalLength }, bias);
+  if (solved.rule !== "topN") {
+    const look = recenterPack(widenToFit(shifted, required), required);
+    return {
+      look,
+      memory: { distance: look.distance, focalLength: look.focalLength, bias, seeded: true },
+    };
+  }
+  const points = finishPostPoints(state, anchors, leadProgress);
+  let look = composeTopN(shifted, required, points);
+  if (!layoutOk(look, required, points)) {
+    look = widenToFit(look, required, points);
+    look = composeTopN(look, required, points);
+    if (!layoutOk(look, required, points)) look = widenToFit(look, required, points);
+  }
   return {
     look,
     memory: { distance: look.distance, focalLength: look.focalLength, bias, seeded: true },

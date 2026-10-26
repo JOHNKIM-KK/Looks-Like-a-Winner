@@ -156,9 +156,14 @@ describe("horse framing", () => {
       samples: number;
       worst: number;
       heights: number[];
+      leaderHeights: number[];
+      span: number[];
+      hMargin: number[];
+      vMargin: number[];
       grass: number;
       sagitta: number;
       postOut: number;
+      postFrames: number;
       outsideFail: number;
       trailerOut: number;
     };
@@ -170,9 +175,14 @@ describe("horse framing", () => {
           samples: 0,
           worst: Infinity,
           heights: [],
+          leaderHeights: [],
+          span: [],
+          hMargin: [],
+          vMargin: [],
           grass: 0,
           sagitta: Infinity,
           postOut: 0,
+          postFrames: 0,
           outsideFail: 0,
           trailerOut: 0,
         };
@@ -253,6 +263,11 @@ describe("horse framing", () => {
         const stat = ensure(label);
         stat.samples += 1;
         const heights: number[] = [];
+        const leaderHeights: number[] = [];
+        let boxL = Infinity;
+        let boxR = -Infinity;
+        let hMargin = Infinity;
+        let vMargin = Infinity;
         let trailerLeft = false;
         for (const subject of framedSubjects) {
           const pose = projectWithCamera(subject, camera);
@@ -276,6 +291,11 @@ describe("horse framing", () => {
           }
           expect(pose.visible, `${label} seed ${seed} t ${raceTime} rank ${subject.rank}`).toBe(true);
           const rect = spriteRect(pose);
+          leaderHeights.push(rect.height);
+          boxL = Math.min(boxL, rect.minX);
+          boxR = Math.max(boxR, rect.maxX);
+          hMargin = Math.min(hMargin, rect.minX - FRAME_LEFT, FRAME_RIGHT - rect.maxX);
+          vMargin = Math.min(vMargin, rect.minY - FRAME_TOP, FRAME_BOTTOM - rect.maxY);
           const margin = Math.min(rect.minX - FRAME_LEFT, FRAME_RIGHT - rect.maxX, rect.minY - FRAME_TOP, FRAME_BOTTOM - rect.maxY);
           stat.worst = Math.min(stat.worst, margin);
           expect(rect.minX, `${label} seed ${seed} t ${raceTime.toFixed(1)} rank ${subject.rank} left`).toBeGreaterThanOrEqual(FRAME_LEFT - 0.6);
@@ -285,7 +305,12 @@ describe("horse framing", () => {
         }
         if (trailerLeft) stat.trailerOut += 1;
         heights.sort((a, b) => a - b);
+        leaderHeights.sort((a, b) => a - b);
         stat.heights.push(heights[Math.floor((heights.length - 1) / 2)] ?? 0);
+        stat.leaderHeights.push(leaderHeights[Math.floor((leaderHeights.length - 1) / 2)] ?? 0);
+        stat.span.push(boxR - boxL);
+        stat.hMargin.push(hMargin);
+        stat.vMargin.push(vMargin);
         stat.grass = Math.max(stat.grass, grassBelowRailFraction(camera));
         const settled = !pres.blend;
         if (settled && (pres.state.name === "CORNER_IN" || pres.state.name === "CORNER_OUT")) {
@@ -301,6 +326,7 @@ describe("horse framing", () => {
           expect(outside, `${label} t ${raceTime.toFixed(1)}`).toBe(true);
         }
         if (settled && pres.state.name === "FINISH" && leadProgress >= 0.9) {
+          stat.postFrames += 1;
           if (!anchorVisible(framed.look, post)) stat.postOut += 1;
         }
       }
@@ -311,22 +337,47 @@ describe("horse framing", () => {
       const heights = [...stat.heights].sort((a, b) => a - b);
       const median = heights[Math.floor((heights.length - 1) / 2)] ?? 0;
       const minMedian = heights[0] ?? 0;
+      const leaders = [...stat.leaderHeights].sort((a, b) => a - b);
+      const spans = [...stat.span].sort((a, b) => a - b);
+      const hMargins = [...stat.hMargin].sort((a, b) => a - b);
+      const vMargins = [...stat.vMargin].sort((a, b) => a - b);
+      const mid = (values: number[]) => values[Math.floor((values.length - 1) / 2)] ?? 0;
       lines.push(
         [
           name,
           `n=${stat.samples}`,
           `worstMargin=${stat.worst.toFixed(1)}px`,
           `medianHorse=${median.toFixed(1)}px`,
+          `leaderMedian=${mid(leaders).toFixed(1)}px`,
+          `span=${mid(spans).toFixed(0)}/${(FRAME_RIGHT - FRAME_LEFT).toFixed(0)}`,
+          `hMargin=${mid(hMargins).toFixed(1)}`,
+          `vMargin=${mid(vMargins).toFixed(1)}`,
           `minFrameMedian=${minMedian.toFixed(1)}px`,
           `worstGrass=${(stat.grass * 100).toFixed(1)}%`,
           stat.sagitta < Infinity ? `minSagitta=${stat.sagitta.toFixed(0)}px` : "sagitta=n/a",
-          `postMiss=${stat.postOut}`,
+          `postMiss=${stat.postOut}/${stat.postFrames}`,
           `outsideFail=${stat.outsideFail}`,
           `trailerOut=${stat.trailerOut}`,
         ].join(" | "),
       );
     }
     console.log(lines.join("\n"));
+    const medianOf = (name: string) => {
+      const heights = [...(byState.get(name)?.heights ?? [])].sort((a, b) => a - b);
+      return heights[Math.floor((heights.length - 1) / 2)] ?? 0;
+    };
+    expect(medianOf("START")).toBeCloseTo(125.3, 0);
+    expect(medianOf("STRAIGHT-early")).toBeCloseTo(82.5, 0);
+    expect(medianOf("CORNER_IN")).toBeGreaterThanOrEqual(95);
+    expect(medianOf("CORNER_OUT")).toBeGreaterThanOrEqual(95);
+    expect(medianOf("STRAIGHT-home")).toBeGreaterThanOrEqual(100);
+    expect(medianOf("FINISH")).toBeGreaterThanOrEqual(95);
+    const finish = byState.get("FINISH");
+    const postRatio = finish && finish.postFrames > 0 ? (finish.postFrames - finish.postOut) / finish.postFrames : 0;
+    console.log(
+      `finishPostVisible=${(postRatio * 100).toFixed(1)}% (${(finish?.postFrames ?? 0) - (finish?.postOut ?? 0)}/${finish?.postFrames ?? 0})`,
+    );
+    expect(postRatio).toBe(1);
   }, 120000);
 
   test("requestFrameInclude widens for a dummy horse, and cut does not", () => {
