@@ -18,18 +18,19 @@ import {
   groundUv,
   isDirt,
   nearRailRadius,
+  homeOuterStandLine,
   offsetAlong,
   ovalPolyline,
   projectHeight,
-  standsOffsetM,
   treesOffsetM,
   unprojectCell,
   type Vec2,
 } from "./trackArt";
 
 const DEPTH = {
-  stands: 32,
-  trees: 33,
+  /** Behind the ground, so a strip cannot float over the infield. */
+  stands: 20,
+  trees: 22,
   cornerTree: 25,
   turf: 30,
   dirt: 31,
@@ -78,6 +79,8 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   const farRail = makeMesh(scene, "rail-segment", DEPTH.farRail);
   const nearRail = makeMesh(scene, "rail-segment", DEPTH.nearRail);
   const stands = makeMesh(scene, "stands-strip", DEPTH.stands);
+  stands.mesh.setAlpha(1).setBlendMode(Phaser.BlendModes.NORMAL);
+  const standLine = homeOuterStandLine();
   const trees = makeMesh(scene, "trees-strip", DEPTH.trees);
   const checker = makeMesh(scene, "finish-checker", DEPTH.checker);
 
@@ -106,7 +109,7 @@ export function createTrackRenderer(scene: Phaser.Scene) {
     clearSlot(stands);
     paintVertical(trees, offsetAlong(farLoop, forward, treesOffsetM()), true, TREES_IMAGE, STRIP_HEIGHT_SCALE, camera);
     if (view.showStands) {
-      paintVertical(stands, offsetAlong(farLoop, forward, standsOffsetM()), true, STANDS_IMAGE, view.standHeightScale, camera);
+      paintVertical(stands, standLine, false, STANDS_IMAGE, view.standHeightScale, camera);
     }
     paintChecker(checker, camera, view.showFinish);
     paintProps(camera, view);

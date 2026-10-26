@@ -12,16 +12,11 @@ export const LOGICAL_PER_METER = LANE_GAP / LANE_WIDTH_M;
 export const LANE0_Y_M = 1.2;
 export const RAIL_FAR_Y_M = -1.3;
 export const RAIL_NEAR_Y_M = 13.9;
-/** Authored infield distances. The home camera is only ~9.8 m high, so a 10.4 m stand at 100 m sits above the frame. */
+/** Authored straight cross-section, meters. +Y points toward that camera. */
 export const TREES_Y_M = -48.66;
 export const STANDS_Y_M = -100.7;
-/**
- * Drawn distances behind the far rail. The authored 48 m / 100 m offsets put the
- * home-straight grandstand above this camera, so the strips sit closer to the
- * rail. Full height still reaches past the top of the frame; the seats stay in view.
- */
+/** Trees stay a short step behind the far rail along the camera. */
 export const TREES_BEHIND_RAIL_M = 5;
-export const STANDS_BEHIND_RAIL_M = 9;
 export const STRIP_HEIGHT_SCALE = 1;
 
 export const TILE_M = 5.12;
