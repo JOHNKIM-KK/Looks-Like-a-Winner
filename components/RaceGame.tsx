@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { RaceResult } from "@/lib/race";
 import type { RankRow } from "@/game/createRaceGame";
 import { overlayLayout, type RaceOverlaySnapshot } from "@/game/overlayLayout";
+import { rankSlotModeFromSearch, type RankSlotMode } from "@/game/rankDisplay";
 import { RaceOverlay } from "@/components/RaceOverlay";
 
 type Props = {
@@ -24,6 +25,11 @@ export function RaceGame({ race, onComplete, isRacing }: Props) {
   const [comment, setComment] = useState("게이트 앞에서 대기 중입니다.");
   const [ranks, setRanks] = useState<RankRow[]>([]);
   const [overlay, setOverlay] = useState<RaceOverlaySnapshot>(EMPTY_OVERLAY);
+  const [slotMode, setSlotMode] = useState<RankSlotMode>("name");
+
+  useEffect(() => {
+    setSlotMode(rankSlotModeFromSearch(window.location.search));
+  }, []);
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
@@ -56,7 +62,7 @@ export function RaceGame({ race, onComplete, isRacing }: Props) {
   if (isRacing) {
     return (
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-[#145c34]"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-[#3F4630]"
         style={{
           paddingTop: overlayLayout.safeArea.top,
           paddingRight: overlayLayout.safeArea.right,
@@ -66,7 +72,7 @@ export function RaceGame({ race, onComplete, isRacing }: Props) {
       >
         <div className="relative h-full w-full max-w-[540px] overflow-hidden">
           <div ref={hostRef} className="h-full w-full" />
-          <RaceOverlay hostRef={hostRef} snapshot={overlay} comment={comment} />
+          <RaceOverlay hostRef={hostRef} snapshot={overlay} comment={comment} slotMode={slotMode} />
         </div>
       </div>
     );
@@ -96,13 +102,15 @@ export function RaceGame({ race, onComplete, isRacing }: Props) {
             >
               {row.place}등
             </span>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={row.portrait}
-              alt=""
-              className="h-8 w-8 shrink-0 border-2 object-cover"
-              style={{ borderColor: row.color }}
-            />
+            {slotMode === "face" ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={row.portrait}
+                alt=""
+                className="h-8 w-8 shrink-0 border-2 object-cover"
+                style={{ borderColor: row.color }}
+              />
+            ) : null}
             <span className="min-w-0 truncate text-xs font-bold sm:text-sm">{row.name}</span>
           </li>
         ))}
