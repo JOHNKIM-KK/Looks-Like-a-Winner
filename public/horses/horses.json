@@ -16,7 +16,7 @@
  "facing": "right (+screen x). Mirror horizontally for horses seen from the inside of the bend (corner, |yaw|>90).",
  "mask": {
   "R": "coat (keep bay coat; do not tint)",
-  "G": "silks, cap and saddle cloth -> tint to lane color",
+  "G": "saddle cloth only -> tint to lane color (the jockey is a separate layer: jockey/ride_*)",
   "B": "number plate -> lane color panel; engine draws the number"
  },
  "sets": {
@@ -648,5 +648,7 @@
   "font_size": "1.3 * glyph_height",
   "fill": "#FFFFFF",
   "outline": "#140E0A, max(3px, 12% of glyph height)"
- }
+ },
+ "riderless_note": "Same frame size/anchor/plates as the ridden sheets, jockey removed (for 낙마 and 기수 갈아타기). Swap the horse to these when the jockey leaves.",
+ "layering": "draw horse sheet, then jockey/ride_<set>_a<angle> frame k at offset_in_horse_frame (same frame index k as the horse). Skip the ride layer when the jockey has fallen or jumped off (horse runs riderless with the same sheet)."
 }

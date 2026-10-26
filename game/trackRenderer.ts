@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import {
   GROUND_PX_PER_M,
-  HOME_STAND_HEIGHT_SCALE,
+  STRIP_HEIGHT_SCALE,
   LOGICAL_PER_METER,
   RAIL_SEGMENT_M,
   STRIP_PERIOD_M,
@@ -18,18 +18,19 @@ import {
   groundUv,
   isDirt,
   nearRailRadius,
+  homeOuterStandLine,
   offsetAlong,
   ovalPolyline,
   projectHeight,
-  standsOffsetM,
   treesOffsetM,
   unprojectCell,
   type Vec2,
 } from "./trackArt";
 
 const DEPTH = {
-  stands: 10,
-  trees: 20,
+  /** Behind the ground, so a strip cannot float over the infield. */
+  stands: 20,
+  trees: 22,
   cornerTree: 25,
   turf: 30,
   dirt: 31,
@@ -55,7 +56,7 @@ export function trackViewFor(stateName: string, leadProgress: number, cornerEnd:
   const home = stateName === "FINISH" || (stateName === "STRAIGHT" && leadProgress >= cornerEnd);
   return {
     showStands: !corner,
-    standHeightScale: home ? HOME_STAND_HEIGHT_SCALE : 1,
+    standHeightScale: STRIP_HEIGHT_SCALE,
     showFinish: stateName === "FINISH" || home,
     showCornerTree: corner,
   };
@@ -78,6 +79,8 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   const farRail = makeMesh(scene, "rail-segment", DEPTH.farRail);
   const nearRail = makeMesh(scene, "rail-segment", DEPTH.nearRail);
   const stands = makeMesh(scene, "stands-strip", DEPTH.stands);
+  stands.mesh.setAlpha(1).setBlendMode(Phaser.BlendModes.NORMAL);
+  const standLine = homeOuterStandLine();
   const trees = makeMesh(scene, "trees-strip", DEPTH.trees);
   const checker = makeMesh(scene, "finish-checker", DEPTH.checker);
 
@@ -104,9 +107,9 @@ export function createTrackRenderer(scene: Phaser.Scene) {
     const forward = cameraForward(camera);
     clearSlot(trees);
     clearSlot(stands);
-    paintVertical(trees, offsetAlong(farLoop, forward, treesOffsetM()), true, TREES_IMAGE, 1, camera);
+    paintVertical(trees, offsetAlong(farLoop, forward, treesOffsetM()), true, TREES_IMAGE, STRIP_HEIGHT_SCALE, camera);
     if (view.showStands) {
-      paintVertical(stands, offsetAlong(farLoop, forward, standsOffsetM()), true, STANDS_IMAGE, view.standHeightScale, camera);
+      paintVertical(stands, standLine, false, STANDS_IMAGE, view.standHeightScale, camera);
     }
     paintChecker(checker, camera, view.showFinish);
     paintProps(camera, view);

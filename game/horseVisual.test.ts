@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { assignHorseSheet, assignRiderSheet, createMountedSlots } from "./mountedPair";
+import { assignHorseSheet, assignRiderSheet, createMountedSlots, disableRideLayer, transferRideLayer } from "./mountedPair";
+import { horseAttach, ridePose } from "./jockeyRide";
 import { rankSlotModeFromSearch } from "./rankDisplay";
 import {
   START_FRAME_OFFSET,
@@ -101,6 +102,7 @@ describe("lane tint", () => {
 describe("mounted pair", () => {
   test("a rider sheet swaps in without replacing the horse slot", () => {
     const slots = createMountedSlots();
+    expect(slots.rideEnabled).toBe(true);
     const rider = { key: "rider-run", frameWidth: 80, frameHeight: 80, anchorX: 40, anchorY: 78, frames: 8 };
     const next = assignRiderSheet(slots, rider);
     expect(next.rider?.key).toBe("rider-run");
@@ -108,6 +110,40 @@ describe("mounted pair", () => {
     const horse = { key: "horse-only", frameWidth: 100, frameHeight: 80, anchorX: 50, anchorY: 78, frames: 12 };
     expect(assignHorseSheet(next, horse).horse?.key).toBe("horse-only");
     expect(assignHorseSheet(next, horse).rider?.key).toBe("rider-run");
+  });
+
+  test("ride can be taken off one horse and moved onto another", () => {
+    const donor = assignRiderSheet(createMountedSlots(), {
+      key: "ride-a",
+      frameWidth: 10,
+      frameHeight: 10,
+      anchorX: 5,
+      anchorY: 9,
+      frames: 12,
+    });
+    const bare = disableRideLayer(donor);
+    expect(bare.rideEnabled).toBe(false);
+    expect(bare.rider).toBeNull();
+
+    const moved = transferRideLayer(donor, createMountedSlots());
+    expect(moved.from.rideEnabled).toBe(false);
+    expect(moved.to.rideEnabled).toBe(true);
+    expect(moved.to.rider?.key).toBe("ride-a");
+    expect(moved.from.rider).toBeNull();
+  });
+});
+
+describe("ride seating", () => {
+  test("the jockey hips sit on horse_attach inside the horse frame", () => {
+    const [hipsX, hipsY] = horseAttach("straight", 2, 0);
+    const seated = ridePose("straight", 2, 0, 160, 207.73, 1, false);
+    expect(seated).not.toBeNull();
+    if (!seated) return;
+    expect(seated.x).toBeCloseTo(hipsX - 160, 4);
+    expect(seated.y).toBeCloseTo(hipsY - 207.73, 4);
+    expect(seated.y).toBeLessThan(0);
+    const flipped = ridePose("straight", 2, 0, 160, 207.73, 2, true);
+    expect(flipped?.x).toBeCloseTo(-(hipsX - 160) * 2, 4);
   });
 });
 

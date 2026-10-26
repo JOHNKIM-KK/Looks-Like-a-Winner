@@ -1,10 +1,9 @@
 import {
   LOGICAL_PER_METER,
   RAIL_FAR_Y_M,
-  RAIL_NEAR_Y_M,
   STANDS_Y_M,
   TILE_M,
-  TREES_Y_M,
+  TREES_BEHIND_RAIL_M,
   farRailRadius,
   nearRailRadius,
 } from "./artScale";
@@ -83,11 +82,28 @@ export function offsetAlong(points: readonly Vec2[], direction: Vec2, meters: nu
 }
 
 export function treesOffsetM() {
-  return Math.abs(TREES_Y_M - RAIL_FAR_Y_M);
+  return TREES_BEHIND_RAIL_M;
 }
 
-export function standsOffsetM() {
-  return Math.abs(STANDS_Y_M - RAIL_FAR_Y_M);
+/**
+ * Meters outside the home-straight outer rail.
+ * The art sheet sits this far past its far rail. On this oval that far rail is
+ * the inner rail, so the same gap is measured outward from the outer rail.
+ */
+export function standsOutsideHomeRailM() {
+  return RAIL_FAR_Y_M - STANDS_Y_M;
+}
+
+/** Home straight only. Every point is on the turf outside the outer rail. */
+export function homeOuterStandLine(): Vec2[] {
+  const y = nearRailRadius() + standsOutsideHomeRailM() * LOGICAL_PER_METER;
+  const half = STRAIGHT / 2;
+  const steps = Math.max(2, Math.round(STRAIGHT / LOGICAL_PER_METER));
+  const points: Vec2[] = [];
+  for (let index = 0; index <= steps; index += 1) {
+    points.push({ x: -half + (STRAIGHT * index) / steps, y });
+  }
+  return points;
 }
 
 export function finishCheckerQuad() {

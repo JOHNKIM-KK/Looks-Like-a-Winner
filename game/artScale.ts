@@ -12,8 +12,12 @@ export const LOGICAL_PER_METER = LANE_GAP / LANE_WIDTH_M;
 export const LANE0_Y_M = 1.2;
 export const RAIL_FAR_Y_M = -1.3;
 export const RAIL_NEAR_Y_M = 13.9;
+/** Authored straight cross-section, meters. +Y points toward that camera. */
 export const TREES_Y_M = -48.66;
 export const STANDS_Y_M = -100.7;
+/** Trees stay a short step behind the far rail along the camera. */
+export const TREES_BEHIND_RAIL_M = 5;
+export const STRIP_HEIGHT_SCALE = 1;
 
 export const TILE_M = 5.12;
 export const GROUND_PX_PER_M = 100;
@@ -32,8 +36,7 @@ export const SHADOW_SQUASH = 0.3;
 export const SHADOW_ALPHA = 0.75;
 export const SHADOW_BLUR_PX = 3;
 
-/** Home / finish stands stand a little taller than the straight strip. */
-export const HOME_STAND_HEIGHT_SCALE = 1.15;
+export const HOME_STAND_HEIGHT_SCALE = STRIP_HEIGHT_SCALE;
 
 export function radiusForArtY(artY: number) {
   return INNER_RADIUS + (artY - LANE0_Y_M) * LOGICAL_PER_METER;
