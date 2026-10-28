@@ -51,9 +51,9 @@ export function RaceOverlay({ hostRef, snapshot, comment, slotMode = "name" }: P
               <Minimap horses={snapshot.horses} />
               <Ranking horses={snapshot.horses} slotMode={slotMode} />
             </>
-          ) : (
-            <Countdown label={snapshot.countdown ?? "3"} />
-          )}
+          ) : snapshot.phase === "countdown" && snapshot.countdown ? (
+            <Countdown label={snapshot.countdown} />
+          ) : null}
           <Caption comment={comment} />
           <SkillSlot />
         </div>

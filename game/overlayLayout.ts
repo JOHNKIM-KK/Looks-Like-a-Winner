@@ -64,8 +64,9 @@ export const overlayLayout = {
     },
   },
   countdown: {
-    fontSize: 112,
-    centerY: view.height * 0.42,
+    fontSize: 96,
+    /** Top 3–15% of the frame. The center sits near 9%. */
+    centerY: view.height * 0.09,
   },
   caption: {
     top: 948,
@@ -103,7 +104,7 @@ export type OverlayHorse = {
 };
 
 export type RaceOverlaySnapshot = {
-  phase: "countdown" | "racing";
+  phase: "intro" | "countdown" | "racing";
   countdown: string | null;
   horses: OverlayHorse[];
 };
