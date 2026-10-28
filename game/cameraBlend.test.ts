@@ -60,9 +60,10 @@ describe("transition durations", () => {
 });
 
 describe("lead-horse thresholds", () => {
-  test("corner in cuts to corner out at 50% of the corner, and the goal camera starts at lead 90%", () => {
+  test("each bend cuts to corner out at 50%, and the goal camera starts at lead 90%", () => {
     const ends = segmentEnds();
-    const cornerMid = ends.backStraightEnd + (ends.cornerEnd - ends.backStraightEnd) * 0.5;
+    const mid12 = ends.corner12Entry + (ends.corner12Exit - ends.corner12Entry) * 0.5;
+    const mid34 = ends.backEnd + (ends.corner34Exit - ends.backEnd) * 0.5;
     const leadState = (lead: number, prev: CameraState): CameraState =>
       nextCameraState(prev, {
         raceTime: 20,
@@ -72,8 +73,12 @@ describe("lead-horse thresholds", () => {
         horses: [{ index: 0, progress: lead }],
       });
 
-    expect(leadState(cornerMid - 1e-6, { name: "CORNER_IN" }).name).toBe("CORNER_IN");
-    expect(leadState(cornerMid, { name: "CORNER_IN" }).name).toBe("CORNER_OUT");
+    expect(leadState(mid12 - 1e-6, { name: "CORNER_IN" }).name).toBe("CORNER_IN");
+    expect(leadState(mid12, { name: "CORNER_IN" }).name).toBe("CORNER_OUT");
+    expect(leadState(ends.corner12Exit, { name: "CORNER_OUT" }).name).toBe("STRAIGHT");
+    expect(leadState(mid34 - 1e-6, { name: "CORNER_IN" }).name).toBe("CORNER_IN");
+    expect(leadState(mid34, { name: "CORNER_IN" }).name).toBe("CORNER_OUT");
+    expect(leadState(ends.corner34Exit, { name: "CORNER_OUT" }).name).toBe("STRAIGHT");
     expect(cameraTransitionSeconds({ name: "CORNER_IN" }, { name: "CORNER_OUT" })).toBe(0);
 
     expect(leadState(0.9 - 1e-6, { name: "STRAIGHT" }).name).toBe("STRAIGHT");
@@ -146,8 +151,8 @@ describe("shortest azimuth", () => {
 
   test("corner-out to home straight turns the short way, not the long way", () => {
     const ends = segmentEnds();
-    const out = look({ name: "CORNER_OUT" }, 0, 0, ends.cornerEnd);
-    const home = look({ name: "STRAIGHT" }, 0, 0, ends.cornerEnd);
+    const out = look({ name: "CORNER_OUT" }, 0, 0, ends.corner34Exit);
+    const home = look({ name: "STRAIGHT" }, 0, 0, ends.corner34Exit);
     expect(out.azimuth).toBe(135);
     expect(home.azimuth).toBe(180);
     expect(lerpCameraLook(out, home, 0.5).azimuth).toBeCloseTo(157.5);
@@ -155,9 +160,10 @@ describe("shortest azimuth", () => {
 });
 
 describe("continuity", () => {
-  test("camera params stay continuous frame to frame except the corner-in to corner-out cut", () => {
+  test("camera params stay continuous frame to frame except the two corner-in to corner-out cuts", () => {
     const ends = segmentEnds();
-    const cornerMid = ends.backStraightEnd + (ends.cornerEnd - ends.backStraightEnd) * 0.5;
+    const mid12 = ends.corner12Entry + (ends.corner12Exit - ends.corner12Entry) * 0.5;
+    const mid34 = ends.backEnd + (ends.corner34Exit - ends.backEnd) * 0.5;
     const pack = { x: 140, y: -360 };
     let presentation = 0;
     let raceTime = 0;
@@ -216,19 +222,28 @@ describe("continuity", () => {
       { from: "STRAIGHT", to: "CORNER_IN", duration: 0.6 },
       { from: "CORNER_IN", to: "CORNER_OUT", duration: 0 },
       { from: "CORNER_OUT", to: "STRAIGHT", duration: 0.6 },
+      { from: "STRAIGHT", to: "CORNER_IN", duration: 0.6 },
+      { from: "CORNER_IN", to: "CORNER_OUT", duration: 0 },
+      { from: "CORNER_OUT", to: "STRAIGHT", duration: 0.6 },
       { from: "STRAIGHT", to: "FINISH", duration: 0.6 },
     ]);
     expect(transitions[0]?.lead).toBe(0);
-    expect(transitions[1]?.lead).toBeGreaterThanOrEqual(ends.backStraightEnd);
-    expect(transitions[1]?.lead).toBeLessThan(cornerMid);
-    expect(transitions[2]?.lead).toBeGreaterThanOrEqual(cornerMid);
-    expect(transitions[2]?.lead).toBeLessThan(ends.cornerEnd);
-    expect(transitions[3]?.lead).toBeGreaterThanOrEqual(ends.cornerEnd);
-    expect(transitions[3]?.lead).toBeLessThan(0.9);
-    expect(transitions[4]?.lead).toBeGreaterThanOrEqual(0.9);
+    expect(transitions[1]?.lead).toBeGreaterThanOrEqual(ends.corner12Entry);
+    expect(transitions[1]?.lead).toBeLessThan(mid12);
+    expect(transitions[2]?.lead).toBeGreaterThanOrEqual(mid12);
+    expect(transitions[2]?.lead).toBeLessThan(ends.corner12Exit);
+    expect(transitions[3]?.lead).toBeGreaterThanOrEqual(ends.corner12Exit);
+    expect(transitions[3]?.lead).toBeLessThan(ends.backEnd);
+    expect(transitions[4]?.lead).toBeGreaterThanOrEqual(ends.backEnd);
+    expect(transitions[4]?.lead).toBeLessThan(mid34);
+    expect(transitions[5]?.lead).toBeGreaterThanOrEqual(mid34);
+    expect(transitions[5]?.lead).toBeLessThan(ends.corner34Exit);
+    expect(transitions[6]?.lead).toBeGreaterThanOrEqual(ends.corner34Exit);
+    expect(transitions[6]?.lead).toBeLessThan(0.9);
+    expect(transitions[7]?.lead).toBeGreaterThanOrEqual(0.9);
 
     const cuts = frames.filter((frame) => frame.cut);
-    expect(cuts).toHaveLength(1);
+    expect(cuts).toHaveLength(2);
 
     for (let i = 1; i < frames.length; i += 1) {
       const prev = frames[i - 1]?.look;

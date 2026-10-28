@@ -139,7 +139,7 @@ function cameraDebugHost(): CameraDebugHost {
 
 function cameraStateLabel(state: CameraState, lead: number): string {
   if (state.name === "STRAIGHT") {
-    return lead >= segmentEnds().cornerEnd ? "STRAIGHT-home" : "STRAIGHT-early";
+    return lead >= segmentEnds().corner34Exit ? "STRAIGHT-home" : "STRAIGHT-early";
   }
   return state.name;
 }
@@ -605,7 +605,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
 
     paintTrack() {
-      world?.paint(currentCamera, trackViewFor(cameraState.name, lastLeadProgress, segmentEnds().cornerEnd));
+      world?.paint(currentCamera, trackViewFor(cameraState.name, lastLeadProgress, segmentEnds().corner34Exit));
     }
 
     placeHorses() {

@@ -1,5 +1,18 @@
 import { describe, expect, test } from "vitest";
-import { CHUTE, INNER_RADIUS, LANE_GAP, laneRadius, referenceDistance, segmentEnds } from "../game/track";
+import {
+  CHUTE,
+  CHUTE_M,
+  ENGINE_PX_PER_M,
+  FINISH_HOME_FRACTION,
+  RACE_METERS,
+  REFERENCE_RADIUS_M,
+  STRAIGHT_M,
+  laneRadius,
+  referenceDistance,
+  referenceRadius,
+  segmentEnds,
+} from "../game/track";
+import { fieldHorses } from "../lib/field";
 import { mockHorses } from "../lib/mockHorses";
 import { gateProgress, progressAt, simulateRace, type HorseStats } from "../lib/race";
 
@@ -16,7 +29,7 @@ describe("race time", () => {
   test("mean finish time over 20 seeds stays near 40s", () => {
     const finishTimes: number[] = [];
     for (const seed of SEEDS) {
-      const race = simulateRace(mockHorses, seed);
+      const race = simulateRace(fieldHorses(mockHorses, seed), seed);
       for (const horse of race.horses) finishTimes.push(horse.finishTime);
     }
 
@@ -34,17 +47,18 @@ describe("lane-independent progress", () => {
 
     const distance = referenceDistance();
     const ends = segmentEnds();
-    const referenceRadius = INNER_RADIUS + 3 * LANE_GAP;
-    expect(laneRadius(4)).toBe(referenceRadius);
-    expect(ends.pocketEnd * distance).toBeCloseTo(CHUTE, 5);
-    expect((ends.cornerEnd - ends.backStraightEnd) * distance).toBeCloseTo(Math.PI * referenceRadius, 5);
-    expect((ends.cornerEnd - ends.backStraightEnd) * distance).not.toBeCloseTo(Math.PI * laneRadius(1), 0);
-    expect((ends.cornerEnd - ends.backStraightEnd) * distance).not.toBeCloseTo(Math.PI * laneRadius(8), 0);
-    expect(ends.cornerEnd).toBeLessThan(1);
+    const center = referenceRadius();
+    expect(ends.chuteEnd * distance).toBeCloseTo(CHUTE, 5);
+    expect((ends.corner12Exit - ends.corner12Entry) * distance).toBeCloseTo(Math.PI * center, 4);
+    expect((ends.corner34Exit - ends.backEnd) * distance).toBeCloseTo(Math.PI * center, 4);
+    expect((ends.corner12Exit - ends.corner12Entry) * distance).not.toBeCloseTo(Math.PI * laneRadius(1), 0);
+    expect((ends.corner12Exit - ends.corner12Entry) * distance).not.toBeCloseTo(Math.PI * laneRadius(12), 0);
+    expect(ends.corner34Exit).toBeLessThan(1);
+    expect(distance / ENGINE_PX_PER_M).toBeCloseTo(RACE_METERS, 3);
 
     for (const seed of SEEDS) {
-      const race = simulateRace(mockHorses, seed);
-      expect(race.horses).toHaveLength(8);
+      const race = simulateRace(fieldHorses(mockHorses, seed), seed);
+      expect(race.horses).toHaveLength(12);
       for (const horse of race.horses) {
         expect(horse.samples[0], `seed ${seed} horse ${horse.number} starts at the gate`).toBe(0);
         expect(progressAt(horse.samples, horse.finishTime), `seed ${seed} horse ${horse.number} finishes at 1`).toBeCloseTo(1, 3);
@@ -65,19 +79,21 @@ describe("lane-independent progress", () => {
 });
 
 describe("section ratios", () => {
-  test("pocket+back, corner, and home straight are 35/30/35 of track length within 1%", () => {
+  test("early, mid, and late follow the closed lap, and the lengths add to 222 m", () => {
     const ends = segmentEnds();
-    const tolerance = 0.01;
-    const pocketBack = ends.backStraightEnd;
-    const corner = ends.cornerEnd - ends.backStraightEnd;
-    const home = 1 - ends.cornerEnd;
+    const early = ends.corner12Exit;
+    const mid = ends.corner34Exit - ends.corner12Exit;
+    const late = 1 - ends.corner34Exit;
+    const earlyM = (CHUTE_M + STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M) / RACE_METERS;
+    const midM = (STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M) / RACE_METERS;
+    const lateM = (FINISH_HOME_FRACTION * STRAIGHT_M) / RACE_METERS;
 
     console.log(
-      `sections pocket+back=${(pocketBack * 100).toFixed(2)}% corner=${(corner * 100).toFixed(2)}% home=${(home * 100).toFixed(2)}%`,
+      `sections early=${(early * 100).toFixed(2)}% mid=${(mid * 100).toFixed(2)}% late=${(late * 100).toFixed(2)}% straight=${STRAIGHT_M.toFixed(2)}m`,
     );
-    expect(Math.abs(pocketBack - 0.35)).toBeLessThanOrEqual(tolerance);
-    expect(Math.abs(corner - 0.3)).toBeLessThanOrEqual(tolerance);
-    expect(Math.abs(home - 0.35)).toBeLessThanOrEqual(tolerance);
-    expect(pocketBack + corner + home).toBeCloseTo(1, 6);
+    expect(early).toBeCloseTo(earlyM, 4);
+    expect(mid).toBeCloseTo(midM, 4);
+    expect(late).toBeCloseTo(lateM, 4);
+    expect(early + mid + late).toBeCloseTo(1, 6);
   });
 });

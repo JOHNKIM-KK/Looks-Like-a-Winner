@@ -9,6 +9,7 @@ import {
   type CameraStateName,
 } from "./cameraState";
 import {
+  LANE_COUNT,
   STRAIGHT,
   outerRailRadius,
   projectWithCamera,
@@ -69,7 +70,7 @@ const frameIncludes: FrameInclude[] = [];
 
 export function framingStateKey(state: CameraStateName, leadProgress: number): FramingStateKey {
   if (state === "STRAIGHT") {
-    return leadProgress >= segmentEnds().cornerEnd ? "STRAIGHT_HOME" : "STRAIGHT_EARLY";
+    return leadProgress >= segmentEnds().corner34Exit ? "STRAIGHT_HOME" : "STRAIGHT_EARLY";
   }
   return state;
 }
@@ -262,7 +263,7 @@ export function groundAt(camera: Camera, sx: number, sy: number) {
 }
 
 /** Worst column of empty grass under the near outer rail, as a fraction of screen height. */
-export function grassBelowRailFraction(camera: Camera, lanes = 8) {
+export function grassBelowRailFraction(camera: Camera, lanes = LANE_COUNT) {
   const outer = outerRailRadius(lanes);
   let worst = 0;
   const cols = 18;
@@ -286,7 +287,7 @@ export function grassBelowRailFraction(camera: Camera, lanes = 8) {
 const LANE_CENTER_Y = (GAME_HEIGHT * (LANE_AREA_TOP + LANE_AREA_BOTTOM)) / 2;
 
 /** Screen-space bow of the left-hand outer rail that actually falls inside the view. */
-export function cornerRailSagitta(camera: Camera, lanes = 8) {
+export function cornerRailSagitta(camera: Camera, lanes = LANE_COUNT) {
   const radius = outerRailRadius(lanes);
   const points: Array<{ x: number; y: number }> = [];
   const steps = 72;

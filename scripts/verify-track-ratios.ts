@@ -1,32 +1,37 @@
-import { referenceDistance, segmentEnds } from "../game/track";
-
-const TOLERANCE = 0.01; // ±1%
+import {
+  CHUTE_M,
+  FINISH_HOME_FRACTION,
+  RACE_METERS,
+  REFERENCE_RADIUS_M,
+  STRAIGHT_M,
+  referenceDistance,
+  segmentEnds,
+  ENGINE_PX_PER_M,
+} from "../game/track";
 
 const ends = segmentEnds();
-const total = referenceDistance();
+const early = ends.corner12Exit;
+const mid = ends.corner34Exit - ends.corner12Exit;
+const late = 1 - ends.corner34Exit;
+const meters = referenceDistance() / ENGINE_PX_PER_M;
 
-const pocketBackRatio = ends.backStraightEnd;
-const cornerRatio = ends.cornerEnd - ends.backStraightEnd;
-const homeRatio = 1 - ends.cornerEnd;
+console.log("=== 닫힌 타원 구간 ===");
+console.log(`총거리: ${meters.toFixed(2)} m`);
+console.log(`슈트: ${CHUTE_M.toFixed(2)} m`);
+console.log(`직선: ${STRAIGHT_M.toFixed(2)} m`);
+console.log(`기준 반경: ${REFERENCE_RADIUS_M.toFixed(2)} m`);
+console.log(`초반 (게이트→1·2코너 출구): ${(early * 100).toFixed(2)}%`);
+console.log(`중반 (맞은편+3·4코너): ${(mid * 100).toFixed(2)}%`);
+console.log(`막판 (홈 직선→결승): ${(late * 100).toFixed(2)}%`);
 
-console.log("=== 기하학적 구간 비율 검증 ===");
-console.log(`포켓+맞은편: ${(pocketBackRatio * 100).toFixed(2)}% (목표: 35% ±1%)`);
-console.log(`코너: ${(cornerRatio * 100).toFixed(2)}% (목표: 30% ±1%)`);
-console.log(`홈 직선: ${(homeRatio * 100).toFixed(2)}% (목표: 35% ±1%)`);
+const earlyM = (CHUTE_M + STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M) / RACE_METERS;
+const midM = (STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M) / RACE_METERS;
+const lateM = (FINISH_HOME_FRACTION * STRAIGHT_M) / RACE_METERS;
+const ok =
+  Math.abs(meters - RACE_METERS) < 0.05 &&
+  Math.abs(early - earlyM) < 0.002 &&
+  Math.abs(mid - midM) < 0.002 &&
+  Math.abs(late - lateM) < 0.002;
 
-const pocketBackOk = Math.abs(pocketBackRatio - 0.35) <= TOLERANCE;
-const cornerOk = Math.abs(cornerRatio - 0.30) <= TOLERANCE;
-const homeOk = Math.abs(homeRatio - 0.35) <= TOLERANCE;
-
-console.log(`\n=== 검증 결과 ===`);
-console.log(`포켓+맞은편: ${pocketBackOk ? '✓' : '✗'} (차이: ${((pocketBackRatio - 0.35) * 100).toFixed(2)}%)`);
-console.log(`코너: ${cornerOk ? '✓' : '✗'} (차이: ${((cornerRatio - 0.30) * 100).toFixed(2)}%)`);
-console.log(`홈 직선: ${homeOk ? '✓' : '✗'} (차이: ${((homeRatio - 0.35) * 100).toFixed(2)}%)`);
-
-if (pocketBackOk && cornerOk && homeOk) {
-  console.log(`\n✅ 모든 구간 비율이 허용 오차(±1%) 내에 있습니다.`);
-  process.exit(0);
-} else {
-  console.log(`\n❌ 일부 구간 비율이 허용 오차를 벗어났습니다.`);
-  process.exit(1);
-}
+console.log(ok ? "\n구간이 닫힌 타원 공식과 일치합니다." : "\n구간이 공식과 어긋납니다.");
+process.exit(ok ? 0 : 1);

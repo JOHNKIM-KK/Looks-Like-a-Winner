@@ -9,9 +9,10 @@ console.log("=== 카메라 상태 전이 검증 ===\n");
 
 const ends = segmentEnds();
 console.log("구간 경계:");
-console.log(`  pocketEnd: ${(ends.pocketEnd * 100).toFixed(2)}%`);
-console.log(`  backStraightEnd: ${(ends.backStraightEnd * 100).toFixed(2)}%`);
-console.log(`  cornerEnd: ${(ends.cornerEnd * 100).toFixed(2)}%`);
+console.log(`  chuteEnd: ${(ends.chuteEnd * 100).toFixed(2)}%`);
+console.log(`  corner12Exit: ${(ends.corner12Exit * 100).toFixed(2)}%`);
+console.log(`  backEnd: ${(ends.backEnd * 100).toFixed(2)}%`);
+console.log(`  corner34Exit: ${(ends.corner34Exit * 100).toFixed(2)}%`);
 console.log(`  90% (FINISH 전환): 90.00%`);
 console.log();
 
@@ -83,7 +84,7 @@ for (const seed of seeds) {
   }
 
   const stateSequence = transitions.map(t => t.newState);
-  const expected = ["STRAIGHT", "CORNER_IN", "CORNER_OUT", "STRAIGHT", "FINISH"];
+  const expected = ["STRAIGHT", "CORNER_IN", "CORNER_OUT", "STRAIGHT", "CORNER_IN", "CORNER_OUT", "STRAIGHT", "FINISH"];
   
   const isCorrect = JSON.stringify(stateSequence) === JSON.stringify(expected);
   

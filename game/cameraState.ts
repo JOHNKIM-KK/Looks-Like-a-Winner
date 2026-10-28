@@ -58,17 +58,22 @@ export function nextCameraState(
     return { name: "FINISH" };
   }
 
-  if (lead >= ends.cornerEnd) {
+  if (lead >= ends.corner34Exit) {
     return { name: "STRAIGHT" };
   }
 
-  const cornerMid = ends.backStraightEnd + (ends.cornerEnd - ends.backStraightEnd) * 0.5;
-  if (lead >= cornerMid) {
-    return { name: "CORNER_OUT" };
+  if (lead >= ends.backEnd) {
+    const mid = ends.backEnd + (ends.corner34Exit - ends.backEnd) * 0.5;
+    return { name: lead >= mid ? "CORNER_OUT" : "CORNER_IN" };
   }
 
-  if (lead >= ends.backStraightEnd) {
-    return { name: "CORNER_IN" };
+  if (lead >= ends.corner12Exit) {
+    return { name: "STRAIGHT" };
+  }
+
+  if (lead >= ends.corner12Entry) {
+    const mid = ends.corner12Entry + (ends.corner12Exit - ends.corner12Entry) * 0.5;
+    return { name: lead >= mid ? "CORNER_OUT" : "CORNER_IN" };
   }
 
   if (snapshot.gateOpen >= 0.95) {
@@ -177,7 +182,7 @@ export function getCameraLookForState(
       return lookAtPack("START", packCenterX, packCenterY);
 
     case "STRAIGHT": {
-      const isHomeStretch = snapshot.leadProgress >= ends.cornerEnd;
+      const isHomeStretch = snapshot.leadProgress >= ends.corner34Exit;
       return lookAtPack(isHomeStretch ? "STRAIGHT_HOME" : "STRAIGHT_EARLY", packCenterX, packCenterY);
     }
 
@@ -222,5 +227,5 @@ export function shouldScaleHorseInCorner(state: CameraState): boolean {
 /** Finish post and the checkered line belong on the home straight and at the finish. */
 export function shouldShowFinishMark(stateName: CameraStateName, leadProgress: number) {
   if (stateName === "FINISH") return true;
-  return stateName === "STRAIGHT" && leadProgress >= segmentEnds().cornerEnd;
+  return stateName === "STRAIGHT" && leadProgress >= segmentEnds().corner34Exit;
 }

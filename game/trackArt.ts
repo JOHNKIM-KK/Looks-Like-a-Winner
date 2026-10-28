@@ -10,7 +10,6 @@ import { GAME_HEIGHT, GAME_WIDTH, groundAt } from "./cameraFrame";
 import {
   CHUTE,
   STRAIGHT,
-  STRAIGHT_BACK,
   finishGoalX,
   projectWithCamera,
   sampleLoopLogical,
@@ -29,8 +28,8 @@ export function cameraForward(camera: Camera): Vec2 {
 export function isDirt(x: number, y: number) {
   const far = farRailRadius();
   const near = nearRailRadius();
-  const chuteEnd = STRAIGHT_BACK / 2 + CHUTE;
-  if (x >= HALF && x <= chuteEnd + 1 && y <= -far && y >= -near) return true;
+  const gateX = -HALF - CHUTE;
+  if (x >= gateX - 1 && x <= -HALF && y >= far && y <= near) return true;
   if (x < -HALF) {
     const dist = Math.hypot(x + HALF, y);
     return dist >= far && dist <= near;
@@ -163,14 +162,13 @@ export function ovalPolyline(radius: number): Vec2[] {
   return sampleLoopLogical(radius, steps).map((point) => ({ x: point.x, y: point.y }));
 }
 
-/** Open chute sticking past the right end of the oval, on the back-straight side. */
+/** Open chute extending the home straight to the left, out to the gate. */
 export function chutePolyline(radius: number): Vec2[] {
-  const chuteEnd = STRAIGHT_BACK / 2 + CHUTE;
-  const points: Vec2[] = [{ x: HALF, y: -radius }];
-  if (chuteEnd <= HALF) return points;
-  const extra = Math.max(1, Math.ceil((chuteEnd - HALF) / LOGICAL_PER_METER));
+  const gateX = -HALF - CHUTE;
+  const points: Vec2[] = [{ x: -HALF, y: radius }];
+  const extra = Math.max(1, Math.ceil(CHUTE / LOGICAL_PER_METER));
   for (let index = 1; index <= extra; index += 1) {
-    points.push({ x: HALF + ((chuteEnd - HALF) * index) / extra, y: -radius });
+    points.push({ x: -HALF + ((gateX + HALF) * index) / extra, y: radius });
   }
   return points;
 }
@@ -209,10 +207,10 @@ function straightSegment(x0: number, x1: number, y: number): Vec2[] {
  */
 export function straightTreeLines(): FacingStrip[] {
   const y = nearRailRadius() + TREES_BEHIND_RAIL_M * LOGICAL_PER_METER;
-  const chuteEnd = STRAIGHT_BACK / 2 + CHUTE;
+  const gateX = -HALF - CHUTE;
   return [
-    { points: straightSegment(-HALF, HALF, y), outward: { x: 0, y: 1 } },
-    { points: straightSegment(-HALF, Math.max(HALF, chuteEnd), -y), outward: { x: 0, y: -1 } },
+    { points: straightSegment(gateX, HALF, y), outward: { x: 0, y: 1 } },
+    { points: straightSegment(-HALF, HALF, -y), outward: { x: 0, y: -1 } },
   ];
 }
 
@@ -273,18 +271,31 @@ export function standLineOppositeCamera(camera: Camera): Vec2[] {
     useHome = homeDist > backDist;
   }
   if (useHome) {
+    const gateX = -HALF - CHUTE;
     return joinStrips([
       bendArc(HALF, outside, 0, Math.PI / 2),
-      straightSegment(HALF, -HALF, outside),
+      straightSegment(HALF, gateX, outside),
+      straightSegment(gateX, -HALF, outside),
       bendArc(-HALF, outside, Math.PI / 2, Math.PI),
     ]);
   }
-  const chuteEnd = Math.max(HALF, STRAIGHT_BACK / 2 + CHUTE);
   return joinStrips([
     bendArc(-HALF, outside, Math.PI, Math.PI * 1.5),
-    straightSegment(-HALF, chuteEnd, -outside),
+    straightSegment(-HALF, HALF, -outside),
     bendArc(HALF, outside, -Math.PI / 2, 0),
   ]);
+}
+
+/** Thin placeholder across the gate. The real gate arrives in a later pass. */
+export function startLineQuad() {
+  const depth = 0.35 * LOGICAL_PER_METER;
+  const x = -HALF - CHUTE;
+  return {
+    x0: x - depth / 2,
+    x1: x + depth / 2,
+    y0: farRailRadius(),
+    y1: nearRailRadius(),
+  };
 }
 
 export function finishCheckerQuad() {

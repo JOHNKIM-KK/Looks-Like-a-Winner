@@ -2,11 +2,10 @@ import { INNER_RADIUS, LANE_GAP } from "./track";
 
 /**
  * The race camera stays in logical units (lane gap = LANE_GAP).
- * Phase 2 art is authored in meters. One lane (1.55 m in the straight layout)
- * maps onto one logical lane so the tiles, rails, and horses share the camera
- * the framing code already uses.
+ * Phase 2 art is authored in meters. Lane spacing is 1.2 m. The 58/1.55 engine
+ * scale stays put so the tiles, rails, and horses share the same camera.
  */
-export const LANE_WIDTH_M = 1.55;
+export const LANE_WIDTH_M = 1.2;
 export const LOGICAL_PER_METER = LANE_GAP / LANE_WIDTH_M;
 
 export const LANE0_Y_M = 1.2;
