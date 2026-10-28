@@ -8,14 +8,22 @@ import {
   GATE_PX_PER_M,
   GATE_STALL_PITCH_M,
   GATE_TOP_ELEVATION_DEG,
+  DOOR_LEAF,
+  DOOR_SLIDE_M,
+  END_CAP_M,
+  FRONT_STALL_SLICE,
+  doorLeafQuad,
+  endCapWorld,
   frontImageToWorld,
   gateArtStallGround,
   gateArtView,
   gateTopAnchorWorld,
+  moduleStallCenter,
   placeAnchoredStrip,
+  stallLocalToWorld,
   topGateSheet,
 } from "./gateArt";
-import { DOOR_AHEAD_M, stallOrigin } from "./startingGate";
+import { DOOR_AHEAD_M, GATE_ANCHOR, GATE_STALLS, stallOrigin } from "./startingGate";
 import { LANE_GAP, presentationLogical } from "./track";
 import { projectHeight } from "./trackArt";
 
@@ -142,5 +150,40 @@ describe("gate art", () => {
     expect(placed.originX).toBeCloseTo(0.5);
     expect(placed.originY).toBeCloseTo(0.5);
     expect(placed.scale).toBeGreaterThan(0);
+  });
+});
+
+describe("12 stall modules", () => {
+  it("repeats one stall from the anchor, with end caps and a door in each stall", () => {
+    expect(stallOrigin()).toEqual(GATE_ANCHOR);
+    expect(FRONT_STALL_SLICE.width / GATE_PX_PER_M).toBeCloseTo(GATE_STALL_PITCH_M);
+    expect(END_CAP_M).toBeCloseTo(0.8);
+    expect(DOOR_LEAF.left.x).toBeGreaterThan(0);
+    expect(DOOR_LEAF.right.x + DOOR_LEAF.right.width).toBeLessThan(FRONT_STALL_SLICE.width);
+
+    for (let index = 0; index < GATE_STALLS; index += 1) {
+      const center = moduleStallCenter(index);
+      const horse = presentationLogical(0, index + 1);
+      expect(center.x).toBeCloseTo(GATE_ANCHOR.x - DOOR_AHEAD_M * LOGICAL_PER_METER);
+      expect(center.y).toBeCloseTo(horse.y);
+      expect(horse.x - GATE_ANCHOR.x).toBeCloseTo(0);
+      expect(horse.x - center.x).toBeGreaterThan(0);
+      expect(horse.x - center.x).toBeLessThan(sheet.depth_m * LOGICAL_PER_METER);
+      const closed = doorLeafQuad(index, "left", 0);
+      const open = doorLeafQuad(index, "left", 1);
+      const closedY = closed[0]?.y ?? 0;
+      const openY = open[0]?.y ?? 0;
+      expect(openY - closedY).toBeCloseTo(DOOR_SLIDE_M * LOGICAL_PER_METER);
+      expect((open[0]?.x ?? 0) - (closed[0]?.x ?? 0)).toBeLessThan(0);
+    }
+
+    const leftOuter = endCapWorld("left", 0, sheet.views.front.ground_line_px);
+    const rightOuter = endCapWorld("right", 80, sheet.views.front.ground_line_px);
+    expect(leftOuter.y - moduleStallCenter(0).y).toBeCloseTo(LANE_GAP / 2 + END_CAP_M * LOGICAL_PER_METER);
+    expect(moduleStallCenter(GATE_STALLS - 1).y - rightOuter.y).toBeCloseTo(LANE_GAP / 2 + END_CAP_M * LOGICAL_PER_METER);
+    expect(leftOuter.x).toBeCloseTo(moduleStallCenter(0).x);
+    const feet = stallLocalToWorld(0, FRONT_STALL_SLICE.width / 2, sheet.views.front.ground_line_px);
+    expect(feet.z).toBeCloseTo(0);
+    expect(feet.y).toBeCloseTo(moduleStallCenter(0).y);
   });
 });

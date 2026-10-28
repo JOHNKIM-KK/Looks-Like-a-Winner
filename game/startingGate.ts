@@ -46,9 +46,19 @@ export function createGateConfig(stallPitch = LANE_GAP): GateConfig {
   return { stallCount: GATE_STALLS, stallPitch };
 }
 
+/**
+ * Where the whole gate sits. One placeholder until the start chute moves
+ * onto the home straight. Stall 1's center is this point; every stall,
+ * door, and end cap is offset from it.
+ */
+export const GATE_ANCHOR = {
+  x: STRAIGHT_BACK / 2 + CHUTE,
+  y: -laneRadius(1),
+} as const;
+
 /** World position of stall 0. The row runs toward -Y, one pitch per lane. */
 export function stallOrigin() {
-  return { x: STRAIGHT_BACK / 2 + CHUTE, y: -laneRadius(1) };
+  return GATE_ANCHOR;
 }
 
 export function gateLayout(config: GateConfig): GatePart[] {

@@ -1275,7 +1275,11 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     paintGates() {
       if (!gateArt) return;
       const behind = started && gateOpen >= 1 && lastLeadProgress > segmentEnds().pocketEnd + 0.08;
-      gateArt.paint(currentCamera, !behind);
+      gateArt.paint(
+        currentCamera,
+        !behind,
+        startingGate ? startingGate.doors.map((door) => door.amount) : [],
+      );
     }
 
     frameCamera(immediate: boolean) {
