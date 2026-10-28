@@ -225,6 +225,22 @@ function radial(x: number, y: number) {
   return Math.abs(y);
 }
 
+/**
+ * Screen y of the ground's vanishing line.
+ * A horizontal ray sits `tan(pitch)` above the view axis, so
+ * `sy = centerY - focal * tan(pitch)` (centerY is 555).
+ */
+export function horizonScreenY(camera: Camera) {
+  return CENTER_Y - camera.focalLength * Math.tan(camera.pitch);
+}
+
+/** The sky strip's bottom edge. 24px under the vanishing line, so the hills tuck into the ground. */
+export const SKY_HORIZON_NUDGE = 24;
+
+export function skyStripBottomY(camera: Camera) {
+  return horizonScreenY(camera) + SKY_HORIZON_NUDGE;
+}
+
 export function groundAt(camera: Camera, sx: number, sy: number) {
   const fx = (CENTER_X - sx) / camera.focalLength;
   const fy = (CENTER_Y - sy) / camera.focalLength;

@@ -1,6 +1,5 @@
 import Phaser from "phaser";
 import {
-  BACKDROP,
   GROUND_PX_PER_M,
   STRIP_HEIGHT_SCALE,
   LOGICAL_PER_METER,
@@ -9,7 +8,7 @@ import {
   distancePostProgresses,
   propSpriteScale,
 } from "./artScale";
-import { GAME_HEIGHT, GAME_WIDTH, groundAt } from "./cameraFrame";
+import { GAME_HEIGHT, GAME_WIDTH, groundAt, skyStripBottomY } from "./cameraFrame";
 import { STRAIGHT, finishGoalX, presentationOnRadius, type Camera } from "./track";
 import {
   chutePolyline,
@@ -28,7 +27,7 @@ import {
 } from "./trackArt";
 
 const DEPTH = {
-  sky: 1,
+  sky: 10,
   cornerTree: 25,
   turf: 30,
   dirt: 31,
@@ -46,7 +45,7 @@ const FOG_START_M = 36;
 const FOG_END_M = 170;
 
 const RAIL_IMAGE = { width: 400, height: 125, contact: 124, pxPerM: 100, periodM: RAIL_SEGMENT_M };
-const STANDS_IMAGE = { width: 600, height: 520, contact: 519, pxPerM: 50, periodM: STRIP_PERIOD_M };
+const STANDS_IMAGE = { width: 1200, height: 1166, contact: 1165, pxPerM: 100, periodM: 12 };
 const TREES_IMAGE = { width: 600, height: 460, contact: 459, pxPerM: 50, periodM: STRIP_PERIOD_M };
 
 export type TrackView = {
@@ -76,11 +75,17 @@ type MeshSlot = {
 type StripImage = { height: number; contact: number; pxPerM: number; periodM: number };
 
 export function createTrackRenderer(scene: Phaser.Scene) {
-  scene.textures.get("ground-turf").setWrap(Phaser.Textures.WrapMode.REPEAT, Phaser.Textures.WrapMode.REPEAT);
+  const turfTexture = scene.textures.get("ground-turf");
+  turfTexture.setWrap(Phaser.Textures.WrapMode.REPEAT, Phaser.Textures.WrapMode.REPEAT);
+  enableTurfMipmaps(scene);
   scene.textures.get("ground-dirt").setWrap(Phaser.Textures.WrapMode.REPEAT, Phaser.Textures.WrapMode.REPEAT);
-  ensureSky(scene);
-  const sky = scene.add.image(GAME_WIDTH / 2, 0, "sky").setOrigin(0.5, 0).setDepth(DEPTH.sky).setScrollFactor(0);
-  sky.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
+  const skyFrame = scene.textures.get("sky").get();
+  const sky = scene.add
+    .image(GAME_WIDTH / 2, 0, "sky")
+    .setOrigin(0.5, 1)
+    .setDepth(DEPTH.sky)
+    .setScrollFactor(0)
+    .setDisplaySize(skyFrame.width, skyFrame.height);
 
   const turf = makeMesh(scene, "ground-turf", DEPTH.turf);
   const dirt = makeMesh(scene, "ground-dirt", DEPTH.dirt);
@@ -105,6 +110,7 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   const cornerTree = scene.add.image(0, 0, "prop-tree").setOrigin(0.5, 1).setDepth(DEPTH.cornerTree).setVisible(false);
 
   function paint(camera: Camera, view: TrackView) {
+    sky.setPosition(GAME_WIDTH / 2, skyStripBottomY(camera));
     paintGround(camera, turf, dirt);
     paintFog(fog, camera);
     clearSlot(farRail);
@@ -216,21 +222,24 @@ function fogAmount(distanceLu: number) {
   return clamped * clamped * (3 - 2 * clamped);
 }
 
-function ensureSky(scene: Phaser.Scene) {
-  if (scene.textures.exists("sky")) {
-    const existing = scene.textures.get("sky");
-    if (existing.key !== "__MISSING") return;
-  }
-  const canvas = scene.textures.createCanvas("sky", GAME_WIDTH, GAME_HEIGHT);
-  if (!canvas) return;
-  const context = canvas.getContext();
-  const gradient = context.createLinearGradient(0, 0, 0, GAME_HEIGHT);
-  gradient.addColorStop(0, "#9AA58A");
-  gradient.addColorStop(0.42, "#5C6548");
-  gradient.addColorStop(1, BACKDROP);
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-  canvas.refresh();
+/** Turf is 512². Minification uses mipmaps so the far ground does not shimmer. */
+function enableTurfMipmaps(scene: Phaser.Scene) {
+  const source = scene.textures.get("ground-turf").source[0];
+  const glTexture = source?.glTexture;
+  const renderer = scene.game.renderer;
+  if (!glTexture || !("gl" in renderer) || !renderer.gl) return;
+  const gl = renderer.gl;
+  glTexture.update(
+    glTexture.pixels ?? undefined,
+    glTexture.width,
+    glTexture.height,
+    glTexture.flipY,
+    glTexture.wrapS,
+    glTexture.wrapT,
+    gl.LINEAR_MIPMAP_LINEAR,
+    gl.LINEAR,
+    glTexture.format,
+  );
 }
 
 function paintGround(camera: Camera, turf: MeshSlot, dirt: MeshSlot) {
