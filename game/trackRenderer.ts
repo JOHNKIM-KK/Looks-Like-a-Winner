@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import {
+  BACKDROP,
   GROUND_PX_PER_M,
   STRIP_HEIGHT_SCALE,
   LOGICAL_PER_METER,
@@ -8,37 +9,41 @@ import {
   distancePostProgresses,
   propSpriteScale,
 } from "./artScale";
-import { GAME_HEIGHT, GAME_WIDTH } from "./cameraFrame";
+import { GAME_HEIGHT, GAME_WIDTH, groundAt } from "./cameraFrame";
 import { STRAIGHT, finishGoalX, presentationOnRadius, type Camera } from "./track";
 import {
-  cameraForward,
   chutePolyline,
   farRailRadius,
   finishCheckerQuad,
   groundUv,
   isDirt,
   nearRailRadius,
-  homeOuterStandLine,
-  offsetAlong,
   ovalPolyline,
   projectHeight,
-  treesOffsetM,
+  standLineOppositeCamera,
+  straightTreeLines,
+  stripFacesCamera,
   unprojectCell,
   type Vec2,
 } from "./trackArt";
 
 const DEPTH = {
-  /** Behind the ground, so a strip cannot float over the infield. */
-  stands: 20,
-  trees: 22,
+  sky: 1,
   cornerTree: 25,
   turf: 30,
   dirt: 31,
+  /** Distant ground fades toward the backdrop before the rails. */
+  fog: 32,
+  stands: 33,
+  trees: 34,
   checker: 35,
   farRail: 40,
   props: 55,
   nearRail: 3500,
 } as const;
+
+const FOG_START_M = 36;
+const FOG_END_M = 170;
 
 const RAIL_IMAGE = { width: 400, height: 125, contact: 124, pxPerM: 100, periodM: RAIL_SEGMENT_M };
 const STANDS_IMAGE = { width: 600, height: 520, contact: 519, pxPerM: 50, periodM: STRIP_PERIOD_M };
@@ -55,7 +60,7 @@ export function trackViewFor(stateName: string, leadProgress: number, cornerEnd:
   const corner = stateName === "CORNER_IN" || stateName === "CORNER_OUT";
   const home = stateName === "FINISH" || (stateName === "STRAIGHT" && leadProgress >= cornerEnd);
   return {
-    showStands: !corner,
+    showStands: stateName === "START" || stateName === "STRAIGHT" || stateName === "FINISH",
     standHeightScale: STRIP_HEIGHT_SCALE,
     showFinish: stateName === "FINISH" || home,
     showCornerTree: corner,
@@ -73,15 +78,19 @@ type StripImage = { height: number; contact: number; pxPerM: number; periodM: nu
 export function createTrackRenderer(scene: Phaser.Scene) {
   scene.textures.get("ground-turf").setWrap(Phaser.Textures.WrapMode.REPEAT, Phaser.Textures.WrapMode.REPEAT);
   scene.textures.get("ground-dirt").setWrap(Phaser.Textures.WrapMode.REPEAT, Phaser.Textures.WrapMode.REPEAT);
+  ensureSky(scene);
+  const sky = scene.add.image(GAME_WIDTH / 2, 0, "sky").setOrigin(0.5, 0).setDepth(DEPTH.sky).setScrollFactor(0);
+  sky.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
 
   const turf = makeMesh(scene, "ground-turf", DEPTH.turf);
   const dirt = makeMesh(scene, "ground-dirt", DEPTH.dirt);
+  const fog = scene.add.graphics().setDepth(DEPTH.fog).setScrollFactor(0);
   const farRail = makeMesh(scene, "rail-segment", DEPTH.farRail);
   const nearRail = makeMesh(scene, "rail-segment", DEPTH.nearRail);
   const stands = makeMesh(scene, "stands-strip", DEPTH.stands);
   stands.mesh.setAlpha(1).setBlendMode(Phaser.BlendModes.NORMAL);
-  const standLine = homeOuterStandLine();
   const trees = makeMesh(scene, "trees-strip", DEPTH.trees);
+  trees.mesh.setAlpha(1);
   const checker = makeMesh(scene, "finish-checker", DEPTH.checker);
 
   const farLoop = ovalPolyline(farRailRadius());
@@ -97,6 +106,7 @@ export function createTrackRenderer(scene: Phaser.Scene) {
 
   function paint(camera: Camera, view: TrackView) {
     paintGround(camera, turf, dirt);
+    paintFog(fog, camera);
     clearSlot(farRail);
     clearSlot(nearRail);
     paintVertical(farRail, farLoop, true, RAIL_IMAGE, 1, camera);
@@ -104,12 +114,14 @@ export function createTrackRenderer(scene: Phaser.Scene) {
     paintVertical(nearRail, nearLoop, true, RAIL_IMAGE, 1, camera);
     paintVertical(nearRail, nearChute, false, RAIL_IMAGE, 1, camera);
 
-    const forward = cameraForward(camera);
     clearSlot(trees);
     clearSlot(stands);
-    paintVertical(trees, offsetAlong(farLoop, forward, treesOffsetM()), true, TREES_IMAGE, STRIP_HEIGHT_SCALE, camera);
+    for (const line of straightTreeLines()) {
+      if (!stripFacesCamera(line, camera)) continue;
+      paintVertical(trees, line.points, false, TREES_IMAGE, STRIP_HEIGHT_SCALE, camera);
+    }
     if (view.showStands) {
-      paintVertical(stands, standLine, false, STANDS_IMAGE, view.standHeightScale, camera);
+      paintVertical(stands, standLineOppositeCamera(camera), false, STANDS_IMAGE, view.standHeightScale, camera);
     }
     paintChecker(checker, camera, view.showFinish);
     paintProps(camera, view);
@@ -139,6 +151,88 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   return { paint };
 }
 
+function splitGround(
+  camera: Camera,
+  turf: MeshSlot,
+  dirt: MeshSlot,
+  sx0: number,
+  sy0: number,
+  sx1: number,
+  sy1: number,
+  depth: number,
+) {
+  const mx = (sx0 + sx1) / 2;
+  const my = (sy0 + sy1) / 2;
+  emitGround(camera, turf, dirt, sx0, sy0, mx, my, depth + 1);
+  emitGround(camera, turf, dirt, mx, sy0, sx1, my, depth + 1);
+  emitGround(camera, turf, dirt, sx0, my, mx, sy1, depth + 1);
+  emitGround(camera, turf, dirt, mx, my, sx1, sy1, depth + 1);
+}
+
+/** A screen cell that touches both sky and ground, so it should be split down to the horizon. */
+function crossesHorizon(camera: Camera, sx0: number, sy0: number, sx1: number, sy1: number) {
+  const corners = [
+    groundAt(camera, sx0, sy0),
+    groundAt(camera, sx1, sy0),
+    groundAt(camera, sx0, sy1),
+    groundAt(camera, sx1, sy1),
+  ];
+  const hits = corners.filter((corner) => corner.ok).length;
+  return hits > 0 && hits < 4;
+}
+
+function paintFog(fog: Phaser.GameObjects.Graphics, camera: Camera) {
+  fog.clear();
+  const bands = 16;
+  const bandH = GAME_HEIGHT / bands;
+  for (let index = 0; index < bands; index += 1) {
+    const sy = bandH * index + bandH / 2;
+    const distance = rowDistance(camera, sy);
+    if (distance == null) continue;
+    const amount = fogAmount(distance);
+    if (amount < 0.02) continue;
+    fog.fillStyle(0x3f4630, amount);
+    fog.fillRect(0, bandH * index, GAME_WIDTH, bandH + 0.5);
+  }
+}
+
+function rowDistance(camera: Camera, sy: number) {
+  let sum = 0;
+  let count = 0;
+  for (const sx of [GAME_WIDTH * 0.2, GAME_WIDTH * 0.5, GAME_WIDTH * 0.8]) {
+    const ground = groundAt(camera, sx, sy);
+    if (!ground.ok) continue;
+    sum += Math.hypot(ground.x - camera.groundX, ground.y - camera.groundY);
+    count += 1;
+  }
+  if (count === 0) return null;
+  return sum / count;
+}
+
+function fogAmount(distanceLu: number) {
+  const meters = distanceLu / LOGICAL_PER_METER;
+  const t = (meters - FOG_START_M) / (FOG_END_M - FOG_START_M);
+  const clamped = Math.max(0, Math.min(1, t));
+  return clamped * clamped * (3 - 2 * clamped);
+}
+
+function ensureSky(scene: Phaser.Scene) {
+  if (scene.textures.exists("sky")) {
+    const existing = scene.textures.get("sky");
+    if (existing.key !== "__MISSING") return;
+  }
+  const canvas = scene.textures.createCanvas("sky", GAME_WIDTH, GAME_HEIGHT);
+  if (!canvas) return;
+  const context = canvas.getContext();
+  const gradient = context.createLinearGradient(0, 0, 0, GAME_HEIGHT);
+  gradient.addColorStop(0, "#9AA58A");
+  gradient.addColorStop(0.42, "#5C6548");
+  gradient.addColorStop(1, BACKDROP);
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+  canvas.refresh();
+}
+
 function paintGround(camera: Camera, turf: MeshSlot, dirt: MeshSlot) {
   clearSlot(turf);
   clearSlot(dirt);
@@ -164,18 +258,18 @@ function emitGround(
   depth: number,
 ) {
   const cell = unprojectCell(camera, sx0, sy0, sx1, sy1);
-  if (!cell) return;
-  const straddles = cell.corners.some((corner) => isDirt(corner.x, corner.y)) && cell.corners.some((corner) => !isDirt(corner.x, corner.y));
-  if ((cell.spanM > 8 || straddles) && depth < 3 && sx1 - sx0 > 4) {
-    const mx = (sx0 + sx1) / 2;
-    const my = (sy0 + sy1) / 2;
-    emitGround(camera, turf, dirt, sx0, sy0, mx, my, depth + 1);
-    emitGround(camera, turf, dirt, mx, sy0, sx1, my, depth + 1);
-    emitGround(camera, turf, dirt, sx0, my, mx, sy1, depth + 1);
-    emitGround(camera, turf, dirt, mx, my, sx1, sy1, depth + 1);
+  const wide = sx1 - sx0 > 4 || sy1 - sy0 > 4;
+  if (!cell) {
+    if (wide && crossesHorizon(camera, sx0, sy0, sx1, sy1)) {
+      splitGround(camera, turf, dirt, sx0, sy0, sx1, sy1, depth);
+    }
     return;
   }
-  if (cell.spanM > 48) return;
+  const straddles = cell.corners.some((corner) => isDirt(corner.x, corner.y)) && cell.corners.some((corner) => !isDirt(corner.x, corner.y));
+  if ((cell.spanM > 8 || straddles) && wide) {
+    splitGround(camera, turf, dirt, sx0, sy0, sx1, sy1, depth);
+    return;
+  }
   const [c0, c1, c2, c3] = cell.corners;
   if (!c0 || !c1 || !c2 || !c3) return;
   const cx = (c0.x + c1.x + c2.x + c3.x) / 4;

@@ -5,6 +5,7 @@ import { rankSlotModeFromSearch } from "./rankDisplay";
 import {
   START_FRAME_OFFSET,
   gallopFrame,
+  IDLE_FRAME,
   glyphFontPx,
   glyphHeightPx,
   glyphOutlinePx,
@@ -12,7 +13,9 @@ import {
   pickHorseAngle,
   plateScreenOffset,
   relativeYawDeg,
+  JOCKEY_TINT_GAMMA,
   tintHorsePixels,
+  tintJockeyPixels,
 } from "./horseVisual";
 import { distancePostProgresses } from "./artScale";
 import { cameraFromLook } from "./cameraState";
@@ -51,6 +54,12 @@ describe("gallop clock", () => {
     expect(gallopFrame(1, 1 / 24)).toBe(1);
     expect(gallopFrame(8, 0)).toBe(6);
   });
+
+  test("the gate holds one gathered sheet frame instead of a staggered stride", () => {
+    expect(IDLE_FRAME).toBeGreaterThanOrEqual(0);
+    expect(IDLE_FRAME).toBeLessThan(12);
+    expect(IDLE_FRAME).not.toBe(START_FRAME_OFFSET[1]);
+  });
 });
 
 describe("saddle number", () => {
@@ -85,6 +94,21 @@ describe("lane tint", () => {
     expect(out[0]).toBe(Math.round(Math.min(255, 229 * gain)));
     expect(out[1]).toBe(Math.round(Math.min(255, 23 * gain)));
     expect(out[3]).toBe(255);
+  });
+
+  test("the jockey tint uses the G channel and a steeper gamma", () => {
+    const color = new Uint8ClampedArray([200, 100, 50, 255]);
+    const silk = new Uint8ClampedArray([0, 255, 0, 255]);
+    const plate = new Uint8ClampedArray([0, 0, 255, 255]);
+    const out = new Uint8ClampedArray(4);
+    tintJockeyPixels(color, silk, [229, 23, 63], out);
+    const lum = luminance(200, 100, 50);
+    const gain = (lum / 185) ** JOCKEY_TINT_GAMMA;
+    expect(JOCKEY_TINT_GAMMA).toBeCloseTo(1.4);
+    expect(out[0]).toBe(Math.round(Math.min(255, 229 * gain)));
+    expect(out[1]).toBe(Math.round(Math.min(255, 23 * gain)));
+    tintJockeyPixels(color, plate, [229, 23, 63], out);
+    expect([...out]).toEqual([200, 100, 50, 255]);
   });
 
   test("the plate mask is a lane-colored panel", () => {

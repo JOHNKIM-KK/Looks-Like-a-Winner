@@ -49,6 +49,7 @@ import { createHorseCoatLibrary, type HorseCoatLibrary } from "@/game/horseCoat"
 import {
   HORSE_ANGLES,
   gallopFrame,
+  IDLE_FRAME,
   glyphFontPx,
   glyphHeightPx,
   glyphOutlinePx,
@@ -93,6 +94,8 @@ type Actor = {
   container: Phaser.GameObjects.Container;
   sprite: Phaser.GameObjects.Sprite;
   rider: Phaser.GameObjects.Sprite;
+  /** Saddle cloth and number plate, drawn above the shaded body. */
+  marks: Phaser.GameObjects.Sprite;
   mount: MountedSlots;
   setHorseSheet: (sheet: SpriteSheetRef) => void;
   setRiderSheet: (sheet: SpriteSheetRef) => void;
@@ -177,8 +180,20 @@ function paintGoldenGrade(scene: Phaser.Scene) {
 
 function farShade(scale: number) {
   const depth = Math.max(0, Math.min(1, (1.05 - scale) / 0.7));
-  const channel = Math.round(255 - depth * 55);
+  const channel = Math.round(255 - depth * 25);
   return (channel << 16) | (channel << 8) | channel;
+}
+
+/** Hide the canvas until the first painted frame, then fade it in. */
+function fadeInCanvas(canvas: HTMLCanvasElement) {
+  canvas.style.opacity = "0";
+  const startedAt = performance.now();
+  const step = (now: number) => {
+    const t = Math.min(1, (now - startedAt) / 300);
+    canvas.style.opacity = String(t);
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 function frameName(texture: Phaser.Textures.Texture, frame: number) {
@@ -366,6 +381,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         }
 
         const sprite = this.add.sprite(0, 0, "horse-color-straight-2").setOrigin(0.5, 0.96);
+        const marks = this.add.sprite(0, 0, "horse-color-straight-2").setOrigin(0.5, 0.96).setVisible(false);
         const rider = this.add.sprite(0, 0, "horse-color-straight-2").setOrigin(0.5, 0.96).setVisible(false);
         const faceKey = this.textures.exists(`face-${horse.id}`) ? `face-${horse.id}` : `portrait-${horse.id}`;
         const face = this.add.image(0, 0, faceKey).setDisplaySize(52, 52).setVisible(false);
@@ -394,13 +410,14 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           })
           .setOrigin(0.5);
         const container = this.add.container(0, 0);
-        container.add([dust, lines, body, sprite, rider, face, number, stamp]);
+        container.add([dust, lines, body, sprite, marks, rider, face, number, stamp]);
         const mount = createMountedSlots();
         const actor: Actor = {
           horse,
           container,
           sprite,
           rider,
+          marks,
           mount,
           setHorseSheet: (sheet) => {
             actor.mount = assignHorseSheet(actor.mount, sheet);
@@ -491,6 +508,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       this.placeHorses();
       this.frameCamera(true);
       this.publishField("countdown", "3");
+      this.events.once("render", () => fadeInCanvas(this.game.canvas));
     }
 
     update(_time: number, delta: number) {
@@ -745,17 +763,24 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const picked = pickHorseAngle(yaw, (currentCamera.pitch * 180) / Math.PI);
         const angle = HORSE_ANGLES[picked.set][picked.index] ?? HORSE_ANGLES.straight[2];
         if (!angle) continue;
-        const frame = gallopFrame(actor.horse.number, actor.animTime);
+        const frame = started ? gallopFrame(actor.horse.number, actor.animTime) : IDLE_FRAME;
         const baked = coats?.bakedKey(picked.set, picked.index, actor.horse.number) ?? `horse-color-${picked.set}-${picked.index}`;
         const horseKey = horseSheetKey(actor.mount, baked);
         const horseSheet = actor.mount.horse;
         paintGallop(actor.sprite, horseKey, frame, horseSheet?.anchorX ?? angle.anchorX, horseSheet?.anchorY ?? angle.anchorY, horseSheet?.frameWidth ?? angle.frameW, horseSheet?.frameHeight ?? angle.frameH, drawn, picked.flip);
+        const marksBaked = actor.mount.horse ? null : coats?.marksKey(picked.set, picked.index, actor.horse.number) ?? null;
+        const marksVisible = marksBaked != null && this.textures.exists(marksBaked);
+        if (marksVisible && marksBaked) {
+          paintGallop(actor.marks, marksBaked, frame, horseSheet?.anchorX ?? angle.anchorX, horseSheet?.anchorY ?? angle.anchorY, horseSheet?.frameWidth ?? angle.frameW, horseSheet?.frameHeight ?? angle.frameH, drawn, picked.flip);
+        }
         const mounted = !onFoot || sucking;
         actor.sprite.setVisible(mounted);
+        actor.marks.setVisible(mounted && marksVisible);
         const recoil = castingNow && kind === "shot" && payoffAge < 0.45 && payoffAge % 0.08 < 0.05;
         const recoilX = recoil ? (picked.flip ? 14 : -14) : 0;
         const recoilY = sucking ? (-footAge / 0.4) * 420 : 0;
         actor.sprite.setPosition(recoilX, recoilY);
+        actor.marks.setPosition(recoilX, recoilY);
         const customRide = actor.mount.rider;
         const rideBaked = actor.mount.rideEnabled ? coats?.rideKey(picked.set, picked.index, actor.horse.number) ?? null : null;
         const rideVisible = mounted && actor.mount.rideEnabled && (customRide != null || (rideBaked != null && this.textures.exists(rideBaked)));
@@ -775,6 +800,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         }
         const fade = sucking ? 1 - footAge / 0.4 : 1;
         actor.sprite.setAlpha(fade);
+        actor.marks.setAlpha(fade);
         actor.rider.setAlpha(fade);
         actor.face.setAlpha(fade);
         const stumbling = raceTime >= actor.horse.slowFrom && raceTime < actor.horse.slowUntil;
@@ -785,8 +811,11 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const tintMode = flash ? Phaser.TintModes.FILL : Phaser.TintModes.MULTIPLY;
         actor.sprite.setTint(tint).setTintMode(tintMode);
         actor.rider.setTint(tint).setTintMode(tintMode);
+        actor.marks.setTint(0xffffff).setTintMode(Phaser.TintModes.MULTIPLY);
+        actor.number.setTint(0xffffff);
         const wobble = missed || stopped || stumbling ? Math.sin(raceTime * 26) * 8 : 0;
         actor.sprite.setAngle(wobble);
+        actor.marks.setAngle(wobble);
         actor.rider.setAngle(wobble);
         if (coats) {
           const shadowKey = coats.shadowKey(picked.set, picked.index, frame, picked.flip);
@@ -834,6 +863,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         if (castingNow && kind === "jaywalk" && !actor.horse.skillHit) {
           const fence = Math.sin(payoffAge * 30) * 18;
           actor.sprite.setAngle(fence);
+          actor.marks.setAngle(fence);
           actor.rider.setAngle(fence);
         }
         const word =
@@ -1416,6 +1446,11 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
     backgroundColor: "#3F4630",
+    callbacks: {
+      postBoot: (booted) => {
+        booted.canvas.style.opacity = "0";
+      },
+    },
     scene: RaceScene,
     render: {
       mipmapFilter: "LINEAR_MIPMAP_LINEAR",

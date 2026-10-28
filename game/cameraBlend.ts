@@ -2,6 +2,8 @@ import type { CameraLook, CameraState, CameraStateName } from "./cameraState";
 
 /** Default state-to-state blend. Closeup and the corner apex cut override this. */
 export const CAMERA_BLEND_SEC = 0.6;
+/** Gate open into the first straight. Longer than the other state blends. */
+export const START_TO_STRAIGHT_SEC = 1.1;
 export const CLOSEUP_ENTER_SEC = 0.25;
 export const CLOSEUP_RETURN_SEC = 0.4;
 
@@ -70,6 +72,7 @@ export function isSameCameraState(a: CameraState, b: CameraState): boolean {
 export function cameraTransitionSeconds(from: CameraState, to: CameraState): number {
   if (isSameCameraState(from, to)) return 0;
   if (from.name === "CORNER_IN" && to.name === "CORNER_OUT") return 0;
+  if (from.name === "START" && to.name === "STRAIGHT") return START_TO_STRAIGHT_SEC;
   if (to.name === "CLOSEUP") return CLOSEUP_ENTER_SEC;
   if (from.name === "CLOSEUP") return CLOSEUP_RETURN_SEC;
   return CAMERA_BLEND_SEC;

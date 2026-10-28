@@ -1,7 +1,6 @@
 import {
   LOGICAL_PER_METER,
-  RAIL_FAR_Y_M,
-  STANDS_Y_M,
+  STANDS_BEHIND_OUTER_M,
   TILE_M,
   TREES_BEHIND_RAIL_M,
   farRailRadius,
@@ -85,25 +84,101 @@ export function treesOffsetM() {
   return TREES_BEHIND_RAIL_M;
 }
 
-/**
- * Meters outside the home-straight outer rail.
- * The art sheet sits this far past its far rail. On this oval that far rail is
- * the inner rail, so the same gap is measured outward from the outer rail.
- */
-export function standsOutsideHomeRailM() {
-  return RAIL_FAR_Y_M - STANDS_Y_M;
-}
+export type FacingStrip = {
+  points: Vec2[];
+  /** Points away from the track, toward the turf outside this straight. */
+  outward: Vec2;
+};
 
-/** Home straight only. Every point is on the turf outside the outer rail. */
-export function homeOuterStandLine(): Vec2[] {
-  const y = nearRailRadius() + standsOutsideHomeRailM() * LOGICAL_PER_METER;
-  const half = STRAIGHT / 2;
-  const steps = Math.max(2, Math.round(STRAIGHT / LOGICAL_PER_METER));
+function straightSegment(x0: number, x1: number, y: number): Vec2[] {
+  const span = Math.abs(x1 - x0);
+  const steps = Math.max(1, Math.round(span / LOGICAL_PER_METER / 12));
   const points: Vec2[] = [];
   for (let index = 0; index <= steps; index += 1) {
-    points.push({ x: -half + (STRAIGHT * index) / steps, y });
+    points.push({ x: x0 + ((x1 - x0) * index) / steps, y });
   }
   return points;
+}
+
+/** Home straight and back straight (plus the chute). Not the bends. */
+export function straightTreeLines(): FacingStrip[] {
+  const y = nearRailRadius() + TREES_BEHIND_RAIL_M * LOGICAL_PER_METER;
+  const chuteEnd = STRAIGHT_BACK / 2 + CHUTE;
+  return [
+    { points: straightSegment(-HALF, HALF, y), outward: { x: 0, y: 1 } },
+    { points: straightSegment(-HALF, Math.max(HALF, chuteEnd), -y), outward: { x: 0, y: -1 } },
+  ];
+}
+
+/** True when the camera is on the outside of this strip, so the face points toward it. */
+export function stripFacesCamera(strip: FacingStrip, camera: Camera) {
+  const mid = strip.points[Math.floor(strip.points.length / 2)] ?? strip.points[0];
+  if (!mid) return false;
+  const vx = camera.groundX - mid.x;
+  const vy = camera.groundY - mid.y;
+  return vx * strip.outward.x + vy * strip.outward.y > 0;
+}
+
+function standRadius() {
+  return nearRailRadius() + STANDS_BEHIND_OUTER_M * LOGICAL_PER_METER;
+}
+
+/** Arc outside a bend. Angles are radians around the bend center, CCW from +X. */
+function bendArc(cx: number, radius: number, a0: number, a1: number): Vec2[] {
+  const span = Math.abs(a1 - a0) * radius;
+  const steps = Math.max(1, Math.round(span / LOGICAL_PER_METER / 12));
+  const points: Vec2[] = [];
+  for (let index = 0; index <= steps; index += 1) {
+    const angle = a0 + ((a1 - a0) * index) / steps;
+    points.push({ x: cx + Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+  }
+  return points;
+}
+
+function joinStrips(parts: Vec2[][]): Vec2[] {
+  const points: Vec2[] = [];
+  for (const part of parts) {
+    for (const point of part) {
+      const prev = points[points.length - 1];
+      if (prev && Math.hypot(prev.x - point.x, prev.y - point.y) < 1) continue;
+      points.push(point);
+    }
+  }
+  return points;
+}
+
+/**
+ * Stands 20 m outside the outermost rail, on the side opposite the camera.
+ * The straight in front of the camera wins. A side-on camera (finish) takes the farther rail.
+ * Each side includes the bends, so a camera looking down the chute still sees the far curve.
+ */
+export function standLineOppositeCamera(camera: Camera): Vec2[] {
+  const outside = standRadius();
+  const forward = cameraForward(camera);
+  const homeMark = { x: 0, y: outside };
+  const backMark = { x: 0, y: -outside };
+  const ahead = (point: Vec2) => (point.x - camera.groundX) * forward.x + (point.y - camera.groundY) * forward.y;
+  const homeAhead = ahead(homeMark);
+  const backAhead = ahead(backMark);
+  let useHome = homeAhead > backAhead;
+  if (Math.abs(homeAhead - backAhead) <= LOGICAL_PER_METER) {
+    const homeDist = Math.hypot(homeMark.x - camera.groundX, homeMark.y - camera.groundY);
+    const backDist = Math.hypot(backMark.x - camera.groundX, backMark.y - camera.groundY);
+    useHome = homeDist > backDist;
+  }
+  if (useHome) {
+    return joinStrips([
+      bendArc(HALF, outside, 0, Math.PI / 2),
+      straightSegment(HALF, -HALF, outside),
+      bendArc(-HALF, outside, Math.PI / 2, Math.PI),
+    ]);
+  }
+  const chuteEnd = Math.max(HALF, STRAIGHT_BACK / 2 + CHUTE);
+  return joinStrips([
+    bendArc(-HALF, outside, Math.PI, Math.PI * 1.5),
+    straightSegment(-HALF, chuteEnd, -outside),
+    bendArc(HALF, outside, -Math.PI / 2, 0),
+  ]);
 }
 
 export function finishCheckerQuad() {

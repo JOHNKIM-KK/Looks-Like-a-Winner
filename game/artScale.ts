@@ -15,8 +15,10 @@ export const RAIL_NEAR_Y_M = 13.9;
 /** Authored straight cross-section, meters. +Y points toward that camera. */
 export const TREES_Y_M = -48.66;
 export const STANDS_Y_M = -100.7;
-/** Trees stay a short step behind the far rail along the camera. */
+/** Trees sit this far outside the outermost rail, on the straights only. */
 export const TREES_BEHIND_RAIL_M = 5;
+/** Stands sit this far outside the outermost rail, on the side opposite the camera. */
+export const STANDS_BEHIND_OUTER_M = 20;
 export const STRIP_HEIGHT_SCALE = 1;
 
 export const TILE_M = 5.12;
