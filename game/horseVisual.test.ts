@@ -60,6 +60,13 @@ describe("gallop clock", () => {
     expect(IDLE_FRAME).toBeLessThan(12);
     expect(IDLE_FRAME).not.toBe(START_FRAME_OFFSET[1]);
   });
+
+  test("lanes 9–12 reuse the gallop offsets of lanes 1–8", () => {
+    for (const lane of [9, 10, 11, 12]) {
+      expect(gallopFrame(lane, 0)).toBe(gallopFrame(lane - 8, 0));
+      expect(gallopFrame(lane, 0.5)).toBe(gallopFrame(lane - 8, 0.5));
+    }
+  });
 });
 
 describe("saddle number", () => {

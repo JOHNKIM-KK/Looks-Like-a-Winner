@@ -1,18 +1,31 @@
 /**
- * Lane cloth colors. Saddle, jockey silks, lane markers, and (later) the
- * top-ranking HUD borders all read this list. Lane 1 is index 0.
- * The saddle number stays white with a dark outline.
+ * Lane cloth colors. Saddle, jockey silks, lane markers, and ranking chips
+ * read this list. Lane 1 is index 0.
+ * The HUD caption border #5CE1FF is not a lane color.
+ * Number ink is black on lanes 3, 10, and 12. Every other number is white.
  */
 export const LANE_COLORS = [
   "#E5173F",
   "#1F5BFF",
   "#FFD000",
   "#00A86B",
-  "#8E3BFF",
+  "#A63BE6",
   "#FF4FC8",
-  "#00C8E0",
+  "#0F7F8C",
   "#14181F",
+  "#FF7A1A",
+  "#F2F0E8",
+  "#8A5530",
+  "#A6E22E",
 ] as const;
+
+const BLACK_NUMBER_LANES = new Set([3, 10, 12]);
+
+export function laneNumberInk(laneNumber: number): { color: string; stroke: string } {
+  const lane = Math.max(1, Math.floor(laneNumber));
+  if (BLACK_NUMBER_LANES.has(lane)) return { color: "#14181F", stroke: "#F7F4EA" };
+  return { color: "#FFFFFF", stroke: "#140E0A" };
+}
 
 export function laneColor(laneNumber: number): string {
   const index = (Math.max(1, Math.floor(laneNumber)) - 1) % LANE_COLORS.length;

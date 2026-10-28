@@ -3,7 +3,8 @@ import { cameraConfig } from "./cameraConfig";
 import { simulateRace, progressAt } from "../lib/race";
 import { mockHorses } from "../lib/mockHorses";
 import { orderByPresentation } from "./rankOrder";
-import { LANE_COLORS } from "./laneColors";
+import { LANE_COLORS, laneNumberInk } from "./laneColors";
+import { overlayLayout } from "./overlayLayout";
 import {
   advanceCameraPresentation,
   createCameraPresentation,
@@ -68,17 +69,28 @@ function stateLabel(state: CameraState, lead: number) {
 }
 
 describe("lane colors", () => {
-  test("the eight cloth colors are the shared lane list", () => {
+  test("twelve cloth colors stay off the HUD caption border", () => {
     expect([...LANE_COLORS]).toEqual([
       "#E5173F",
       "#1F5BFF",
       "#FFD000",
       "#00A86B",
-      "#8E3BFF",
+      "#A63BE6",
       "#FF4FC8",
-      "#00C8E0",
+      "#0F7F8C",
       "#14181F",
+      "#FF7A1A",
+      "#F2F0E8",
+      "#8A5530",
+      "#A6E22E",
     ]);
+    expect(overlayLayout.caption.borderColor.toUpperCase()).toBe("#5CE1FF");
+    expect(LANE_COLORS).not.toContain("#5CE1FF");
+    for (const lane of [3, 10, 12]) {
+      expect(laneNumberInk(lane).color).toBe("#14181F");
+    }
+    expect(laneNumberInk(1).color).toBe("#FFFFFF");
+    expect(laneNumberInk(8).color).toBe("#FFFFFF");
   });
 });
 

@@ -4,7 +4,7 @@ import { skillById, type SkillId, type SkillKind } from "./skills";
 
 export { segmentAt, COAST_END };
 
-export const MAX_HORSES = 10;
+export const MAX_HORSES = 12;
 export const RACE_DURATION = 40;
 export const SAMPLE_STEP = 0.1;
 export const SKILL_WINDOW = 2.4;

@@ -103,6 +103,7 @@ export function pickHorseAngle(yawDeg: number, elevationDeg: number): PickedAngl
 export const IDLE_FRAME = 4;
 
 export function gallopFrame(horseNumber: number, animSeconds: number, fps = HORSE_FPS) {
+  // Lanes 9–12 share the eight horse and jockey sheets. The offset wraps with them.
   const offset = START_FRAME_OFFSET[(Math.max(1, horseNumber) - 1) % START_FRAME_OFFSET.length] ?? 0;
   const tick = Math.floor(Math.max(0, animSeconds) * fps);
   return (offset + tick) % HORSE_FRAMES;

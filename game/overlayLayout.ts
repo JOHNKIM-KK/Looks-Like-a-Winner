@@ -3,7 +3,7 @@
  * Every overlay position and size lives here.
  * The race shell insets the frame with env(safe-area-inset-*).
  *
- * Minimap: 0–4% of the height. Ranking faces: 4–14%.
+ * Minimap: 0–4% of the height. Ranking faces: 4–20%, so twelve chips fit.
  * The bottom caption keeps the existing commentary chrome.
  * The skill banner is an empty slot.
  */
@@ -42,7 +42,7 @@ export const overlayLayout = {
   },
   ranking: {
     top: view.height * 0.04,
-    height: view.height * 0.1,
+    height: view.height * 0.16,
     paddingX: 8,
     paddingTop: 6,
     rowGap: 6,

@@ -4,12 +4,11 @@ import {
   STRIP_HEIGHT_SCALE,
   LOGICAL_PER_METER,
   RAIL_SEGMENT_M,
-  STRIP_PERIOD_M,
   distancePostProgresses,
   propSpriteScale,
 } from "./artScale";
 import { GAME_HEIGHT, GAME_WIDTH, groundAt, skyStripBottomY } from "./cameraFrame";
-import { STRAIGHT, finishGoalX, presentationOnRadius, type Camera } from "./track";
+import { finishGoalX, presentationOnRadius, type Camera } from "./track";
 import {
   chutePolyline,
   farRailRadius,
@@ -22,21 +21,17 @@ import {
   propSpriteAccepted,
   propStripAccepted,
   standLineOppositeCamera,
-  straightTreeLines,
-  stripFacesCamera,
   unprojectCell,
   type Vec2,
 } from "./trackArt";
 
 const DEPTH = {
   sky: 10,
-  cornerTree: 25,
   turf: 30,
   dirt: 31,
   /** Distant ground fades toward the backdrop before the rails. */
   fog: 32,
   stands: 33,
-  trees: 34,
   checker: 35,
   farRail: 40,
   props: 55,
@@ -48,23 +43,19 @@ const FOG_END_M = 170;
 
 const RAIL_IMAGE = { width: 400, height: 125, contact: 124, pxPerM: 100, periodM: RAIL_SEGMENT_M };
 const STANDS_IMAGE = { width: 1200, height: 1166, contact: 1165, pxPerM: 100, periodM: 12 };
-const TREES_IMAGE = { width: 600, height: 460, contact: 459, pxPerM: 50, periodM: STRIP_PERIOD_M };
 
 export type TrackView = {
   showStands: boolean;
   standHeightScale: number;
   showFinish: boolean;
-  showCornerTree: boolean;
 };
 
 export function trackViewFor(stateName: string, leadProgress: number, cornerEnd: number): TrackView {
-  const corner = stateName === "CORNER_IN" || stateName === "CORNER_OUT";
   const home = stateName === "FINISH" || (stateName === "STRAIGHT" && leadProgress >= cornerEnd);
   return {
     showStands: stateName === "START" || stateName === "STRAIGHT" || stateName === "FINISH",
     standHeightScale: STRIP_HEIGHT_SCALE,
     showFinish: stateName === "FINISH" || home,
-    showCornerTree: corner,
   };
 }
 
@@ -96,8 +87,6 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   const nearRail = makeMesh(scene, "rail-segment", DEPTH.nearRail);
   const stands = makeMesh(scene, "stands-strip", DEPTH.stands);
   stands.mesh.setAlpha(1).setBlendMode(Phaser.BlendModes.NORMAL);
-  const trees = makeMesh(scene, "trees-strip", DEPTH.trees);
-  trees.mesh.setAlpha(1);
   const checker = makeMesh(scene, "finish-checker", DEPTH.checker);
 
   const farLoop = ovalPolyline(farRailRadius());
@@ -109,7 +98,6 @@ export function createTrackRenderer(scene: Phaser.Scene) {
     scene.add.image(0, 0, "prop-distance").setOrigin(0.5, 1).setDepth(DEPTH.props).setVisible(false),
   );
   const finishPost = scene.add.image(0, 0, "prop-finish").setOrigin(0.5, 1).setDepth(DEPTH.props).setVisible(false);
-  const cornerTree = scene.add.image(0, 0, "prop-tree").setOrigin(0.5, 1).setDepth(DEPTH.cornerTree).setVisible(false);
 
   function paint(camera: Camera, view: TrackView) {
     sky.setPosition(GAME_WIDTH / 2, skyStripBottomY(camera));
@@ -122,12 +110,7 @@ export function createTrackRenderer(scene: Phaser.Scene) {
     paintVertical(nearRail, nearLoop, true, RAIL_IMAGE, 1, camera, null);
     paintVertical(nearRail, nearChute, false, RAIL_IMAGE, 1, camera, null);
 
-    clearSlot(trees);
     clearSlot(stands);
-    for (const line of straightTreeLines()) {
-      if (!stripFacesCamera(line, camera)) continue;
-      paintVertical(trees, line.points, false, TREES_IMAGE, STRIP_HEIGHT_SCALE, camera, "outward");
-    }
     if (view.showStands) {
       paintVertical(stands, standLineOppositeCamera(camera), false, STANDS_IMAGE, view.standHeightScale, camera, "inward");
     }
@@ -147,12 +130,6 @@ export function createTrackRenderer(scene: Phaser.Scene) {
       placeProp(finishPost, finishGoalX(), y, camera, GROUND_PX_PER_M);
     } else {
       finishPost.setVisible(false);
-    }
-    if (view.showCornerTree) {
-      const far = farRailRadius();
-      placeProp(cornerTree, -STRAIGHT / 2 - far * 0.55, 0, camera, GROUND_PX_PER_M);
-    } else {
-      cornerTree.setVisible(false);
     }
   }
 

@@ -14,7 +14,7 @@ import {
   type ShowBeat,
 } from "@/game/skillShow";
 import { playBang } from "@/game/bang";
-import { LANE_GAP, laneRadius, renderLane, projectWithCamera, presentationLogical, finishPostLogical, finishOuterLogical, segmentEnds } from "@/game/track";
+import { renderLane, projectWithCamera, presentationLogical, finishPostLogical, finishOuterLogical, segmentEnds } from "@/game/track";
 import {
   createInitialState,
   nextCameraState,
@@ -43,7 +43,7 @@ import {
   type FrameMemory,
 } from "@/game/cameraFrame";
 import { cameraConfig } from "@/game/cameraConfig";
-import { laneColorValue } from "@/game/laneColors";
+import { laneNumberInk } from "@/game/laneColors";
 import { LOGICAL_PER_METER, horseSpriteScale } from "@/game/artScale";
 import { createHorseCoatLibrary, type HorseCoatLibrary } from "@/game/horseCoat";
 import {
@@ -292,7 +292,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   let lastPhaseSig = "";
   let lastPresentationAt = -1;
   let lastComment = "";
-  let gates: Phaser.GameObjects.Graphics | null = null;
   let debugOverlay: Phaser.GameObjects.Graphics | null = null;
   let debugText: Phaser.GameObjects.Text | null = null;
   const fired = new Set<number>();
@@ -335,10 +334,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       this.load.image("rail-segment", "/track/v2/rail_segment.png");
       this.load.image("sky", "/track/v2/sky_strip.webp");
       this.load.image("stands-strip", "/track/v2/stands_strip_v4.webp");
-      this.load.image("trees-strip", "/track/v2/trees_strip.png");
       this.load.image("prop-distance", "/track/props/distance_post.webp");
       this.load.image("prop-finish", "/track/props/finish_post.webp");
-      this.load.image("prop-tree", "/track/props/corner_tree.webp");
       this.load.image("finish-checker", "/track/props/finish_line_checker.webp");
       for (const set of ["straight", "corner"] as const) {
         for (const angle of HORSE_ANGLES[set]) {
@@ -390,13 +387,14 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const dust = this.add.graphics();
         const body = this.add.graphics();
         const shadow = this.add.image(0, 0, "horse-color-straight-2").setDepth(80).setVisible(false);
+        const ink = laneNumberInk(horse.number);
         const number = this.add
           .text(0, 0, String(horse.number), {
             fontFamily: "sans-serif",
             fontSize: "24px",
-            color: "#FFFFFF",
+            color: ink.color,
             fontStyle: "bold",
-            stroke: "#140E0A",
+            stroke: ink.stroke,
             strokeThickness: 3,
           })
           .setOrigin(0.5);
@@ -494,7 +492,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         .setDepth(4250)
         .setVisible(false);
 
-      gates = this.add.graphics().setDepth(2);
       debugOverlay = this.add.graphics().setDepth(10000);
       debugText = this.add.text(10, 10, '', {
         fontFamily: 'monospace',
@@ -505,7 +502,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       }).setDepth(10001).setVisible(DEBUG_ENABLED).setScrollFactor(0);
       lastComment = "게이트 앞에서 대기 중입니다.";
       hooks.onComment(lastComment);
-      this.paintGates();
       this.placeHorses();
       this.frameCamera(true);
       this.publishField("countdown", "3");
@@ -526,7 +522,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           raceTime = 0;
           this.placeHorses();
           this.paintTrack();
-          this.paintGates();
           this.publishField("countdown", label);
           this.frameCamera(false);
           this.publishCameraDebug();
@@ -593,7 +588,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
 
       this.placeHorses();
       this.paintTrack();
-      this.paintGates();
       this.publishField("racing", null);
       this.frameCamera(false);
       this.publishCameraDebug();
@@ -858,8 +852,10 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           const plateAt = plateScreenOffset(plate, angle.anchorX, angle.anchorY, drawn, picked.flip);
           const glyph = glyphHeightPx(plate.h, drawn, GAME_WIDTH);
           actor.number.setPosition(plateAt.x, plateAt.y);
+          const ink = laneNumberInk(actor.horse.number);
+          actor.number.setColor(ink.color);
           actor.number.setFontSize(`${glyphFontPx(glyph)}px`);
-          actor.number.setStroke("#140E0A", glyphOutlinePx(glyph));
+          actor.number.setStroke(ink.stroke, glyphOutlinePx(glyph));
         }
         if (castingNow && kind === "jaywalk" && !actor.horse.skillHit) {
           const fence = Math.sin(payoffAge * 30) * 18;
@@ -1218,65 +1214,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       }
     }
 
-
-    paintGates() {
-      if (!gates) return;
-      gates.clear();
-      // Door arms are sized in screen pixels for the start. Once the field leaves
-      // the chute, a wide camera would draw that same gate as a broken stair.
-      if (started && gateOpen >= 1 && lastLeadProgress > segmentEnds().pocketEnd + 0.08) return;
-      const lanes = race.horses.length;
-      
-      for (let lane = 0; lane <= lanes; lane += 1) {
-        const radius = laneRadius(1) - LANE_GAP / 2 + lane * LANE_GAP;
-        const leftLogical = { x: 709 + 158, y: -radius, tx: -1, ty: 0 };
-        
-        const post = projectWithCamera(leftLogical, currentCamera);
-        if (!post.visible) continue;
-        
-        if (lane < lanes) {
-          const rightRadius = laneRadius(1) - LANE_GAP / 2 + (lane + 1) * LANE_GAP;
-          const rightPost = projectWithCamera({ x: 709 + 158, y: -rightRadius, tx: -1, ty: 0 }, currentCamera);
-          
-          if (rightPost.visible) {
-            const back = 84;
-            const front = 34;
-            
-            const lx = post.x + post.tangentX * back;
-            const ly = post.y + post.tangentY * back;
-            const rx = rightPost.x + rightPost.tangentX * back;
-            const ry = rightPost.y + rightPost.tangentY * back;
-            const lfx = post.x - post.tangentX * front;
-            const lfy = post.y - post.tangentY * front;
-            const rfx = rightPost.x - rightPost.tangentX * front;
-            const rfy = rightPost.y - rightPost.tangentY * front;
-            
-            gates.setDepth(!started || gateOpen < 0.85 ? 4000 : 2);
-            gates.fillStyle(laneColorValue(lane + 1), 1);
-            gates.fillCircle(lx, ly, 8);
-            gates.fillCircle(rx, ry, 8);
-            gates.lineStyle(8, laneColorValue(lane + 1), 1);
-            gates.lineBetween(lx, ly, rx, ry);
-            gates.lineStyle(7, 0x5c3b22, 1);
-            gates.lineBetween(lx, ly, lfx, lfy);
-            gates.lineBetween(rx, ry, rfx, rfy);
-            
-            const mx = (lfx + rfx) / 2;
-            const my = (lfy + rfy) / 2;
-            const swing = gateOpen * 1.35;
-            const turn = (dx: number, dy: number, angle: number) => ({
-              x: dx * Math.cos(angle) - dy * Math.sin(angle),
-              y: dx * Math.sin(angle) + dy * Math.cos(angle),
-            });
-            const leftDoor = turn(mx - lfx, my - lfy, -swing);
-            const rightDoor = turn(mx - rfx, my - rfy, swing);
-            gates.lineStyle(8, 0xf4f1ea, 1);
-            gates.lineBetween(lfx, lfy, lfx + leftDoor.x, lfy + leftDoor.y);
-            gates.lineBetween(rfx, rfy, rfx + rightDoor.x, rfy + rightDoor.y);
-          }
-        }
-      }
-    }
 
     frameCamera(immediate: boolean) {
       const camera = this.cameras.main;

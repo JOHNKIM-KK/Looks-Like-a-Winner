@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { LOGICAL_PER_METER, STANDS_BEHIND_OUTER_M, TREES_BEHIND_RAIL_M, nearRailRadius } from "./artScale";
-import { standLineOppositeCamera, straightTreeLines, stripFacesCamera } from "./trackArt";
+import { LOGICAL_PER_METER, STANDS_BEHIND_OUTER_M, nearRailRadius } from "./artScale";
+import { standLineOppositeCamera } from "./trackArt";
 import { STRAIGHT } from "./track";
 import type { Camera } from "./track";
 
@@ -45,27 +45,5 @@ describe("stands opposite the camera", () => {
     for (const point of backSide) {
       expect(outsideOuterRail(point.x, point.y)).toBe(true);
     }
-  });
-});
-
-describe("straight trees", () => {
-  it("follows the straights 5 m outside the outer rail and hides the back face", () => {
-    const lines = straightTreeLines();
-    expect(lines).toHaveLength(2);
-    const outer = nearRailRadius();
-    const gap = TREES_BEHIND_RAIL_M * LOGICAL_PER_METER;
-    for (const line of lines) {
-      for (const point of line.points) {
-        expect(Math.abs(Math.abs(point.y) - (outer + gap))).toBeLessThan(1e-6);
-      }
-    }
-    const outsideHome = cameraAt(4000, Math.PI);
-    const outsideBack = cameraAt(-4000, 0);
-    const home = lines[0];
-    const back = lines[1];
-    expect(home && stripFacesCamera(home, outsideHome)).toBe(true);
-    expect(back && stripFacesCamera(back, outsideHome)).toBe(false);
-    expect(back && stripFacesCamera(back, outsideBack)).toBe(true);
-    expect(home && stripFacesCamera(home, outsideBack)).toBe(false);
   });
 });

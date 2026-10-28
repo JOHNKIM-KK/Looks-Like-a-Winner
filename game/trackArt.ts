@@ -56,7 +56,9 @@ export function projectHeight(x: number, y: number, z: number, camera: Camera): 
 /**
  * Props may not fill the lens.
  * Stands sit across the infield, so they may read as a large background.
- * Trees stand between the camera and the track, so their cap is lower.
+ * An outward strip (the old tree line) sits between the camera and the track,
+ * so its cap stays lower. Trees are not drawn. The line remains so the cull
+ * still rejects a near prop that would cover the track.
  */
 export const PROP_MAX_HEIGHT_FRAC = 0.62;
 export const TREE_MAX_HEIGHT_FRAC = 0.34;
@@ -201,7 +203,10 @@ function straightSegment(x0: number, x1: number, y: number): Vec2[] {
   return points;
 }
 
-/** Home straight and back straight (plus the chute). Not the bends. */
+/**
+ * Where the tree strip used to stand, 5 m outside the outer rail.
+ * Nothing paints this. Prop-cull tests use it as the near occluder.
+ */
 export function straightTreeLines(): FacingStrip[] {
   const y = nearRailRadius() + TREES_BEHIND_RAIL_M * LOGICAL_PER_METER;
   const chuteEnd = STRAIGHT_BACK / 2 + CHUTE;
