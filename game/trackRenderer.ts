@@ -4,6 +4,7 @@ import {
   STRIP_HEIGHT_SCALE,
   LOGICAL_PER_METER,
   RAIL_SEGMENT_M,
+  STANDS_BEHIND_OUTER_M,
   distancePostProgresses,
   propSpriteScale,
 } from "./artScale";
@@ -20,8 +21,7 @@ import {
   projectHeight,
   propSpriteAccepted,
   propStripAccepted,
-  standLineOppositeCamera,
-  startLineQuad,
+  standLineFacingFinish,
   unprojectCell,
   type Vec2,
 } from "./trackArt";
@@ -43,7 +43,9 @@ const FOG_START_M = 36;
 const FOG_END_M = 170;
 
 const RAIL_IMAGE = { width: 400, height: 125, contact: 124, pxPerM: 100, periodM: RAIL_SEGMENT_M };
-const STANDS_IMAGE = { width: 1200, height: 1166, contact: 1165, pxPerM: 100, periodM: 12 };
+const STANDS_IMAGE = { width: 1252, height: 252, contact: 248, pxPerM: 36, periodM: 1252 / 36 };
+const STAND_SMALL_PX_PER_M = 50;
+const FINISH_TOWER_PX_PER_M = 58;
 
 export type TrackView = {
   showStands: boolean;
@@ -73,13 +75,14 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   turfTexture.setWrap(Phaser.Textures.WrapMode.REPEAT, Phaser.Textures.WrapMode.REPEAT);
   enableTurfMipmaps(scene);
   scene.textures.get("ground-dirt").setWrap(Phaser.Textures.WrapMode.REPEAT, Phaser.Textures.WrapMode.REPEAT);
-  const skyFrame = scene.textures.get("sky").get();
-  const sky = scene.add
-    .image(GAME_WIDTH / 2, 0, "sky")
-    .setOrigin(0.5, 1)
+  scene.add
+    .image(0, 0, "sky")
+    .setOrigin(0, 0)
     .setDepth(DEPTH.sky)
     .setScrollFactor(0)
-    .setDisplaySize(skyFrame.width, skyFrame.height);
+    .setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
+  const hills = scene.add.image(GAME_WIDTH / 2, 0, "far-hills").setOrigin(0.5, 1).setDepth(DEPTH.sky + 1).setScrollFactor(0);
+  hills.setScale((GAME_WIDTH * 1.15) / Math.max(1, hills.width));
 
   const turf = makeMesh(scene, "ground-turf", DEPTH.turf);
   const dirt = makeMesh(scene, "ground-dirt", DEPTH.dirt);
@@ -89,7 +92,7 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   const stands = makeMesh(scene, "stands-strip", DEPTH.stands);
   stands.mesh.setAlpha(1).setBlendMode(Phaser.BlendModes.NORMAL);
   const checker = makeMesh(scene, "finish-checker", DEPTH.checker);
-  const startLine = scene.add.graphics().setDepth(DEPTH.checker).setScrollFactor(0);
+  const standSmall = scene.add.image(0, 0, "stand-small").setOrigin(0.5, 1).setDepth(DEPTH.stands + 1).setVisible(false);
 
   const farLoop = ovalPolyline(farRailRadius());
   const nearLoop = ovalPolyline(nearRailRadius());
@@ -102,7 +105,7 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   const finishPost = scene.add.image(0, 0, "prop-finish").setOrigin(0.5, 1).setDepth(DEPTH.props).setVisible(false);
 
   function paint(camera: Camera, view: TrackView) {
-    sky.setPosition(GAME_WIDTH / 2, skyStripBottomY(camera));
+    hills.setPosition(GAME_WIDTH / 2, skyStripBottomY(camera));
     paintGround(camera, turf, dirt);
     paintFog(fog, camera);
     clearSlot(farRail);
@@ -114,10 +117,9 @@ export function createTrackRenderer(scene: Phaser.Scene) {
 
     clearSlot(stands);
     if (view.showStands) {
-      paintVertical(stands, standLineOppositeCamera(camera), false, STANDS_IMAGE, view.standHeightScale, camera, "inward");
+      paintVertical(stands, standLineFacingFinish(), false, STANDS_IMAGE, view.standHeightScale, camera, "inward");
     }
     paintChecker(checker, camera, view.showFinish);
-    paintStartLine(startLine, camera);
     paintProps(camera, view);
   }
 
@@ -130,9 +132,15 @@ export function createTrackRenderer(scene: Phaser.Scene) {
     });
     if (view.showFinish) {
       const y = farRailRadius() - 1.6 * LOGICAL_PER_METER;
-      placeProp(finishPost, finishGoalX(), y, camera, GROUND_PX_PER_M);
+      placeProp(finishPost, finishGoalX(), y, camera, FINISH_TOWER_PX_PER_M);
     } else {
       finishPost.setVisible(false);
+    }
+    if (view.showStands) {
+      const y = -(nearRailRadius() + (STANDS_BEHIND_OUTER_M + 8) * LOGICAL_PER_METER);
+      placeProp(standSmall, finishGoalX(), y, camera, STAND_SMALL_PX_PER_M);
+    } else {
+      standSmall.setVisible(false);
     }
   }
 
@@ -337,19 +345,6 @@ function emitVertical(
   const i3 = pushVert(slot, br.x, br.y, u1 - base, 1);
   pushTri(slot, i0, i1, i2);
   pushTri(slot, i1, i3, i2);
-}
-
-function paintStartLine(graphics: Phaser.GameObjects.Graphics, camera: Camera) {
-  graphics.clear();
-  const box = startLineQuad();
-  const nearL = projectHeight(box.x0, box.y0, 0, camera);
-  const nearR = projectHeight(box.x1, box.y0, 0, camera);
-  const farR = projectHeight(box.x1, box.y1, 0, camera);
-  const farL = projectHeight(box.x0, box.y1, 0, camera);
-  if (!nearL.visible || !nearR.visible || !farR.visible || !farL.visible) return;
-  graphics.fillStyle(0xfff6d0, 0.95);
-  graphics.fillTriangle(nearL.x, nearL.y, nearR.x, nearR.y, farR.x, farR.y);
-  graphics.fillTriangle(nearL.x, nearL.y, farR.x, farR.y, farL.x, farL.y);
 }
 
 function paintChecker(slot: MeshSlot, camera: Camera, show: boolean) {

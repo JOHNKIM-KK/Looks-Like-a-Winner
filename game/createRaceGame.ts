@@ -67,6 +67,8 @@ import {
 } from "@/game/mountedPair";
 import { RIDE_ANGLES, ridePose } from "@/game/jockeyRide";
 import { createTrackRenderer, trackViewFor } from "@/game/trackRenderer";
+import { createGateRenderer, queueGateAssets } from "@/game/gateRenderer";
+import { createStartGate, type StartGate } from "@/game/startGate";
 import type { RaceOverlaySnapshot } from "@/game/overlayLayout";
 import { orderByPresentation } from "@/game/rankOrder";
 
@@ -321,6 +323,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   const goalInnerLogical = finishPostLogical();
   const goalOuterLogical = finishOuterLogical(Math.max(1, race.horses.length));
   let world: ReturnType<typeof createTrackRenderer> | null = null;
+  let gateView: ReturnType<typeof createGateRenderer> | null = null;
+  const startGate: StartGate = createStartGate();
   let coats: HorseCoatLibrary | null = null;
 
   class RaceScene extends Phaser.Scene {
@@ -332,10 +336,13 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       this.load.image("ground-turf", "/track/v2/ground_turf.webp");
       this.load.image("ground-dirt", "/track/v2/ground_dirt.webp");
       this.load.image("rail-segment", "/track/v2/rail_segment.png");
-      this.load.image("sky", "/track/v2/sky_strip.webp");
-      this.load.image("stands-strip", "/track/v2/stands_strip_v4.webp");
+      this.load.image("sky", "/track/bg/sky_v1.webp");
+      this.load.image("far-hills", "/track/bg/far_hills_v1.webp");
+      this.load.image("stands-strip", "/track/bg/stands_main_v1.webp");
+      this.load.image("stand-small", "/track/bg/stand_small_v1.webp");
       this.load.image("prop-distance", "/track/props/distance_post.webp");
-      this.load.image("prop-finish", "/track/props/finish_post.webp");
+      this.load.image("prop-finish", "/track/bg/finish_tower_post_v1.webp");
+      queueGateAssets(this.load);
       this.load.image("finish-checker", "/track/props/finish_line_checker.webp");
       for (const set of ["straight", "corner"] as const) {
         for (const angle of HORSE_ANGLES[set]) {
@@ -357,6 +364,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       this.cameras.main.setBackgroundColor("#3F4630");
       coats = createHorseCoatLibrary(this);
       world = createTrackRenderer(this);
+      gateView = createGateRenderer(this, startGate);
       paintGoldenGrade(this);
 
       for (const horse of race.horses) {
@@ -522,6 +530,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           raceTime = 0;
           this.placeHorses();
           this.paintTrack();
+          this.paintGate();
           this.publishField("countdown", label);
           this.frameCamera(false);
           this.publishCameraDebug();
@@ -532,6 +541,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         }
         started = true;
         playBang();
+        startGate.openAll(wallClock * 1000);
         lastComment = "게이트가 열렸습니다.";
         hooks.onComment(lastComment);
       }
@@ -588,6 +598,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
 
       this.placeHorses();
       this.paintTrack();
+      this.paintGate();
       this.publishField("racing", null);
       this.frameCamera(false);
       this.publishCameraDebug();
@@ -606,6 +617,10 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
 
     paintTrack() {
       world?.paint(currentCamera, trackViewFor(cameraState.name, lastLeadProgress, segmentEnds().corner34Exit));
+    }
+
+    paintGate() {
+      gateView?.paint(currentCamera, wallClock * 1000);
     }
 
     placeHorses() {

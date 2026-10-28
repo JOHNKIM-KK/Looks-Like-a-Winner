@@ -1,0 +1,249 @@
+{
+ "version": "stage_gate_v1.2",
+ "concept": true,
+ "model": "jeju_style_truss",
+ "stalls": 12,
+ "fixed": true,
+ "note": "Always 12 stalls, always 12 horses (filler horses fill empty player slots). No variable assembly.",
+ "stall_geometry_m": {
+  "pitch": 1.2,
+  "depth": 2.7,
+  "truss_bottom": 2.9,
+  "lane1_radius": "RF+0.75",
+  "lane12_radius": "RF+0.75+11*1.2 (fits inside RN)"
+ },
+ "lane_colors": [
+  "#E5173F",
+  "#1F5BFF",
+  "#FFD000",
+  "#00A86B",
+  "#A63BE6",
+  "#FF4FC8",
+  "#0F7F8C",
+  "#14181F",
+  "#FF7A1A",
+  "#F2F0E8",
+  "#8A5530",
+  "#A6E22E"
+ ],
+ "parts": {
+  "endL": "left end frame + sign cap",
+  "endR": "right end frame + sign cap",
+  "stall_back": "stall body behind horse",
+  "partition": "divider",
+  "stall_front": "front truss/plate/sign segment (plate tinted via mask)",
+  "door": "double-leaf front door, 6 frames",
+  "sign_text": "'RACE PARK' layer, swappable"
+ },
+ "plate": {
+  "mask": "stall_front_mask.webp, G channel = plate fill",
+  "tint": "laneColor(stall) = rank chip border (RaceOverlay.tsx:226), full fill",
+  "number": "drawn by engine at plate center (white; dark text on lanes 3,10,12)",
+  "number_visible_angles": [
+   "front",
+   "oblique30",
+   "oblique60"
+  ]
+ },
+ "door": {
+  "frames": 6,
+  "open_deg": [
+   0,
+   62,
+   106,
+   124,
+   104,
+   112
+  ],
+  "frame_ms": [
+   0,
+   40,
+   40,
+   45,
+   45,
+   80
+  ],
+  "total_ms": 250,
+  "note": "overshoot 124 -> settle 112 = bounce"
+ },
+ "api": {
+  "openStall(i)": "i=1..12, play door frames 0..5",
+  "openAll(jitterMs=0..40)": "openStall(1..12) with small per-stall delay",
+  "reset()": "all doors frame 0"
+ },
+ "sign": {
+  "text": "RACE PARK",
+  "layer": "sign_text",
+  "center": "between stall 6 and 7 (offset 4.5 * stall_step from stall 2)"
+ },
+ "placement": {
+  "note": "parts are internal repeat units to save bytes; engine places them at 12 fixed slots",
+  "stall_k_offset_px": "(k-2) * stall_step_px, k=1..12",
+  "endL_offset": "0",
+  "endR_offset": "9 * stall_step_px",
+  "sign_text_offset": "4.5 * stall_step_px",
+  "draw_order": [
+   "endL",
+   "endR",
+   "stall_back (far->near)",
+   "partition (far->near)",
+   "horse k",
+   "door k",
+   "stall_front k",
+   "plate number k",
+   "sign_text"
+  ]
+ },
+ "angles": {
+  "drone": {
+   "shot": "drone4_gate_descent",
+   "px_per_m": 40,
+   "view_dir": [
+    -0.3428,
+    -0.7747,
+    0.5313
+   ],
+   "frame": [
+    235,
+    264
+   ],
+   "stall_step_px": [
+    19.4,
+    23.3
+   ],
+   "stall2_front_ground_px": [
+    68.1,
+    205.2
+   ],
+   "stall2_plate_center_px": [
+    63.7,
+    95.3
+   ],
+   "sign_text_center_px": [
+    64.8,
+    64.7
+   ],
+   "far_to_near": "lane 1 -> N"
+  },
+  "front": {
+   "shot": "gate_front",
+   "px_per_m": 60,
+   "view_dir": [
+    -0.9903,
+    -0.0,
+    0.1392
+   ],
+   "frame": [
+    307,
+    304
+   ],
+   "stall_step_px": [
+    72.0,
+    0.0
+   ],
+   "stall2_front_ground_px": [
+    153.5,
+    286.9
+   ],
+   "stall2_plate_center_px": [
+    153.5,
+    93.4
+   ],
+   "sign_text_center_px": [
+    153.5,
+    40.1
+   ],
+   "far_to_near": "any (no overlap)"
+  },
+  "oblique30": {
+   "shot": "gate_oblique30",
+   "px_per_m": 60,
+   "view_dir": [
+    -0.8325,
+    -0.4806,
+    0.2756
+   ],
+   "frame": [
+    386,
+    336
+   ],
+   "stall_step_px": [
+    62.3,
+    9.9
+   ],
+   "stall2_front_ground_px": [
+    152.5,
+    296.1
+   ],
+   "stall2_plate_center_px": [
+    148.9,
+    109.1
+   ],
+   "sign_text_center_px": [
+    149.8,
+    57.1
+   ],
+   "far_to_near": "lane 1 -> N"
+  },
+  "oblique60": {
+   "shot": "gate_oblique60",
+   "px_per_m": 60,
+   "view_dir": [
+    -0.424,
+    -0.7344,
+    0.5299
+   ],
+   "frame": [
+    368,
+    391
+   ],
+   "stall_step_px": [
+    36.0,
+    33.0
+   ],
+   "stall2_front_ground_px": [
+    113.9,
+    304.8
+   ],
+   "stall2_plate_center_px": [
+    107.7,
+    140.2
+   ],
+   "sign_text_center_px": [
+    109.2,
+    94.2
+   ],
+   "far_to_near": "lane 1 -> N"
+  },
+  "start": {
+   "shot": "start",
+   "px_per_m": 80,
+   "view_dir": [
+    0.0,
+    -0.537,
+    0.8436
+   ],
+   "frame": [
+    343,
+    530
+   ],
+   "stall_step_px": [
+    0.0,
+    80.8
+   ],
+   "stall2_front_ground_px": [
+    63.8,
+    354.5
+   ],
+   "stall2_plate_center_px": [
+    54.2,
+    214.2
+   ],
+   "sign_text_center_px": [
+    56.6,
+    175.9
+   ],
+   "far_to_near": "lane 1 -> N"
+  }
+ }
+}
