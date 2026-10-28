@@ -19,6 +19,8 @@ import {
   nearRailRadius,
   ovalPolyline,
   projectHeight,
+  propSpriteAccepted,
+  propStripAccepted,
   standLineOppositeCamera,
   straightTreeLines,
   stripFacesCamera,
@@ -115,19 +117,19 @@ export function createTrackRenderer(scene: Phaser.Scene) {
     paintFog(fog, camera);
     clearSlot(farRail);
     clearSlot(nearRail);
-    paintVertical(farRail, farLoop, true, RAIL_IMAGE, 1, camera);
-    paintVertical(farRail, farChute, false, RAIL_IMAGE, 1, camera);
-    paintVertical(nearRail, nearLoop, true, RAIL_IMAGE, 1, camera);
-    paintVertical(nearRail, nearChute, false, RAIL_IMAGE, 1, camera);
+    paintVertical(farRail, farLoop, true, RAIL_IMAGE, 1, camera, null);
+    paintVertical(farRail, farChute, false, RAIL_IMAGE, 1, camera, null);
+    paintVertical(nearRail, nearLoop, true, RAIL_IMAGE, 1, camera, null);
+    paintVertical(nearRail, nearChute, false, RAIL_IMAGE, 1, camera, null);
 
     clearSlot(trees);
     clearSlot(stands);
     for (const line of straightTreeLines()) {
       if (!stripFacesCamera(line, camera)) continue;
-      paintVertical(trees, line.points, false, TREES_IMAGE, STRIP_HEIGHT_SCALE, camera);
+      paintVertical(trees, line.points, false, TREES_IMAGE, STRIP_HEIGHT_SCALE, camera, "outward");
     }
     if (view.showStands) {
-      paintVertical(stands, standLineOppositeCamera(camera), false, STANDS_IMAGE, view.standHeightScale, camera);
+      paintVertical(stands, standLineOppositeCamera(camera), false, STANDS_IMAGE, view.standHeightScale, camera, "inward");
     }
     paintChecker(checker, camera, view.showFinish);
     paintProps(camera, view);
@@ -296,7 +298,15 @@ function emitGround(
   pushTri(slot, i2, i3, i1);
 }
 
-function paintVertical(slot: MeshSlot, points: Vec2[], closed: boolean, image: StripImage, zScale: number, camera: Camera) {
+function paintVertical(
+  slot: MeshSlot,
+  points: Vec2[],
+  closed: boolean,
+  image: StripImage,
+  zScale: number,
+  camera: Camera,
+  face: "outward" | "inward" | null,
+) {
   const above = (image.contact / image.pxPerM) * zScale * LOGICAL_PER_METER;
   const below = ((image.height - image.contact) / image.pxPerM) * zScale * LOGICAL_PER_METER;
   const count = points.length;
@@ -307,7 +317,7 @@ function paintVertical(slot: MeshSlot, points: Vec2[], closed: boolean, image: S
     const to = points[(index + 1) % count];
     if (!from || !to) continue;
     const lengthM = Math.hypot(to.x - from.x, to.y - from.y) / LOGICAL_PER_METER;
-    emitVertical(slot, camera, from, to, traveled / image.periodM, (traveled + lengthM) / image.periodM, above, below);
+    emitVertical(slot, camera, from, to, traveled / image.periodM, (traveled + lengthM) / image.periodM, above, below, face);
     traveled += lengthM;
   }
 }
@@ -321,6 +331,7 @@ function emitVertical(
   u1: number,
   above: number,
   below: number,
+  face: "outward" | "inward" | null,
 ) {
   if (u1 > u0 + 1e-4 && Math.floor(u0 + 1e-4) !== Math.floor(Math.max(u0, u1 - 1e-4))) {
     const boundary = Math.floor(u0) + 1;
@@ -328,11 +339,12 @@ function emitVertical(
     const t = span === 0 ? 1 : (boundary - u0) / span;
     if (t > 0.002 && t < 0.998) {
       const mid = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
-      emitVertical(slot, camera, from, mid, u0, boundary, above, below);
-      emitVertical(slot, camera, mid, to, boundary, u1, above, below);
+      emitVertical(slot, camera, from, mid, u0, boundary, above, below, face);
+      emitVertical(slot, camera, mid, to, boundary, u1, above, below, face);
       return;
     }
   }
+  if (face && !propStripAccepted(camera, from, to, above, below, face)) return;
   const base = Math.floor(u0);
   const bl = projectHeight(from.x, from.y, -below, camera);
   const tl = projectHeight(from.x, from.y, above, camera);
@@ -396,8 +408,14 @@ function emitCheckerRow(
 }
 
 function placeProp(image: Phaser.GameObjects.Image, x: number, y: number, camera: Camera, pxPerM: number) {
+  const heightLu = (image.height / pxPerM) * LOGICAL_PER_METER;
   const pose = projectHeight(x, y, 0, camera);
-  const onScreen = pose.visible && pose.x > -240 && pose.x < GAME_WIDTH + 240 && pose.y > -420 && pose.y < GAME_HEIGHT + 80;
+  const onScreen =
+    propSpriteAccepted(camera, x, y, heightLu) &&
+    pose.x > -240 &&
+    pose.x < GAME_WIDTH + 240 &&
+    pose.y > -420 &&
+    pose.y < GAME_HEIGHT + 80;
   image.setVisible(onScreen);
   if (!onScreen) return;
   image.setPosition(pose.x, pose.y);
