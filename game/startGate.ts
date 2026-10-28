@@ -145,6 +145,24 @@ export function cameraStandOffset(camera: Camera, at: { x: number; y: number }):
   return [dx / len, dy / len, dz / len];
 }
 
+/** Sheet whose stall axis best matches the on-screen lane step, either direction. */
+export function pickGateSheet(screenStep: readonly [number, number]) {
+  const screen = Math.atan2(screenStep[1], screenStep[0]);
+  let best = GATE_ANGLES[0] as GateAngle;
+  let bestDelta = Number.POSITIVE_INFINITY;
+  for (const angle of GATE_ANGLES) {
+    const authored = Math.atan2(angle.stallStep[1], angle.stallStep[0]);
+    const delta = Math.atan2(Math.sin(screen - authored), Math.cos(screen - authored));
+    const reverse = Math.atan2(Math.sin(screen - authored + Math.PI), Math.cos(screen - authored + Math.PI));
+    const score = Math.min(Math.abs(delta), Math.abs(reverse));
+    if (score < bestDelta) {
+      best = angle;
+      bestDelta = score;
+    }
+  }
+  return best;
+}
+
 export function pickGateAngle(offset: readonly [number, number, number]) {
   let best = GATE_ANGLES[0] as GateAngle;
   let bestDot = Number.NEGATIVE_INFINITY;

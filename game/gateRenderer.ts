@@ -1,13 +1,12 @@
 import Phaser from "phaser";
-import { LOGICAL_PER_METER } from "./artScale";
 import { laneColorValue, laneNumberInk } from "./laneColors";
 import { projectWithCamera, type Camera } from "./track";
 import {
   GATE_ANGLES,
   STALL_COUNT,
   cameraStandOffset,
-  mapImageOffset,
   pickGateAngle,
+  pickGateSheet,
   stallFront,
   type GateAngle,
   type StartGate,
@@ -221,7 +220,12 @@ export function createGateRenderer(scene: Phaser.Scene, gate: StartGate) {
 
   function paint(camera: Camera, nowMs: number) {
     const mid = stallFront(6);
-    const angle = pickGateAngle(cameraStandOffset(camera, mid));
+    const from = projectWithCamera({ ...stallFront(6), tx: 1, ty: 0 }, camera);
+    const to = projectWithCamera({ ...stallFront(7), tx: 1, ty: 0 }, camera);
+    const angle =
+      from.visible && to.visible
+        ? pickGateSheet([to.x - from.x, to.y - from.y])
+        : pickGateAngle(cameraStandOffset(camera, mid));
     const sample = sourceSize(scene, assetKey(angle.name, "partition"));
     if (!sample) return;
     const screenY: number[] = [];
@@ -258,27 +262,12 @@ function placeStall(camera: Camera, angle: GateAngle, lane: number) {
   const stepFrom = Math.min(lane, STALL_COUNT - 1);
   const from = projectWithCamera({ ...stallFront(stepFrom), tx: 1, ty: 0 }, camera);
   const to = projectWithCamera({ ...stallFront(stepFrom + 1), tx: 1, ty: 0 }, camera);
-  const up = projectWithCamera({ ...stallFront(lane), tx: 1, ty: 0, z: LOGICAL_PER_METER }, camera);
-  if (!here.visible || !from.visible || !to.visible || !up.visible) return null;
+  if (!here.visible || !from.visible || !to.visible) return null;
   const screenStep: [number, number] = [to.x - from.x, to.y - from.y];
-  const screenUp: [number, number] = [up.x - here.x, up.y - here.y];
-  const map = (ix: number, iy: number) => mapOrScale(ix, iy, angle, screenStep, screenUp);
-  return { anchorX: here.x, anchorY: here.y, map };
-}
-
-function mapOrScale(
-  ix: number,
-  iy: number,
-  angle: GateAngle,
-  screenStep: readonly [number, number],
-  screenUp: readonly [number, number],
-): [number, number] | null {
-  const mapped = mapImageOffset([ix, iy], angle.stallStep, angle.pxPerM, screenStep, screenUp);
-  if (mapped) return mapped;
   const authored = Math.hypot(angle.stallStep[0], angle.stallStep[1]) || 1;
-  const screen = Math.hypot(screenStep[0], screenStep[1]) || 1;
-  const scale = screen / authored;
-  return [ix * scale, iy * scale];
+  const scale = (Math.hypot(screenStep[0], screenStep[1]) || 1) / authored;
+  const map = (ix: number, iy: number): [number, number] => [ix * scale, iy * scale];
+  return { anchorX: here.x, anchorY: here.y, map };
 }
 
 function paintCap(

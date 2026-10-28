@@ -14,6 +14,7 @@ import {
   doorFrameAt,
   mapImageOffset,
   pickGateAngle,
+  pickGateSheet,
   stallFront,
   stallPitchM,
 } from "./startGate";
@@ -115,5 +116,8 @@ describe("start gate", () => {
     const mid = subjects[5];
     if (!mid) return;
     expect(pickGateAngle(cameraStandOffset(camera, mid)).name).toBe("oblique60");
+    const lane6 = projectWithCamera({ ...stallFront(6), tx: 1, ty: 0 }, camera);
+    const lane7 = projectWithCamera({ ...stallFront(7), tx: 1, ty: 0 }, camera);
+    expect(pickGateSheet([lane7.x - lane6.x, lane7.y - lane6.y]).name).toBe("front");
   });
 });
