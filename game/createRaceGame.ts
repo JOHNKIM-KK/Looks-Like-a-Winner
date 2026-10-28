@@ -502,8 +502,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         .setDepth(4250)
         .setVisible(false);
 
-      const stallCount = Math.max(1, race.horses.length);
-      startingGate = createStartingGate(createGateConfig(stallCount));
+      startingGate = createStartingGate(createGateConfig());
       ensureGatePlateTextures(this, startingGate.config.stallCount);
       gates = this.add.graphics().setDepth(20);
       gatePlates = [];

@@ -1,5 +1,6 @@
 import sheet from "../public/horses/horses.json";
 import { HORSE_PX_PER_M, SHADOW_ALPHA, SHADOW_BLUR_PX, SHADOW_SHEAR, SHADOW_SQUASH } from "./artScale";
+import { laneColorValue } from "./laneColors";
 
 export const HORSE_FPS = sheet.fps;
 export const HORSE_FRAMES = sheet.frames;
@@ -131,20 +132,9 @@ export function plateScreenOffset(plate: PlateRect, anchorX: number, anchorY: nu
   };
 }
 
-const LANE_RGB = [
-  [0xe5, 0x17, 0x3f],
-  [0x1f, 0x5b, 0xff],
-  [0xff, 0xd0, 0x00],
-  [0x00, 0xa8, 0x6b],
-  [0x8e, 0x3b, 0xff],
-  [0xff, 0x4f, 0xc8],
-  [0x00, 0xc8, 0xe0],
-  [0x14, 0x18, 0x1f],
-] as const;
-
 export function laneRgb(laneNumber: number): readonly [number, number, number] {
-  const index = (Math.max(1, Math.floor(laneNumber)) - 1) % LANE_RGB.length;
-  return LANE_RGB[index] ?? LANE_RGB[0];
+  const hex = laneColorValue(laneNumber);
+  return [(hex >> 16) & 255, (hex >> 8) & 255, hex & 255];
 }
 
 function clampByte(value: number) {

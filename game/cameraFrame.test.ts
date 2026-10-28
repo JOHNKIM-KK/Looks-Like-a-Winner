@@ -65,8 +65,8 @@ function stateLabel(state: CameraState, lead: number) {
 }
 
 describe("lane colors", () => {
-  test("the eight cloth colors are the shared lane list", () => {
-    expect([...LANE_COLORS]).toEqual([
+  test("the eight cloth colors stay, and 9–12 are placeholders", () => {
+    expect(LANE_COLORS.slice(0, 8)).toEqual([
       "#E5173F",
       "#1F5BFF",
       "#FFD000",
@@ -76,6 +76,9 @@ describe("lane colors", () => {
       "#00C8E0",
       "#14181F",
     ]);
+    expect(LANE_COLORS).toHaveLength(12);
+    expect(LANE_COLORS[8]).toBe("#F97316");
+    expect(LANE_COLORS[11]).toBe("#64748B");
   });
 });
 
@@ -457,5 +460,35 @@ describe("horse framing", () => {
       false,
     );
     resetFrameIncludes();
+  });
+
+  test("START keeps all 12 horses inside the safe rect", () => {
+    const field: FrameSubject[] = Array.from({ length: 12 }, (_, index) => {
+      const lane = index + 1;
+      return { ...presentationLogical(0, lane), id: `lane-${lane}`, rank: lane };
+    });
+    const packX = field.reduce((sum, horse) => sum + horse.x, 0) / field.length;
+    const packY = field.reduce((sum, horse) => sum + horse.y, 0) / field.length;
+    const base = getCameraLookForState(
+      { name: "START" },
+      { raceTime: 0, started: false, gateOpen: 0, leadProgress: 0, horses: [] },
+      packX,
+      packY,
+    );
+    expect(base.azimuth).toBe(cameraConfig.states.START.azimuth);
+    expect(base.elevation).toBe(cameraConfig.states.START.elevation);
+    expect(base.distance).toBe(cameraConfig.states.START.distance);
+    expect(base.focalLength).toBe(cameraConfig.states.START.focalLength);
+    const framed = frameHorseLook(base, field, "START", [], createFrameMemory(base), 0, 0);
+    const camera = cameraFromLook(framed.look);
+    for (const horse of field) {
+      const pose = projectWithCamera(horse, camera);
+      expect(pose.visible, `lane ${horse.rank}`).toBe(true);
+      const rect = spriteRect(pose);
+      expect(rect.minX, `lane ${horse.rank} left`).toBeGreaterThanOrEqual(FRAME_LEFT - 0.6);
+      expect(rect.maxX, `lane ${horse.rank} right`).toBeLessThanOrEqual(FRAME_RIGHT + 0.6);
+      expect(rect.minY, `lane ${horse.rank} top`).toBeGreaterThanOrEqual(FRAME_TOP - 0.6);
+      expect(rect.maxY, `lane ${horse.rank} bottom`).toBeLessThanOrEqual(FRAME_BOTTOM + 0.6);
+    }
   });
 });

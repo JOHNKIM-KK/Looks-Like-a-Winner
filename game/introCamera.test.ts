@@ -14,7 +14,7 @@ import {
 import { presentationLogical } from "./track";
 import type { FrameSubject } from "./cameraFrame";
 
-function fieldAtStart(stallCount = 8): { subjects: FrameSubject[]; anchors: IntroAnchors } {
+function fieldAtStart(stallCount = 12): { subjects: FrameSubject[]; anchors: IntroAnchors } {
   const subjects: FrameSubject[] = [];
   for (let lane = 1; lane <= stallCount; lane += 1) {
     const point = presentationLogical(0, lane);

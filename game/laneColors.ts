@@ -12,6 +12,11 @@ export const LANE_COLORS = [
   "#FF4FC8",
   "#00C8E0",
   "#14181F",
+  // Placeholders until the 12-color set arrives. Kept off the cyan HUD border.
+  "#F97316",
+  "#65A30D",
+  "#A16207",
+  "#64748B",
 ] as const;
 
 export function laneColor(laneNumber: number): string {

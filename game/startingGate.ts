@@ -2,8 +2,8 @@ import { LOGICAL_PER_METER } from "./artScale";
 import { laneRgb } from "./horseVisual";
 import { CHUTE, LANE_GAP, STRAIGHT_BACK, laneRadius } from "./track";
 
-export const STALL_COUNT_MIN = 2;
-export const STALL_COUNT_MAX = 10;
+/** The gate is always this many stalls. Every stall is filled before the race. */
+export const GATE_STALLS = 12;
 /** Bell: every closed door snaps open together. */
 export const DOOR_SNAP_SEC = 0.18;
 /** Doors sit this far in front of the stall, toward the horses' faces (-X). */
@@ -42,13 +42,8 @@ export type StartingGate = {
   tick: (dt: number) => void;
 };
 
-export function clampStallCount(count: number) {
-  const rounded = Math.round(count);
-  return Math.max(STALL_COUNT_MIN, Math.min(STALL_COUNT_MAX, rounded));
-}
-
-export function createGateConfig(stallCount: number, stallPitch = LANE_GAP): GateConfig {
-  return { stallCount: clampStallCount(stallCount), stallPitch };
+export function createGateConfig(stallPitch = LANE_GAP): GateConfig {
+  return { stallCount: GATE_STALLS, stallPitch };
 }
 
 /** World position of stall 0. The row runs toward -Y, one pitch per lane. */
@@ -57,7 +52,7 @@ export function stallOrigin() {
 }
 
 export function gateLayout(config: GateConfig): GatePart[] {
-  const count = clampStallCount(config.stallCount);
+  const count = GATE_STALLS;
   const pitch = config.stallPitch;
   const origin = stallOrigin();
   const ahead = DOOR_AHEAD_M * LOGICAL_PER_METER;
@@ -88,7 +83,7 @@ function easeOutBack(t: number) {
 }
 
 export function createStartingGate(config: GateConfig): StartingGate {
-  const count = clampStallCount(config.stallCount);
+  const count = GATE_STALLS;
   const doors: Door[] = Array.from({ length: count }, () => ({ amount: 0, age: 0, moving: false }));
 
   function openStall(index: number) {

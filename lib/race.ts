@@ -4,7 +4,7 @@ import { skillById, type SkillId, type SkillKind } from "./skills";
 
 export { segmentAt, COAST_END };
 
-export const MAX_HORSES = 10;
+export const MAX_HORSES = 12;
 export const RACE_DURATION = 40;
 export const SAMPLE_STEP = 0.1;
 export const SKILL_WINDOW = 2.4;
@@ -495,7 +495,7 @@ function buildEvents(horses: RaceHorse[]): RaceEvent[] {
 
 export function simulateRace(horses: HorseInput[], seed: number): RaceResult {
   if (horses.length < 1 || horses.length > MAX_HORSES) {
-    throw new Error(`출전마는 1마리에서 ${MAX_HORSES}마리까지입니다.`);
+    throw new Error(`출전마는 1마리에서 12마리까지입니다.`);
   }
   const runners: Runner[] = horses.map((input, index) => {
     const stats = buildStats(input.biases, mulberry32(mixSeed(seed, index)));

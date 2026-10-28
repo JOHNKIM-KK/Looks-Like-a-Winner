@@ -3,9 +3,7 @@ import { LANE_GAP } from "./track";
 import { laneRgb } from "./horseVisual";
 import {
   DOOR_SNAP_SEC,
-  STALL_COUNT_MAX,
-  STALL_COUNT_MIN,
-  clampStallCount,
+  GATE_STALLS,
   createGateConfig,
   createStartingGate,
   gateLayout,
@@ -13,19 +11,17 @@ import {
 } from "./startingGate";
 
 describe("starting gate", () => {
-  it("clamps the stall count to the lane range and spaces the row by pitch", () => {
-    expect(clampStallCount(1)).toBe(STALL_COUNT_MIN);
-    expect(clampStallCount(10)).toBe(STALL_COUNT_MAX);
-    expect(clampStallCount(14)).toBe(STALL_COUNT_MAX);
-    const config = createGateConfig(8, LANE_GAP);
+  it("is always 12 stalls spaced by one lane", () => {
+    const config = createGateConfig(LANE_GAP);
+    expect(config.stallCount).toBe(GATE_STALLS);
     const parts = gateLayout(config);
     const stalls = parts.filter((part) => part.role === "stall");
     const doors = parts.filter((part) => part.role === "door");
     const plates = parts.filter((part) => part.role === "plate");
     const ends = parts.filter((part) => part.role === "end-left" || part.role === "end-right");
-    expect(stalls).toHaveLength(8);
-    expect(doors).toHaveLength(8);
-    expect(plates).toHaveLength(8);
+    expect(stalls).toHaveLength(12);
+    expect(doors).toHaveLength(12);
+    expect(plates).toHaveLength(12);
     expect(ends).toHaveLength(2);
     for (let index = 1; index < stalls.length; index += 1) {
       const prev = stalls[index - 1];
@@ -47,7 +43,8 @@ describe("starting gate", () => {
   });
 
   it("opens one stall on its own and snaps the rest together on the bell", () => {
-    const gate = createStartingGate(createGateConfig(4));
+    const gate = createStartingGate(createGateConfig());
+    expect(gate.doors).toHaveLength(GATE_STALLS);
     gate.openStall(1);
     gate.tick(DOOR_SNAP_SEC);
     expect(gate.doors[1]?.amount).toBe(1);

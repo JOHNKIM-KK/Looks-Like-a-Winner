@@ -7,7 +7,7 @@ import type { StartingGate } from "./startingGate";
 import { gateLayout } from "./startingGate";
 
 /** Provisional venue board. The final lettering arrives with the gate art. */
-export const GATE_SIGN_TEXT = "우승할 상";
+export const GATE_SIGN_TEXT = "RACE PARK";
 
 export function gatePlateKey(lane: number) {
   return `gate-plate-${lane}`;
