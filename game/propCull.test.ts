@@ -56,9 +56,9 @@ describe("prop near-plane and size cull", () => {
   const ends = segmentEnds();
   const cameras: { name: string; camera: Camera }[] = [
     { name: "START", camera: framedCamera("START", 0) },
-    { name: "STRAIGHT_EARLY", camera: framedCamera("STRAIGHT", ends.pocketEnd + 0.04) },
-    { name: "CORNER", camera: framedCamera("CORNER_IN", ends.backStraightEnd + 0.02) },
-    { name: "HOME", camera: framedCamera("STRAIGHT", ends.cornerEnd + 0.02) },
+    { name: "STRAIGHT_EARLY", camera: framedCamera("STRAIGHT", ends.corner12Exit + 0.04) },
+    { name: "CORNER", camera: framedCamera("CORNER_IN", ends.backEnd + 0.02) },
+    { name: "HOME", camera: framedCamera("STRAIGHT", ends.corner34Exit + 0.02) },
     { name: "FINISH", camera: framedCamera("FINISH", 0.98) },
   ];
 

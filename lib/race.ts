@@ -100,9 +100,14 @@ export type RaceResult = {
 };
 
 const STAT_KEYS = ["start", "accel", "stamina", "corner", "mental", "luck"] as const;
+/**
+ * Neutral progress per second. The lap grew from ~120 m to 222 m (~1.85×),
+ * so the same progress rate is already ~1.85× in meters and still finishes near 40 s.
+ */
 const BASE_SPEED = 1 / 40.2;
 const ENDS = segmentEnds();
-const START_SEGMENT = ENDS.pocketEnd;
+/** Start skills still land in the chute, not across the whole early section. */
+const START_SEGMENT = ENDS.chuteEnd;
 
 type Runner = {
   input: HorseInput;
@@ -280,7 +285,7 @@ function applySkill(runners: Runner[], runner: Runner) {
     hit = onBend;
     if (hit) {
       const from = runner.progress;
-      const to = Math.max(from + 0.012, Math.min(0.97, ENDS.cornerEnd));
+      const to = Math.max(from + 0.012, Math.min(0.97, activeCornerEnd(from)));
       runner.cutFrom = from;
       runner.cutTo = to;
       runner.cutUntil = runner.skillTime + cutDuration(from, to, runner.number, speedAt(runner.stats, from));
@@ -350,16 +355,20 @@ function cutDuration(from: number, to: number, lane: number, progressSpeed: numb
   return Math.max(0.55, cutLength(from, to, lane) / screenSpeed);
 }
 
+function activeCornerEnd(progress: number) {
+  return progress < ENDS.corner12Exit ? ENDS.corner12Exit : ENDS.corner34Exit;
+}
+
 function cornerRoom(progress: number) {
   if (segmentAt(progress) !== "corner") return 0;
-  return Math.max(0, ENDS.cornerEnd - progress);
+  return Math.max(0, activeCornerEnd(progress) - progress);
 }
 
 function skillReady(runner: Runner) {
   const kind = skillById(runner.input.skillId).kind;
   const segment = segmentAt(runner.progress);
   if (kind === "final-burst") return segment === "final" || runner.progress >= 0.999;
-  if (kind === "jaywalk") return cornerRoom(runner.progress) >= 0.14 || runner.progress >= ENDS.cornerEnd - 0.14;
+  if (kind === "jaywalk") return cornerRoom(runner.progress) >= 0.14 || runner.progress >= ENDS.corner12Exit - 0.14;
   if (kind === "crown") return runner.progress >= 0.6;
   return true;
 }

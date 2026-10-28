@@ -21,6 +21,7 @@ import {
   propSpriteAccepted,
   propStripAccepted,
   standLineOppositeCamera,
+  startLineQuad,
   unprojectCell,
   type Vec2,
 } from "./trackArt";
@@ -88,6 +89,7 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   const stands = makeMesh(scene, "stands-strip", DEPTH.stands);
   stands.mesh.setAlpha(1).setBlendMode(Phaser.BlendModes.NORMAL);
   const checker = makeMesh(scene, "finish-checker", DEPTH.checker);
+  const startLine = scene.add.graphics().setDepth(DEPTH.checker).setScrollFactor(0);
 
   const farLoop = ovalPolyline(farRailRadius());
   const nearLoop = ovalPolyline(nearRailRadius());
@@ -115,6 +117,7 @@ export function createTrackRenderer(scene: Phaser.Scene) {
       paintVertical(stands, standLineOppositeCamera(camera), false, STANDS_IMAGE, view.standHeightScale, camera, "inward");
     }
     paintChecker(checker, camera, view.showFinish);
+    paintStartLine(startLine, camera);
     paintProps(camera, view);
   }
 
@@ -334,6 +337,19 @@ function emitVertical(
   const i3 = pushVert(slot, br.x, br.y, u1 - base, 1);
   pushTri(slot, i0, i1, i2);
   pushTri(slot, i1, i3, i2);
+}
+
+function paintStartLine(graphics: Phaser.GameObjects.Graphics, camera: Camera) {
+  graphics.clear();
+  const box = startLineQuad();
+  const nearL = projectHeight(box.x0, box.y0, 0, camera);
+  const nearR = projectHeight(box.x1, box.y0, 0, camera);
+  const farR = projectHeight(box.x1, box.y1, 0, camera);
+  const farL = projectHeight(box.x0, box.y1, 0, camera);
+  if (!nearL.visible || !nearR.visible || !farR.visible || !farL.visible) return;
+  graphics.fillStyle(0xfff6d0, 0.95);
+  graphics.fillTriangle(nearL.x, nearL.y, nearR.x, nearR.y, farR.x, farR.y);
+  graphics.fillTriangle(nearL.x, nearL.y, farR.x, farR.y, farL.x, farL.y);
 }
 
 function paintChecker(slot: MeshSlot, camera: Camera, show: boolean) {

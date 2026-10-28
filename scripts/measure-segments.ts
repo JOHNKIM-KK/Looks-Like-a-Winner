@@ -12,22 +12,21 @@ const total = referenceDistance();
 
 console.log(`\n=== 트랙 구간 정의 ===`);
 console.log(`기준거리: ${total.toFixed(2)}`);
-console.log(`포켓 끝: ${(ends.pocketEnd * 100).toFixed(2)}%`);
-console.log(`맞은편 직선 끝: ${(ends.backStraightEnd * 100).toFixed(2)}%`);
-console.log(`코너 끝: ${(ends.cornerEnd * 100).toFixed(2)}%`);
+console.log(`슈트 끝: ${(ends.chuteEnd * 100).toFixed(2)}%`);
+console.log(`1·2코너 입구: ${(ends.corner12Entry * 100).toFixed(2)}%`);
+console.log(`1·2코너 출구: ${(ends.corner12Exit * 100).toFixed(2)}%`);
+console.log(`맞은편 끝: ${(ends.backEnd * 100).toFixed(2)}%`);
+console.log(`3·4코너 출구: ${(ends.corner34Exit * 100).toFixed(2)}%`);
 console.log(`\n구간 길이:`);
-console.log(`  포켓: ${((ends.pocketEnd) * 100).toFixed(2)}%`);
-console.log(`  맞은편 직선: ${((ends.backStraightEnd - ends.pocketEnd) * 100).toFixed(2)}%`);
-console.log(`  포켓+맞은편: ${((ends.backStraightEnd) * 100).toFixed(2)}%`);
-console.log(`  코너: ${((ends.cornerEnd - ends.backStraightEnd) * 100).toFixed(2)}%`);
-console.log(`  홈 직선: ${((1 - ends.cornerEnd) * 100).toFixed(2)}%`);
+console.log(`  초반: ${(ends.corner12Exit * 100).toFixed(2)}%`);
+console.log(`  중반: ${((ends.corner34Exit - ends.corner12Exit) * 100).toFixed(2)}%`);
+console.log(`  막판: ${((1 - ends.corner34Exit) * 100).toFixed(2)}%`);
 
 const allFinishTimes: number[] = [];
-const segmentTimes: { pocket: number[]; back: number[]; corner: number[]; home: number[] } = {
-  pocket: [],
-  back: [],
-  corner: [],
-  home: [],
+const segmentTimes: { early: number[]; mid: number[]; late: number[] } = {
+  early: [],
+  mid: [],
+  late: [],
 };
 
 for (const seed of seeds) {
@@ -36,28 +35,24 @@ for (const seed of seeds) {
   for (const horse of result.horses) {
     allFinishTimes.push(horse.finishTime);
     
-    let pocketTime = 0;
-    let backTime = 0;
-    let cornerTime = 0;
-    let homeTime = 0;
-    
+    let earlyTime = 0;
+    let midTime = 0;
+    let lateTime = 0;
+
     for (let i = 0; i < horse.samples.length; i++) {
-      const progress = horse.samples[i];
-      if (progress < ends.pocketEnd) {
-        pocketTime += 0.1;
-      } else if (progress < ends.backStraightEnd) {
-        backTime += 0.1;
-      } else if (progress < ends.cornerEnd) {
-        cornerTime += 0.1;
+      const progress = horse.samples[i] ?? 0;
+      if (progress < ends.corner12Exit) {
+        earlyTime += 0.1;
+      } else if (progress < ends.corner34Exit) {
+        midTime += 0.1;
       } else if (progress < 1.0) {
-        homeTime += 0.1;
+        lateTime += 0.1;
       }
     }
-    
-    segmentTimes.pocket.push(pocketTime);
-    segmentTimes.back.push(backTime);
-    segmentTimes.corner.push(cornerTime);
-    segmentTimes.home.push(homeTime);
+
+    segmentTimes.early.push(earlyTime);
+    segmentTimes.mid.push(midTime);
+    segmentTimes.late.push(lateTime);
   }
 }
 
@@ -73,17 +68,14 @@ console.log(`평균: ${mean.toFixed(3)}초`);
 console.log(`p5: ${p5.toFixed(3)}초`);
 console.log(`p95: ${p95.toFixed(3)}초`);
 
-const avgPocket = segmentTimes.pocket.reduce((a, b) => a + b, 0) / segmentTimes.pocket.length;
-const avgBack = segmentTimes.back.reduce((a, b) => a + b, 0) / segmentTimes.back.length;
-const avgCorner = segmentTimes.corner.reduce((a, b) => a + b, 0) / segmentTimes.corner.length;
-const avgHome = segmentTimes.home.reduce((a, b) => a + b, 0) / segmentTimes.home.length;
+const avgEarly = segmentTimes.early.reduce((a, b) => a + b, 0) / segmentTimes.early.length;
+const avgMid = segmentTimes.mid.reduce((a, b) => a + b, 0) / segmentTimes.mid.length;
+const avgLate = segmentTimes.late.reduce((a, b) => a + b, 0) / segmentTimes.late.length;
 
 console.log(`\n=== 구간별 평균 통과 시간 ===`);
-console.log(`포켓: ${avgPocket.toFixed(2)}초 (${((avgPocket / mean) * 100).toFixed(1)}%)`);
-console.log(`맞은편 직선: ${avgBack.toFixed(2)}초 (${((avgBack / mean) * 100).toFixed(1)}%)`);
-console.log(`포켓+맞은편: ${(avgPocket + avgBack).toFixed(2)}초 (${(((avgPocket + avgBack) / mean) * 100).toFixed(1)}%)`);
-console.log(`코너: ${avgCorner.toFixed(2)}초 (${((avgCorner / mean) * 100).toFixed(1)}%)`);
-console.log(`홈 직선: ${avgHome.toFixed(2)}초 (${((avgHome / mean) * 100).toFixed(1)}%)`);
+console.log(`초반: ${avgEarly.toFixed(2)}초 (${((avgEarly / mean) * 100).toFixed(1)}%)`);
+console.log(`중반: ${avgMid.toFixed(2)}초 (${((avgMid / mean) * 100).toFixed(1)}%)`);
+console.log(`막판: ${avgLate.toFixed(2)}초 (${((avgLate / mean) * 100).toFixed(1)}%)`);
 
 const winCounts = new Map<string, number>();
 for (const seed of seeds) {

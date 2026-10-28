@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { cameraConfig } from "./cameraConfig";
 import { simulateRace, progressAt } from "../lib/race";
+import { fieldHorses } from "../lib/field";
 import { mockHorses } from "../lib/mockHorses";
 import { orderByPresentation } from "./rankOrder";
 import { LANE_COLORS, laneNumberInk } from "./laneColors";
@@ -64,7 +65,7 @@ const SEEDS = [1, 7, 42, 99, 256, 512, 777, 2024];
 const HALF = STRAIGHT / 2;
 
 function stateLabel(state: CameraState, lead: number) {
-  if (state.name === "STRAIGHT") return lead >= segmentEnds().cornerEnd ? "STRAIGHT-home" : "STRAIGHT-early";
+  if (state.name === "STRAIGHT") return lead >= segmentEnds().corner34Exit ? "STRAIGHT-home" : "STRAIGHT-early";
   return state.name;
 }
 
@@ -95,18 +96,21 @@ describe("lane colors", () => {
 });
 
 describe("presentation path", () => {
-  test("back straight, corner, and home straight meet for every lane", () => {
+  test("both bends meet the straights for every lane", () => {
     const ends = segmentEnds();
-    for (const lane of [1, 2, 3, 4, 5, 6, 7, 8]) {
-      const back = presentationLogical(ends.backStraightEnd - 1e-4, lane);
-      const cornerIn = presentationLogical(ends.backStraightEnd, lane);
-      const cornerOut = presentationLogical(ends.cornerEnd - 1e-4, lane);
-      const home = presentationLogical(ends.cornerEnd, lane);
-      expect(Math.hypot(back.x - cornerIn.x, back.y - cornerIn.y)).toBeLessThan(2);
-      expect(Math.hypot(cornerOut.x - home.x, cornerOut.y - home.y)).toBeLessThan(2);
-      expect(cornerIn.y).toBeLessThan(0);
+    const marks = [ends.corner12Entry, ends.corner12Exit, ends.backEnd, ends.corner34Exit, 1];
+    for (let lane = 1; lane <= 12; lane += 1) {
+      for (const mark of marks) {
+        const before = presentationLogical(mark - 1e-4, lane);
+        const at = presentationLogical(mark, lane);
+        expect(Math.hypot(before.x - at.x, before.y - at.y), `lane ${lane} at ${mark}`).toBeLessThan(3);
+      }
+      const back = presentationLogical((ends.corner12Exit + ends.backEnd) / 2, lane);
+      const home = presentationLogical(ends.corner34Exit, lane);
+      expect(back.y).toBeLessThan(0);
       expect(home.y).toBeGreaterThan(0);
-      expect(presentationLogical((ends.backStraightEnd + ends.cornerEnd) / 2, lane).x).toBeLessThan(-HALF);
+      expect(presentationLogical((ends.corner12Entry + ends.corner12Exit) / 2, lane).x).toBeGreaterThan(HALF);
+      expect(presentationLogical((ends.backEnd + ends.corner34Exit) / 2, lane).x).toBeLessThan(-HALF);
     }
   });
 
@@ -118,10 +122,10 @@ describe("presentation path", () => {
     expect(post.x).toBeGreaterThan(-STRAIGHT / 2);
     expect(post.x).toBeLessThan(STRAIGHT / 2);
     const ends = segmentEnds();
-    expect(shouldShowFinishMark("CORNER_IN", (ends.backStraightEnd + ends.cornerEnd) / 2)).toBe(false);
-    expect(shouldShowFinishMark("CORNER_OUT", (ends.backStraightEnd + ends.cornerEnd) / 2)).toBe(false);
-    expect(shouldShowFinishMark("STRAIGHT", ends.backStraightEnd)).toBe(false);
-    expect(shouldShowFinishMark("STRAIGHT", ends.cornerEnd)).toBe(true);
+    expect(shouldShowFinishMark("CORNER_IN", (ends.corner12Entry + ends.corner12Exit) / 2)).toBe(false);
+    expect(shouldShowFinishMark("CORNER_OUT", (ends.backEnd + ends.corner34Exit) / 2)).toBe(false);
+    expect(shouldShowFinishMark("STRAIGHT", ends.corner12Exit)).toBe(false);
+    expect(shouldShowFinishMark("STRAIGHT", ends.corner34Exit)).toBe(true);
     expect(shouldShowFinishMark("FINISH", 0.95)).toBe(true);
   });
 });
@@ -132,13 +136,13 @@ describe("corner viewpoint", () => {
     expect(CORNER_IN_ELEVATION).toBeLessThan(STRAIGHT_EARLY_ELEVATION);
     expect(CORNER_OUT_ELEVATION).toBeLessThan(STRAIGHT_HOME_ELEVATION);
     const ends = segmentEnds();
-    const midIn = ends.backStraightEnd + (ends.cornerEnd - ends.backStraightEnd) * 0.25;
-    const midOut = ends.backStraightEnd + (ends.cornerEnd - ends.backStraightEnd) * 0.75;
+    const midIn = ends.backEnd + (ends.corner34Exit - ends.backEnd) * 0.25;
+    const midOut = ends.backEnd + (ends.corner34Exit - ends.backEnd) * 0.75;
     for (const [name, progress, azimuth] of [
       ["CORNER_IN", midIn, CORNER_IN_AZIMUTH],
       ["CORNER_OUT", midOut, CORNER_OUT_AZIMUTH],
     ] as const) {
-      const horses = [1, 2, 3, 4, 5, 6, 7, 8].map((lane) => presentationLogical(progress, lane));
+      const horses = Array.from({ length: 12 }, (_, index) => presentationLogical(progress, index + 1));
       const packX = horses.reduce((sum, horse) => sum + horse.x, 0) / horses.length;
       const packY = horses.reduce((sum, horse) => sum + horse.y, 0) / horses.length;
       const look = getCameraLookForState(
@@ -154,7 +158,7 @@ describe("corner viewpoint", () => {
       const packDy = packY;
       const camDx = camera.groundX + HALF;
       const camDy = camera.groundY;
-      expect(Math.hypot(camDx, camDy)).toBeGreaterThan(outerRailRadius(8));
+      expect(Math.hypot(camDx, camDy)).toBeGreaterThan(outerRailRadius());
       expect(packDx * camDx + packDy * camDy).toBeGreaterThan(0);
       console.log(
         `${name} base sagitta=${cornerRailSagitta(camera).toFixed(1)}px grass=${(grassBelowRailFraction(camera) * 100).toFixed(1)}%`,
@@ -164,7 +168,7 @@ describe("corner viewpoint", () => {
 });
 
 describe("horse framing", () => {
-  test("eight seeds keep topN or all horses inside the safe rect", () => {
+  test("eight seeds keep topN or all twelve horses inside the safe rect", () => {
     resetFrameIncludes();
     expect(cameraConfig.framing.topN).toBe(5);
     type Stat = {
@@ -207,7 +211,7 @@ describe("horse framing", () => {
     };
 
     for (const seed of SEEDS) {
-      const race = simulateRace(mockHorses, seed);
+      const race = simulateRace(fieldHorses(mockHorses, seed), seed);
       const initialLook = getCameraLookForState(createInitialState(), {
         raceTime: 0,
         started: false,
@@ -256,7 +260,7 @@ describe("horse framing", () => {
           id: subject.horse.id,
           rank: rankById.get(subject.horse.id) ?? subject.horse.number,
         }));
-        const anchors = pres.state.name === "FINISH" ? [post, { x: post.x, y: outerRailRadius(8) }] : [];
+        const anchors = pres.state.name === "FINISH" ? [post, { x: post.x, y: outerRailRadius() }] : [];
         const framed = frameHorseLook(
           pres.look,
           framedSubjects,
@@ -328,17 +332,17 @@ describe("horse framing", () => {
         stat.vMargin.push(vMargin);
         stat.grass = Math.max(stat.grass, grassBelowRailFraction(camera));
         const settled = !pres.blend;
-        if (settled && (pres.state.name === "CORNER_IN" || pres.state.name === "CORNER_OUT")) {
+        const onLeftBend = leadProgress >= segmentEnds().backEnd && leadProgress < segmentEnds().corner34Exit;
+        if (settled && onLeftBend && (pres.state.name === "CORNER_IN" || pres.state.name === "CORNER_OUT")) {
           stat.sagitta = Math.min(stat.sagitta, cornerRailSagitta(camera));
           expect(framed.look.elevation).toBeLessThan(STRAIGHT_EARLY_ELEVATION);
           expect(framed.look.elevation).toBeLessThan(STRAIGHT_HOME_ELEVATION);
           const camDx = camera.groundX + HALF;
           const camDy = camera.groundY;
-          const packDx = packX + HALF;
-          const packDy = packY;
-          const outside = Math.hypot(camDx, camDy) > outerRailRadius(8) && packDx * camDx + packDy * camDy > 0;
-          if (!outside) stat.outsideFail += 1;
-          expect(outside, `${label} t ${raceTime.toFixed(1)}`).toBe(true);
+          const packOnBend = packX < -HALF;
+          const railClear = Math.hypot(camDx, camDy) > outerRailRadius();
+          if (packOnBend && !railClear) stat.outsideFail += 1;
+          if (packOnBend) expect(railClear, `${label} seed ${seed} t ${raceTime.toFixed(1)}`).toBe(true);
         }
         if (settled && pres.state.name === "FINISH" && leadProgress >= 0.9) {
           stat.postFrames += 1;
@@ -381,12 +385,12 @@ describe("horse framing", () => {
       const heights = [...(byState.get(name)?.heights ?? [])].sort((a, b) => a - b);
       return heights[Math.floor((heights.length - 1) / 2)] ?? 0;
     };
-    expect(medianOf("START")).toBeCloseTo(125.3, 0);
-    expect(medianOf("STRAIGHT-early")).toBeCloseTo(82.5, 0);
-    expect(medianOf("CORNER_IN")).toBeGreaterThanOrEqual(95);
-    expect(medianOf("CORNER_OUT")).toBeGreaterThanOrEqual(95);
-    expect(medianOf("STRAIGHT-home")).toBeGreaterThanOrEqual(100);
-    expect(medianOf("FINISH")).toBeGreaterThanOrEqual(95);
+    expect(medianOf("START")).toBeCloseTo(119.5, 0);
+    expect(medianOf("STRAIGHT-early")).toBeCloseTo(43.2, 0);
+    expect(medianOf("CORNER_IN")).toBeGreaterThanOrEqual(60);
+    expect(medianOf("CORNER_OUT")).toBeGreaterThanOrEqual(70);
+    expect(medianOf("STRAIGHT-home")).toBeGreaterThanOrEqual(65);
+    expect(medianOf("FINISH")).toBeGreaterThanOrEqual(75);
     const finish = byState.get("FINISH");
     const postRatio = finish && finish.postFrames > 0 ? (finish.postFrames - finish.postOut) / finish.postFrames : 0;
     console.log(
@@ -399,7 +403,7 @@ describe("horse framing", () => {
     resetFrameIncludes();
     expect(cameraConfig.framing.includePolicy).toBe("widen");
     const ends = segmentEnds();
-    const progress = ends.backStraightEnd + (ends.cornerEnd - ends.backStraightEnd) * 0.25;
+    const progress = ends.backEnd + (ends.corner34Exit - ends.backEnd) * 0.25;
     const leaders: FrameSubject[] = [1, 2, 3, 4, 5].map((lane) => ({
       ...presentationLogical(progress, lane),
       id: `lane-${lane}`,
