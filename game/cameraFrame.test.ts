@@ -36,7 +36,10 @@ import {
   frameHorseLook,
   framingRuleFor,
   grassBelowRailFraction,
+  groundAt,
+  horizonScreenY,
   horseFit,
+  skyStripBottomY,
   requestFrameInclude,
   requiredFrameSubjects,
   resetFrameIncludes,
@@ -490,5 +493,23 @@ describe("horse framing", () => {
       expect(rect.minY, `lane ${horse.rank} top`).toBeGreaterThanOrEqual(FRAME_TOP - 0.6);
       expect(rect.maxY, `lane ${horse.rank} bottom`).toBeLessThanOrEqual(FRAME_BOTTOM + 0.6);
     }
+  });
+});
+
+describe("sky horizon", () => {
+  test("the strip bottom is 24px under the projected vanishing line", () => {
+    const camera = cameraFromLook({
+      targetX: 0,
+      targetY: 0,
+      distance: 520,
+      azimuth: 32,
+      elevation: 20,
+      focalLength: 1100,
+    });
+    const horizon = horizonScreenY(camera);
+    expect(horizon).toBeCloseTo(555 - camera.focalLength * Math.tan(camera.pitch), 6);
+    expect(skyStripBottomY(camera)).toBeCloseTo(horizon + 24, 6);
+    expect(groundAt(camera, 270, horizon - 4).ok).toBe(false);
+    expect(groundAt(camera, 270, horizon + 8).ok).toBe(true);
   });
 });

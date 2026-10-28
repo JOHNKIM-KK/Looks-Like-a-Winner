@@ -342,7 +342,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       this.load.image("ground-turf", "/track/v2/ground_turf.webp");
       this.load.image("ground-dirt", "/track/v2/ground_dirt.webp");
       this.load.image("rail-segment", "/track/v2/rail_segment.png");
-      this.load.image("stands-strip", "/track/v2/stands_strip.png");
+      this.load.image("sky", "/track/v2/sky_strip.webp");
+      this.load.image("stands-strip", "/track/v2/stands_strip_v4.webp");
       this.load.image("trees-strip", "/track/v2/trees_strip.png");
       this.load.image("prop-distance", "/track/props/distance_post.webp");
       this.load.image("prop-finish", "/track/props/finish_post.webp");
