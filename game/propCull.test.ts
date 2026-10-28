@@ -6,6 +6,7 @@ import { presentationLogical, segmentEnds, type Camera } from "./track";
 import {
   PROP_NEAR_PLANE,
   cameraSpaceDepth,
+  TREE_MAX_HEIGHT_FRAC,
   propMaxScreenPx,
   propSpriteAccepted,
   propStripAccepted,
@@ -92,6 +93,7 @@ describe("prop near-plane and size cull", () => {
 
   it("keeps every accepted prop inside the near plane and the on-screen cap", () => {
     const cap = propMaxScreenPx();
+    const treeCap = propMaxScreenPx(TREE_MAX_HEIGHT_FRAC);
     for (const { camera } of cameras) {
       for (const line of straightTreeLines()) {
         for (const segment of segments(line.points)) {
@@ -102,7 +104,7 @@ describe("prop near-plane and size cull", () => {
             (camera.focalLength * TREE_ABOVE) / cameraSpaceDepth(camera, segment.from.x, segment.from.y, 0),
             (camera.focalLength * TREE_ABOVE) / cameraSpaceDepth(camera, segment.to.x, segment.to.y, 0),
           );
-          expect(screen).toBeLessThanOrEqual(cap + 0.01);
+          expect(screen).toBeLessThanOrEqual(treeCap + 0.01);
         }
       }
       for (const segment of segments(standLineOppositeCamera(camera))) {

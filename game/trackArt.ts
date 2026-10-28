@@ -54,17 +54,19 @@ export function projectHeight(x: number, y: number, z: number, camera: Camera): 
 }
 
 /**
- * Props (trees, stands, posts) may not fill the lens.
- * Anything taller than this fraction of the view is close enough to hide the track.
+ * Props may not fill the lens.
+ * Stands sit across the infield, so they may read as a large background.
+ * Trees stand between the camera and the track, so their cap is lower.
  */
 export const PROP_MAX_HEIGHT_FRAC = 0.62;
+export const TREE_MAX_HEIGHT_FRAC = 0.34;
 /** A prop wider than the view is in front of the lens. */
 export const PROP_MAX_WIDTH_FRAC = 1;
 /** Same near plane as `projectWithCamera`. Points closer than this are behind the picture. */
 export const PROP_NEAR_PLANE = 10;
 
-export function propMaxScreenPx() {
-  return PROP_MAX_HEIGHT_FRAC * GAME_HEIGHT;
+export function propMaxScreenPx(frac = PROP_MAX_HEIGHT_FRAC) {
+  return frac * GAME_HEIGHT;
 }
 
 export function cameraSpaceDepth(camera: Camera, x: number, y: number, z = 0) {
@@ -113,7 +115,7 @@ export function propSpriteAccepted(camera: Camera, x: number, y: number, heightL
   const depth = cameraSpaceDepth(camera, x, y, 0);
   if (depth < PROP_NEAR_PLANE) return false;
   const screen = (camera.focalLength * Math.max(0, heightLu)) / Math.max(depth, 1);
-  return screen <= propMaxScreenPx();
+  return screen <= propMaxScreenPx(PROP_MAX_HEIGHT_FRAC);
 }
 
 /**
@@ -130,6 +132,10 @@ export function propStripAccepted(
 ) {
   if (!segmentFacesCamera(from, to, camera, face)) return false;
   const height = above + below;
+  const cap = propMaxScreenPx(face === "outward" ? TREE_MAX_HEIGHT_FRAC : PROP_MAX_HEIGHT_FRAC);
+  const limit = (camera.focalLength * Math.max(0, height)) / cap;
+  if (cameraSpaceDepth(camera, from.x, from.y, 0) < limit) return false;
+  if (cameraSpaceDepth(camera, to.x, to.y, 0) < limit) return false;
   if (!propSpriteAccepted(camera, from.x, from.y, height)) return false;
   if (!propSpriteAccepted(camera, to.x, to.y, height)) return false;
   const corners = [
@@ -143,7 +149,7 @@ export function propStripAccepted(
   const bottom = Math.max(...corners.map((corner) => corner.y));
   const left = Math.min(...corners.map((corner) => corner.x));
   const right = Math.max(...corners.map((corner) => corner.x));
-  if (bottom - top > propMaxScreenPx()) return false;
+  if (bottom - top > propMaxScreenPx(face === "outward" ? TREE_MAX_HEIGHT_FRAC : PROP_MAX_HEIGHT_FRAC)) return false;
   if (right - left > GAME_WIDTH * PROP_MAX_WIDTH_FRAC) return false;
   return true;
 }
