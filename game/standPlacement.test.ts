@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { LOGICAL_PER_METER, STANDS_BEHIND_OUTER_M, nearRailRadius } from "./artScale";
-import { standLineOppositeCamera } from "./trackArt";
-import { STRAIGHT } from "./track";
-import type { Camera } from "./track";
+import { standLineFacingFinish, standLineOppositeCamera } from "./trackArt";
+import { STRAIGHT, finishGoalX, type Camera } from "./track";
 
 /** True when a point is outside the outermost rail, including the bends. */
 function outsideOuterRail(x: number, y: number) {
@@ -44,6 +43,18 @@ describe("stands opposite the camera", () => {
     }
     for (const point of backSide) {
       expect(outsideOuterRail(point.x, point.y)).toBe(true);
+    }
+  });
+
+  it("puts the grandstand across the infield, looking toward the finish", () => {
+    const line = standLineFacingFinish();
+    const straight = line.filter((point) => Math.abs(point.x) <= STRAIGHT / 2);
+    expect(straight.length).toBeGreaterThan(2);
+    const finish = { x: finishGoalX(), y: nearRailRadius() };
+    for (const point of straight) {
+      expect(point.y).toBeLessThan(-nearRailRadius());
+      const towardFinishY = finish.y - point.y;
+      expect(towardFinishY).toBeGreaterThan(0);
     }
   });
 });

@@ -286,7 +286,20 @@ export function standLineOppositeCamera(camera: Camera): Vec2[] {
   ]);
 }
 
-/** Thin placeholder across the gate. The real gate arrives in a later pass. */
+/**
+ * Grandstand on the back straight. Its inward face points across the infield
+ * at the home straight, so the crowd looks toward the finish line.
+ */
+export function standLineFacingFinish(): Vec2[] {
+  const outside = standRadius();
+  return joinStrips([
+    bendArc(-HALF, outside, Math.PI, Math.PI * 1.5),
+    straightSegment(-HALF, HALF, -outside),
+    bendArc(HALF, outside, -Math.PI / 2, 0),
+  ]);
+}
+
+/** Ground stripe the start gate used to cover. The gate mesh paints the stalls now. */
 export function startLineQuad() {
   const depth = 0.35 * LOGICAL_PER_METER;
   const x = -HALF - CHUTE;
