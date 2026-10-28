@@ -7,6 +7,7 @@ import type { FrameSubject } from "./cameraFrame";
 import {
   PROP_NEAR_PLANE,
   cameraSpaceDepth,
+  TREE_MAX_HEIGHT_FRAC,
   propMaxScreenPx,
   propStripAccepted,
   standLineOppositeCamera,
@@ -71,6 +72,7 @@ describe("props stay out of the lens through the intro", () => {
 
   it("keeps every accepted prop behind the near plane and under the size cap", () => {
     const cap = propMaxScreenPx();
+    const treeCap = propMaxScreenPx(TREE_MAX_HEIGHT_FRAC);
     for (const camera of cameras) {
       let stands = 0;
       for (const segment of segments(standLineOppositeCamera(camera))) {
@@ -86,7 +88,7 @@ describe("props stay out of the lens through the intro", () => {
           if (!propStripAccepted(camera, segment.from, segment.to, TREE_ABOVE, 0, "outward")) continue;
           const depth = cameraSpaceDepth(camera, segment.from.x, segment.from.y, 0);
           expect(depth).toBeGreaterThanOrEqual(PROP_NEAR_PLANE);
-          expect((camera.focalLength * TREE_ABOVE) / depth).toBeLessThanOrEqual(cap + 0.01);
+          expect((camera.focalLength * TREE_ABOVE) / depth).toBeLessThanOrEqual(treeCap + 0.01);
         }
       }
     }
