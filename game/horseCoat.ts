@@ -7,6 +7,7 @@ import {
   shadowColorRgb,
   shadowLayout,
   tintHorsePixels,
+  tintJockeyPixels,
   type AngleSetName,
 } from "./horseVisual";
 import { RIDE_ANGLES } from "./jockeyRide";
@@ -20,6 +21,8 @@ type SheetPixels = {
 
 export type HorseCoatLibrary = {
   bakedKey(set: AngleSetName, angleIndex: number, lane: number): string;
+  /** Saddle cloth and number plate, unshaded, so farShade does not darken them. */
+  marksKey(set: AngleSetName, angleIndex: number, lane: number): string;
   rideKey(set: AngleSetName, angleIndex: number, lane: number): string;
   shadowKey(set: AngleSetName, angleIndex: number, frame: number, flip: boolean): string;
   shadowOrigin(set: AngleSetName, angleIndex: number): { x: number; y: number };
@@ -69,6 +72,34 @@ export function createHorseCoatLibrary(scene: Phaser.Scene): HorseCoatLibrary {
     return key;
   }
 
+  function marksKey(set: AngleSetName, angleIndex: number, lane: number) {
+    const key = `horse-marks-${set}-${angleIndex}-l${lane}`;
+    if (scene.textures.exists(key)) return key;
+    const angle = HORSE_ANGLES[set][angleIndex];
+    const source = pixelsFor(set, angleIndex);
+    if (!angle || !source) return key;
+    const canvas = document.createElement("canvas");
+    canvas.width = source.width;
+    canvas.height = source.height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return key;
+    const out = new Uint8ClampedArray(source.color.length);
+    tintHorsePixels(source.color, source.mask, laneRgb(lane), out);
+    for (let i = 0; i < out.length; i += 4) {
+      const cloth = source.mask[i + 1] ?? 0;
+      const plate = source.mask[i + 2] ?? 0;
+      if (cloth < 16 && plate < 16) out[i + 3] = 0;
+    }
+    context.putImageData(new ImageData(out, source.width, source.height), 0, 0);
+    const texture = scene.textures.addCanvas(key, canvas);
+    if (texture) {
+      for (let frame = 0; frame < HORSE_FRAMES; frame += 1) {
+        texture.add(frame, 0, frame * angle.frameW, 0, angle.frameW, angle.frameH);
+      }
+    }
+    return key;
+  }
+
   function ridePixels(set: AngleSetName, index: number): SheetPixels | null {
     const key = `ride-${set}-${index}`;
     const cached = sheets.get(key);
@@ -99,7 +130,7 @@ export function createHorseCoatLibrary(scene: Phaser.Scene): HorseCoatLibrary {
     const context = canvas.getContext("2d", { willReadFrequently: true });
     if (!context) return key;
     const out = new Uint8ClampedArray(source.color.length);
-    tintHorsePixels(source.color, source.mask, laneRgb(lane), out);
+    tintJockeyPixels(source.color, source.mask, laneRgb(lane), out);
     context.putImageData(new ImageData(out, source.width, source.height), 0, 0);
     const texture = scene.textures.addCanvas(key, canvas);
     if (texture) {
@@ -161,7 +192,7 @@ export function createHorseCoatLibrary(scene: Phaser.Scene): HorseCoatLibrary {
     return { x: layout.groundX / layout.width, y: layout.groundY / layout.height };
   }
 
-  return { bakedKey, rideKey, shadowKey, shadowOrigin };
+  return { bakedKey, marksKey, rideKey, shadowKey, shadowOrigin };
 }
 
 function readPixels(image: CanvasImageSource, width: number, height: number) {

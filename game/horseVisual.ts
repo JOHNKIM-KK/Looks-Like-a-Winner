@@ -96,7 +96,14 @@ export function pickHorseAngle(yawDeg: number, elevationDeg: number): PickedAngl
   return { set, index: best, yawDeg: angles[best]?.yawDeg ?? 0, flip };
 }
 
+/**
+ * Gallop sheet frame whose legs sit most under the body (quarter view, index 4).
+ * There is no authored idle, so the gate holds this pose instead of a frozen stride.
+ */
+export const IDLE_FRAME = 4;
+
 export function gallopFrame(horseNumber: number, animSeconds: number, fps = HORSE_FPS) {
+  // Lanes 9–12 share the eight horse and jockey sheets. The offset wraps with them.
   const offset = START_FRAME_OFFSET[(Math.max(1, horseNumber) - 1) % START_FRAME_OFFSET.length] ?? 0;
   const tick = Math.floor(Math.max(0, animSeconds) * fps);
   return (offset + tick) % HORSE_FRAMES;
@@ -152,6 +159,9 @@ export function luminance(r: number, g: number, b: number) {
   return 0.299 * r + 0.587 * g + 0.114 * b;
 }
 
+/** Jockey silks use a steeper gamma than the saddle cloth. The mask is G only. */
+export const JOCKEY_TINT_GAMMA = 1.4;
+
 /**
  * Silks (mask G): lane × (lum/185)^1.1, blended by G.
  * Number plate (mask B): lane × (lum/200), blended by B.
@@ -189,6 +199,40 @@ export function tintHorsePixels(
         og = og * (1 - maskB) + lg * gain * maskB;
         ob = ob * (1 - maskB) + lb * gain * maskB;
       }
+    }
+    out[i] = clampByte(or);
+    out[i + 1] = clampByte(og);
+    out[i + 2] = clampByte(ob);
+    out[i + 3] = a;
+  }
+}
+
+/**
+ * Riding jockey. Mask G only, lane × (lum/185)^1.4.
+ * Mask R and B stay on the color sheet until the jockey mask is repainted.
+ */
+export function tintJockeyPixels(
+  color: Uint8ClampedArray,
+  mask: Uint8ClampedArray,
+  lane: readonly [number, number, number],
+  out: Uint8ClampedArray,
+) {
+  const [lr, lg, lb] = lane;
+  const pixels = color.length;
+  for (let i = 0; i < pixels; i += 4) {
+    const r = color[i] ?? 0;
+    const g = color[i + 1] ?? 0;
+    const b = color[i + 2] ?? 0;
+    const a = color[i + 3] ?? 0;
+    const maskG = (mask[i + 1] ?? 0) / 255;
+    let or = r;
+    let og = g;
+    let ob = b;
+    if (maskG > 0 && a > 0) {
+      const gain = (luminance(r, g, b) / 185) ** JOCKEY_TINT_GAMMA;
+      or = or * (1 - maskG) + lr * gain * maskG;
+      og = og * (1 - maskG) + lg * gain * maskG;
+      ob = ob * (1 - maskG) + lb * gain * maskG;
     }
     out[i] = clampByte(or);
     out[i + 1] = clampByte(og);

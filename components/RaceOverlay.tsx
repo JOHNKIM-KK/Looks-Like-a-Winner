@@ -169,7 +169,7 @@ function Minimap({ horses }: { horses: OverlayHorse[] }) {
 function Ranking({ horses, slotMode }: { horses: OverlayHorse[]; slotMode: RankSlotMode }) {
   const band = overlayLayout.ranking;
   const podium = horses.filter((horse) => horse.place >= 1 && horse.place <= 3);
-  const chase = horses.filter((horse) => horse.place >= 4 && horse.place <= 8);
+  const chase = horses.filter((horse) => horse.place >= 4 && horse.place <= 12);
 
   return (
     <div
@@ -191,7 +191,7 @@ function Ranking({ horses, slotMode }: { horses: OverlayHorse[]; slotMode: RankS
           <RankChip key={horse.id} horse={horse} metrics={band.podium} slotMode={slotMode} />
         ))}
       </ol>
-      <ol style={{ ...rowStyle(band.chase.gap), marginTop: band.rowGap }}>
+      <ol style={{ ...rowStyle(band.chase.gap), marginTop: band.rowGap, flexWrap: "wrap" }}>
         {chase.map((horse) => (
           <RankChip key={horse.id} horse={horse} metrics={band.chase} slotMode={slotMode} />
         ))}

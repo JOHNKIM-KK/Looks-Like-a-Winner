@@ -4,61 +4,58 @@ import {
   STRIP_HEIGHT_SCALE,
   LOGICAL_PER_METER,
   RAIL_SEGMENT_M,
-  STRIP_PERIOD_M,
   distancePostProgresses,
   propSpriteScale,
 } from "./artScale";
-import { GAME_HEIGHT, GAME_WIDTH } from "./cameraFrame";
-import { STRAIGHT, finishGoalX, presentationOnRadius, type Camera } from "./track";
+import { GAME_HEIGHT, GAME_WIDTH, groundAt, skyStripBottomY } from "./cameraFrame";
+import { finishGoalX, presentationOnRadius, type Camera } from "./track";
 import {
-  cameraForward,
   chutePolyline,
   farRailRadius,
   finishCheckerQuad,
   groundUv,
   isDirt,
   nearRailRadius,
-  homeOuterStandLine,
-  offsetAlong,
   ovalPolyline,
   projectHeight,
-  treesOffsetM,
+  propSpriteAccepted,
+  propStripAccepted,
+  standLineOppositeCamera,
   unprojectCell,
   type Vec2,
 } from "./trackArt";
 
 const DEPTH = {
-  /** Behind the ground, so a strip cannot float over the infield. */
-  stands: 20,
-  trees: 22,
-  cornerTree: 25,
+  sky: 10,
   turf: 30,
   dirt: 31,
+  /** Distant ground fades toward the backdrop before the rails. */
+  fog: 32,
+  stands: 33,
   checker: 35,
   farRail: 40,
   props: 55,
   nearRail: 3500,
 } as const;
 
+const FOG_START_M = 36;
+const FOG_END_M = 170;
+
 const RAIL_IMAGE = { width: 400, height: 125, contact: 124, pxPerM: 100, periodM: RAIL_SEGMENT_M };
-const STANDS_IMAGE = { width: 600, height: 520, contact: 519, pxPerM: 50, periodM: STRIP_PERIOD_M };
-const TREES_IMAGE = { width: 600, height: 460, contact: 459, pxPerM: 50, periodM: STRIP_PERIOD_M };
+const STANDS_IMAGE = { width: 1200, height: 1166, contact: 1165, pxPerM: 100, periodM: 12 };
 
 export type TrackView = {
   showStands: boolean;
   standHeightScale: number;
   showFinish: boolean;
-  showCornerTree: boolean;
 };
 
 export function trackViewFor(stateName: string, leadProgress: number, cornerEnd: number): TrackView {
-  const corner = stateName === "CORNER_IN" || stateName === "CORNER_OUT";
   const home = stateName === "FINISH" || (stateName === "STRAIGHT" && leadProgress >= cornerEnd);
   return {
-    showStands: !corner,
+    showStands: stateName === "START" || stateName === "STRAIGHT" || stateName === "FINISH",
     standHeightScale: STRIP_HEIGHT_SCALE,
     showFinish: stateName === "FINISH" || home,
-    showCornerTree: corner,
   };
 }
 
@@ -71,17 +68,25 @@ type MeshSlot = {
 type StripImage = { height: number; contact: number; pxPerM: number; periodM: number };
 
 export function createTrackRenderer(scene: Phaser.Scene) {
-  scene.textures.get("ground-turf").setWrap(Phaser.Textures.WrapMode.REPEAT, Phaser.Textures.WrapMode.REPEAT);
+  const turfTexture = scene.textures.get("ground-turf");
+  turfTexture.setWrap(Phaser.Textures.WrapMode.REPEAT, Phaser.Textures.WrapMode.REPEAT);
+  enableTurfMipmaps(scene);
   scene.textures.get("ground-dirt").setWrap(Phaser.Textures.WrapMode.REPEAT, Phaser.Textures.WrapMode.REPEAT);
+  const skyFrame = scene.textures.get("sky").get();
+  const sky = scene.add
+    .image(GAME_WIDTH / 2, 0, "sky")
+    .setOrigin(0.5, 1)
+    .setDepth(DEPTH.sky)
+    .setScrollFactor(0)
+    .setDisplaySize(skyFrame.width, skyFrame.height);
 
   const turf = makeMesh(scene, "ground-turf", DEPTH.turf);
   const dirt = makeMesh(scene, "ground-dirt", DEPTH.dirt);
+  const fog = scene.add.graphics().setDepth(DEPTH.fog).setScrollFactor(0);
   const farRail = makeMesh(scene, "rail-segment", DEPTH.farRail);
   const nearRail = makeMesh(scene, "rail-segment", DEPTH.nearRail);
   const stands = makeMesh(scene, "stands-strip", DEPTH.stands);
   stands.mesh.setAlpha(1).setBlendMode(Phaser.BlendModes.NORMAL);
-  const standLine = homeOuterStandLine();
-  const trees = makeMesh(scene, "trees-strip", DEPTH.trees);
   const checker = makeMesh(scene, "finish-checker", DEPTH.checker);
 
   const farLoop = ovalPolyline(farRailRadius());
@@ -93,23 +98,21 @@ export function createTrackRenderer(scene: Phaser.Scene) {
     scene.add.image(0, 0, "prop-distance").setOrigin(0.5, 1).setDepth(DEPTH.props).setVisible(false),
   );
   const finishPost = scene.add.image(0, 0, "prop-finish").setOrigin(0.5, 1).setDepth(DEPTH.props).setVisible(false);
-  const cornerTree = scene.add.image(0, 0, "prop-tree").setOrigin(0.5, 1).setDepth(DEPTH.cornerTree).setVisible(false);
 
   function paint(camera: Camera, view: TrackView) {
+    sky.setPosition(GAME_WIDTH / 2, skyStripBottomY(camera));
     paintGround(camera, turf, dirt);
+    paintFog(fog, camera);
     clearSlot(farRail);
     clearSlot(nearRail);
-    paintVertical(farRail, farLoop, true, RAIL_IMAGE, 1, camera);
-    paintVertical(farRail, farChute, false, RAIL_IMAGE, 1, camera);
-    paintVertical(nearRail, nearLoop, true, RAIL_IMAGE, 1, camera);
-    paintVertical(nearRail, nearChute, false, RAIL_IMAGE, 1, camera);
+    paintVertical(farRail, farLoop, true, RAIL_IMAGE, 1, camera, null);
+    paintVertical(farRail, farChute, false, RAIL_IMAGE, 1, camera, null);
+    paintVertical(nearRail, nearLoop, true, RAIL_IMAGE, 1, camera, null);
+    paintVertical(nearRail, nearChute, false, RAIL_IMAGE, 1, camera, null);
 
-    const forward = cameraForward(camera);
-    clearSlot(trees);
     clearSlot(stands);
-    paintVertical(trees, offsetAlong(farLoop, forward, treesOffsetM()), true, TREES_IMAGE, STRIP_HEIGHT_SCALE, camera);
     if (view.showStands) {
-      paintVertical(stands, standLine, false, STANDS_IMAGE, view.standHeightScale, camera);
+      paintVertical(stands, standLineOppositeCamera(camera), false, STANDS_IMAGE, view.standHeightScale, camera, "inward");
     }
     paintChecker(checker, camera, view.showFinish);
     paintProps(camera, view);
@@ -128,15 +131,94 @@ export function createTrackRenderer(scene: Phaser.Scene) {
     } else {
       finishPost.setVisible(false);
     }
-    if (view.showCornerTree) {
-      const far = farRailRadius();
-      placeProp(cornerTree, -STRAIGHT / 2 - far * 0.55, 0, camera, GROUND_PX_PER_M);
-    } else {
-      cornerTree.setVisible(false);
-    }
   }
 
   return { paint };
+}
+
+function splitGround(
+  camera: Camera,
+  turf: MeshSlot,
+  dirt: MeshSlot,
+  sx0: number,
+  sy0: number,
+  sx1: number,
+  sy1: number,
+  depth: number,
+) {
+  const mx = (sx0 + sx1) / 2;
+  const my = (sy0 + sy1) / 2;
+  emitGround(camera, turf, dirt, sx0, sy0, mx, my, depth + 1);
+  emitGround(camera, turf, dirt, mx, sy0, sx1, my, depth + 1);
+  emitGround(camera, turf, dirt, sx0, my, mx, sy1, depth + 1);
+  emitGround(camera, turf, dirt, mx, my, sx1, sy1, depth + 1);
+}
+
+/** A screen cell that touches both sky and ground, so it should be split down to the horizon. */
+function crossesHorizon(camera: Camera, sx0: number, sy0: number, sx1: number, sy1: number) {
+  const corners = [
+    groundAt(camera, sx0, sy0),
+    groundAt(camera, sx1, sy0),
+    groundAt(camera, sx0, sy1),
+    groundAt(camera, sx1, sy1),
+  ];
+  const hits = corners.filter((corner) => corner.ok).length;
+  return hits > 0 && hits < 4;
+}
+
+function paintFog(fog: Phaser.GameObjects.Graphics, camera: Camera) {
+  fog.clear();
+  const bands = 16;
+  const bandH = GAME_HEIGHT / bands;
+  for (let index = 0; index < bands; index += 1) {
+    const sy = bandH * index + bandH / 2;
+    const distance = rowDistance(camera, sy);
+    if (distance == null) continue;
+    const amount = fogAmount(distance);
+    if (amount < 0.02) continue;
+    fog.fillStyle(0x3f4630, amount);
+    fog.fillRect(0, bandH * index, GAME_WIDTH, bandH + 0.5);
+  }
+}
+
+function rowDistance(camera: Camera, sy: number) {
+  let sum = 0;
+  let count = 0;
+  for (const sx of [GAME_WIDTH * 0.2, GAME_WIDTH * 0.5, GAME_WIDTH * 0.8]) {
+    const ground = groundAt(camera, sx, sy);
+    if (!ground.ok) continue;
+    sum += Math.hypot(ground.x - camera.groundX, ground.y - camera.groundY);
+    count += 1;
+  }
+  if (count === 0) return null;
+  return sum / count;
+}
+
+function fogAmount(distanceLu: number) {
+  const meters = distanceLu / LOGICAL_PER_METER;
+  const t = (meters - FOG_START_M) / (FOG_END_M - FOG_START_M);
+  const clamped = Math.max(0, Math.min(1, t));
+  return clamped * clamped * (3 - 2 * clamped);
+}
+
+/** Turf is 512². Minification uses mipmaps so the far ground does not shimmer. */
+function enableTurfMipmaps(scene: Phaser.Scene) {
+  const source = scene.textures.get("ground-turf").source[0];
+  const glTexture = source?.glTexture;
+  const renderer = scene.game.renderer;
+  if (!glTexture || !("gl" in renderer) || !renderer.gl) return;
+  const gl = renderer.gl;
+  glTexture.update(
+    glTexture.pixels ?? undefined,
+    glTexture.width,
+    glTexture.height,
+    glTexture.flipY,
+    glTexture.wrapS,
+    glTexture.wrapT,
+    gl.LINEAR_MIPMAP_LINEAR,
+    gl.LINEAR,
+    glTexture.format,
+  );
 }
 
 function paintGround(camera: Camera, turf: MeshSlot, dirt: MeshSlot) {
@@ -164,18 +246,18 @@ function emitGround(
   depth: number,
 ) {
   const cell = unprojectCell(camera, sx0, sy0, sx1, sy1);
-  if (!cell) return;
-  const straddles = cell.corners.some((corner) => isDirt(corner.x, corner.y)) && cell.corners.some((corner) => !isDirt(corner.x, corner.y));
-  if ((cell.spanM > 8 || straddles) && depth < 3 && sx1 - sx0 > 4) {
-    const mx = (sx0 + sx1) / 2;
-    const my = (sy0 + sy1) / 2;
-    emitGround(camera, turf, dirt, sx0, sy0, mx, my, depth + 1);
-    emitGround(camera, turf, dirt, mx, sy0, sx1, my, depth + 1);
-    emitGround(camera, turf, dirt, sx0, my, mx, sy1, depth + 1);
-    emitGround(camera, turf, dirt, mx, my, sx1, sy1, depth + 1);
+  const wide = sx1 - sx0 > 4 || sy1 - sy0 > 4;
+  if (!cell) {
+    if (wide && crossesHorizon(camera, sx0, sy0, sx1, sy1)) {
+      splitGround(camera, turf, dirt, sx0, sy0, sx1, sy1, depth);
+    }
     return;
   }
-  if (cell.spanM > 48) return;
+  const straddles = cell.corners.some((corner) => isDirt(corner.x, corner.y)) && cell.corners.some((corner) => !isDirt(corner.x, corner.y));
+  if ((cell.spanM > 8 || straddles) && wide) {
+    splitGround(camera, turf, dirt, sx0, sy0, sx1, sy1, depth);
+    return;
+  }
   const [c0, c1, c2, c3] = cell.corners;
   if (!c0 || !c1 || !c2 || !c3) return;
   const cx = (c0.x + c1.x + c2.x + c3.x) / 4;
@@ -193,7 +275,15 @@ function emitGround(
   pushTri(slot, i2, i3, i1);
 }
 
-function paintVertical(slot: MeshSlot, points: Vec2[], closed: boolean, image: StripImage, zScale: number, camera: Camera) {
+function paintVertical(
+  slot: MeshSlot,
+  points: Vec2[],
+  closed: boolean,
+  image: StripImage,
+  zScale: number,
+  camera: Camera,
+  face: "outward" | "inward" | null,
+) {
   const above = (image.contact / image.pxPerM) * zScale * LOGICAL_PER_METER;
   const below = ((image.height - image.contact) / image.pxPerM) * zScale * LOGICAL_PER_METER;
   const count = points.length;
@@ -204,7 +294,7 @@ function paintVertical(slot: MeshSlot, points: Vec2[], closed: boolean, image: S
     const to = points[(index + 1) % count];
     if (!from || !to) continue;
     const lengthM = Math.hypot(to.x - from.x, to.y - from.y) / LOGICAL_PER_METER;
-    emitVertical(slot, camera, from, to, traveled / image.periodM, (traveled + lengthM) / image.periodM, above, below);
+    emitVertical(slot, camera, from, to, traveled / image.periodM, (traveled + lengthM) / image.periodM, above, below, face);
     traveled += lengthM;
   }
 }
@@ -218,6 +308,7 @@ function emitVertical(
   u1: number,
   above: number,
   below: number,
+  face: "outward" | "inward" | null,
 ) {
   if (u1 > u0 + 1e-4 && Math.floor(u0 + 1e-4) !== Math.floor(Math.max(u0, u1 - 1e-4))) {
     const boundary = Math.floor(u0) + 1;
@@ -225,11 +316,12 @@ function emitVertical(
     const t = span === 0 ? 1 : (boundary - u0) / span;
     if (t > 0.002 && t < 0.998) {
       const mid = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
-      emitVertical(slot, camera, from, mid, u0, boundary, above, below);
-      emitVertical(slot, camera, mid, to, boundary, u1, above, below);
+      emitVertical(slot, camera, from, mid, u0, boundary, above, below, face);
+      emitVertical(slot, camera, mid, to, boundary, u1, above, below, face);
       return;
     }
   }
+  if (face && !propStripAccepted(camera, from, to, above, below, face)) return;
   const base = Math.floor(u0);
   const bl = projectHeight(from.x, from.y, -below, camera);
   const tl = projectHeight(from.x, from.y, above, camera);
@@ -293,8 +385,14 @@ function emitCheckerRow(
 }
 
 function placeProp(image: Phaser.GameObjects.Image, x: number, y: number, camera: Camera, pxPerM: number) {
+  const heightLu = (image.height / pxPerM) * LOGICAL_PER_METER;
   const pose = projectHeight(x, y, 0, camera);
-  const onScreen = pose.visible && pose.x > -240 && pose.x < GAME_WIDTH + 240 && pose.y > -420 && pose.y < GAME_HEIGHT + 80;
+  const onScreen =
+    propSpriteAccepted(camera, x, y, heightLu) &&
+    pose.x > -240 &&
+    pose.x < GAME_WIDTH + 240 &&
+    pose.y > -420 &&
+    pose.y < GAME_HEIGHT + 80;
   image.setVisible(onScreen);
   if (!onScreen) return;
   image.setPosition(pose.x, pose.y);

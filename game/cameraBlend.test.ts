@@ -13,6 +13,7 @@ import {
   CAMERA_BLEND_SEC,
   CLOSEUP_ENTER_SEC,
   CLOSEUP_RETURN_SEC,
+  START_TO_STRAIGHT_SEC,
   advanceCameraPresentation,
   cameraTransitionSeconds,
   createCameraPresentation,
@@ -43,7 +44,7 @@ describe("transition durations", () => {
     expect(CLOSEUP_ENTER_SEC).toBe(0.25);
     expect(CLOSEUP_RETURN_SEC).toBe(0.4);
 
-    expect(cameraTransitionSeconds({ name: "START" }, { name: "STRAIGHT" })).toBe(0.6);
+    expect(cameraTransitionSeconds({ name: "START" }, { name: "STRAIGHT" })).toBe(START_TO_STRAIGHT_SEC);
     expect(cameraTransitionSeconds({ name: "STRAIGHT" }, { name: "CORNER_IN" })).toBe(0.6);
     expect(cameraTransitionSeconds({ name: "CORNER_OUT" }, { name: "STRAIGHT" })).toBe(0.6);
     expect(cameraTransitionSeconds({ name: "STRAIGHT" }, { name: "FINISH" })).toBe(0.6);
@@ -95,9 +96,9 @@ describe("easeInOutSine endpoints", () => {
     let pres = settle({ name: "START" }, 10, -20);
     pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, straightLook, 8);
     expect(pres.look).toEqual(startLook);
-    expect(pres.blend?.duration).toBe(0.6);
+    expect(pres.blend?.duration).toBe(START_TO_STRAIGHT_SEC);
 
-    pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, straightLook, 8.6);
+    pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, straightLook, 8 + START_TO_STRAIGHT_SEC);
     expect(pres.blend).toBeNull();
     expect(pres.look.distance).toBe(straightLook.distance);
     expect(pres.look.elevation).toBe(straightLook.elevation);
@@ -107,14 +108,14 @@ describe("easeInOutSine endpoints", () => {
     expect(shortestAngleDelta(pres.look.azimuth, straightLook.azimuth)).toBeCloseTo(0);
 
     const startedAt = 8;
-    const halfwayAt = startedAt + 0.3;
+    const halfwayAt = startedAt + START_TO_STRAIGHT_SEC / 2;
     const halfway = advanceCameraPresentation(
       advanceCameraPresentation(settle({ name: "START" }, 10, -20), { name: "STRAIGHT" }, straightLook, startedAt),
       { name: "STRAIGHT" },
       straightLook,
       halfwayAt,
     );
-    const halfwayLook = lerpCameraLook(startLook, straightLook, easeInOutSine((halfwayAt - startedAt) / CAMERA_BLEND_SEC));
+    const halfwayLook = lerpCameraLook(startLook, straightLook, easeInOutSine((halfwayAt - startedAt) / START_TO_STRAIGHT_SEC));
     expect(halfway.look.distance).toBeCloseTo(halfwayLook.distance);
     expect(halfway.look.azimuth).toBeCloseTo(halfwayLook.azimuth);
     expect(halfway.look.elevation).toBeCloseTo(halfwayLook.elevation);
@@ -202,7 +203,8 @@ describe("continuity", () => {
           expect(Math.abs(pres.look.distance - prevLook.distance)).toBeGreaterThan(80);
         } else {
           expect(pres.look).toEqual(prevLook);
-          expect(pres.blend?.duration).toBe(0.6);
+          const duration = prevName === "START" && next.name === "STRAIGHT" ? START_TO_STRAIGHT_SEC : CAMERA_BLEND_SEC;
+          expect(pres.blend?.duration).toBe(duration);
           expect(pres.blend?.fromLook).toEqual(prevLook);
         }
       }
@@ -210,7 +212,7 @@ describe("continuity", () => {
     }
 
     expect(transitions.map(({ from, to, duration }) => ({ from, to, duration }))).toEqual([
-      { from: "START", to: "STRAIGHT", duration: 0.6 },
+      { from: "START", to: "STRAIGHT", duration: START_TO_STRAIGHT_SEC },
       { from: "STRAIGHT", to: "CORNER_IN", duration: 0.6 },
       { from: "CORNER_IN", to: "CORNER_OUT", duration: 0 },
       { from: "CORNER_OUT", to: "STRAIGHT", duration: 0.6 },
@@ -261,7 +263,7 @@ describe("continuity", () => {
     let pres = createCameraPresentation({ name: "START" }, from);
     pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, to, 0);
     let previous = cameraFromLook(pres.look);
-    const steps = Math.round(0.6 / DT);
+    const steps = Math.round(START_TO_STRAIGHT_SEC / DT);
     for (let i = 1; i <= steps; i += 1) {
       pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, to, i * DT);
       const projected = cameraFromLook(pres.look);
@@ -284,7 +286,7 @@ describe("interrupted transitions", () => {
     pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, straightLook, 1);
     pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, straightLook, 1.2);
     const mid = { ...pres.look };
-    expect(mid.distance).toBeCloseTo(lerpCameraLook(startLook, straightLook, easeInOutSine(0.2 / 0.6)).distance);
+    expect(mid.distance).toBeCloseTo(lerpCameraLook(startLook, straightLook, easeInOutSine(0.2 / START_TO_STRAIGHT_SEC)).distance);
     expect(mid.distance).not.toBeCloseTo(straightLook.distance);
 
     pres = advanceCameraPresentation(pres, closeup, closeLook, 1.2);
@@ -336,20 +338,21 @@ describe("presentation clock", () => {
     pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, early, 100);
     expect(pres.look).toEqual(startLook);
 
-    pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, early, 100.3);
+    const half = START_TO_STRAIGHT_SEC / 2;
+    pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, early, 100 + half);
     expect(pres.blend).not.toBeNull();
     const u = easeInOutSine(0.5);
     expect(pres.look.distance).toBeCloseTo(startLook.distance + (early.distance - startLook.distance) * u);
 
-    pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, moved, 100.3);
+    pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, moved, 100 + half);
     expect(pres.blend?.startedAt).toBe(100);
-    expect(pres.blend?.duration).toBe(0.6);
+    expect(pres.blend?.duration).toBe(START_TO_STRAIGHT_SEC);
     expect(pres.look.distance).toBeCloseTo(startLook.distance + (moved.distance - startLook.distance) * u);
     expect(pres.look.targetX).toBeCloseTo(startLook.targetX + (moved.targetX - startLook.targetX) * u);
     expect(Math.abs(pres.look.targetX - moved.targetX)).toBeGreaterThan(10);
     expect(pres.look.distance).not.toBeCloseTo(moved.distance);
 
-    pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, moved, 100.6);
+    pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, moved, 100 + START_TO_STRAIGHT_SEC);
     expect(pres.blend).toBeNull();
     expect(pres.look.targetX).toBeCloseTo(moved.targetX);
     expect(pres.look.distance).toBe(moved.distance);
@@ -361,7 +364,7 @@ describe("presentation clock", () => {
     const live = look({ name: "STRAIGHT" }, 90, 15);
     let pres = settle({ name: "START" });
     pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, frozen, 0);
-    pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, live, 0.3);
+    pres = advanceCameraPresentation(pres, { name: "STRAIGHT" }, live, START_TO_STRAIGHT_SEC / 2);
     expect(pres.look).toEqual(lerpCameraLook(startLook, live, easeInOutSine(0.5)));
     expect(pres.look.targetX).not.toBeCloseTo(lerpCameraLook(startLook, frozen, 0.5).targetX);
   });

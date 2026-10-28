@@ -1,23 +1,49 @@
 import { describe, expect, it } from "vitest";
-import { LOGICAL_PER_METER, farRailRadius, nearRailRadius } from "./artScale";
-import { homeOuterStandLine, standsOutsideHomeRailM } from "./trackArt";
+import { LOGICAL_PER_METER, STANDS_BEHIND_OUTER_M, nearRailRadius } from "./artScale";
+import { standLineOppositeCamera } from "./trackArt";
 import { STRAIGHT } from "./track";
+import type { Camera } from "./track";
 
-describe("home stands", () => {
-  it("keeps the strip outside the home-straight outer rail", () => {
-    const line = homeOuterStandLine();
+/** True when a point is outside the outermost rail, including the bends. */
+function outsideOuterRail(x: number, y: number) {
+  const outer = nearRailRadius();
+  const half = STRAIGHT / 2;
+  if (x > half) return Math.hypot(x - half, y) > outer + 1;
+  if (x < -half) return Math.hypot(x + half, y) > outer + 1;
+  return Math.abs(y) > outer + 1;
+}
+
+function cameraAt(groundY: number, yaw: number): Camera {
+  return { groundX: 0, groundY, height: 200, pitch: 0.4, yaw, focalLength: 1200 };
+}
+
+describe("stands opposite the camera", () => {
+  it("sits 15–25 m outside the far outermost rail and stays off the infield", () => {
+    expect(STANDS_BEHIND_OUTER_M).toBeGreaterThanOrEqual(15);
+    expect(STANDS_BEHIND_OUTER_M).toBeLessThanOrEqual(25);
     const outer = nearRailRadius();
-    const first = line[0];
-    expect(line.length).toBeGreaterThan(2);
-    expect(first).toBeDefined();
-    if (!first) return;
-    expect(standsOutsideHomeRailM()).toBeGreaterThan(50);
-    expect(first.y - outer).toBeCloseTo(standsOutsideHomeRailM() * LOGICAL_PER_METER);
-    expect(first.y).toBeGreaterThan(farRailRadius());
-    for (const point of line) {
-      expect(point.y).toBeCloseTo(first.y);
+    const gap = STANDS_BEHIND_OUTER_M * LOGICAL_PER_METER;
+
+    const homeSide = standLineOppositeCamera(cameraAt(2000, Math.PI));
+    const homeStraight = homeSide.filter((point) => Math.abs(point.x) <= STRAIGHT / 2);
+    expect(homeStraight.length).toBeGreaterThan(2);
+    for (const point of homeStraight) {
+      expect(point.y).toBeLessThan(-outer);
+      expect(-outer - point.y).toBeCloseTo(gap);
+    }
+    for (const point of homeSide) {
+      expect(outsideOuterRail(point.x, point.y)).toBe(true);
+    }
+
+    const backSide = standLineOppositeCamera(cameraAt(-2000, 0));
+    const backStraight = backSide.filter((point) => Math.abs(point.x) <= STRAIGHT / 2);
+    expect(backStraight.length).toBeGreaterThan(2);
+    for (const point of backStraight) {
       expect(point.y).toBeGreaterThan(outer);
-      expect(Math.abs(point.x)).toBeLessThanOrEqual(STRAIGHT / 2 + 1e-6);
+      expect(point.y - outer).toBeCloseTo(gap);
+    }
+    for (const point of backSide) {
+      expect(outsideOuterRail(point.x, point.y)).toBe(true);
     }
   });
 });

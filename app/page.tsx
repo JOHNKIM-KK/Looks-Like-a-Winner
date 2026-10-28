@@ -6,6 +6,7 @@ import { RaceResult } from "@/components/RaceResult";
 import { mockHorses } from "@/lib/mockHorses";
 import { skillById } from "@/lib/skills";
 import { primeStartSound } from "@/game/bang";
+import { fieldHorses } from "@/lib/field";
 import { MAX_HORSES, simulateRace, type RaceResult as RaceData } from "@/lib/race";
 
 type Phase = "idle" | "racing" | "done";
@@ -30,7 +31,8 @@ export default function HomePage() {
 
   function start() {
     primeStartSound();
-    setRace(simulateRace(mockHorses, seedFromSearch() ?? nextSeed()));
+    const seed = seedFromSearch() ?? nextSeed();
+    setRace(simulateRace(fieldHorses(mockHorses, seed), seed));
     setPhase("racing");
     window.scrollTo(0, 0);
   }
@@ -40,10 +42,10 @@ export default function HomePage() {
       <header className="flex flex-col gap-2 border-4 border-[#ff4fd8] bg-[#1b1030] px-4 py-4 shadow-[6px_6px_0_#5ce1ff] sm:px-6">
         <p className="text-xs font-black tracking-[0.35em] text-[#ff4fd8]">ARCADE SELECT</p>
         <h1 className="text-3xl font-black tracking-tight text-[#ffe14a] [text-shadow:3px_3px_0_#ff4fd8] sm:text-4xl">
-          어떤 관상이 1등일까
+          누가 1등일까
         </h1>
         <p className="max-w-2xl text-sm leading-6 text-[#fff6ea]/80">
-          출전은 최대 {MAX_HORSES}관상. 지금은 {mockHorses.length}장의 얼굴과 스킬이다. 한 바퀴가 끝나면 어떤 관상이 1등인지 남는다.
+          출전은 최대 {MAX_HORSES}마리. 빈 자리는 임시 말이 채우고, 칸은 시드로 섞인다.
         </p>
       </header>
 
