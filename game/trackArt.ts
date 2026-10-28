@@ -6,7 +6,7 @@ import {
   farRailRadius,
   nearRailRadius,
 } from "./artScale";
-import { groundAt } from "./cameraFrame";
+import { GAME_HEIGHT, GAME_WIDTH, groundAt } from "./cameraFrame";
 import {
   CHUTE,
   STRAIGHT,
@@ -51,6 +51,101 @@ export function groundUv(x: number, y: number) {
 
 export function projectHeight(x: number, y: number, z: number, camera: Camera): TrackPose {
   return projectWithCamera({ x, y, z, tx: 0, ty: 0 }, camera);
+}
+
+/**
+ * Props (trees, stands, posts) may not fill the lens.
+ * Anything taller than this fraction of the view is close enough to hide the track.
+ */
+export const PROP_MAX_HEIGHT_FRAC = 0.62;
+/** A prop wider than the view is in front of the lens. */
+export const PROP_MAX_WIDTH_FRAC = 1;
+/** Same near plane as `projectWithCamera`. Points closer than this are behind the picture. */
+export const PROP_NEAR_PLANE = 10;
+
+export function propMaxScreenPx() {
+  return PROP_MAX_HEIGHT_FRAC * GAME_HEIGHT;
+}
+
+export function cameraSpaceDepth(camera: Camera, x: number, y: number, z = 0) {
+  const dx = x - camera.groundX;
+  const dy = y - camera.groundY;
+  const cosYaw = Math.cos(camera.yaw);
+  const sinYaw = Math.sin(camera.yaw);
+  const localY = -dx * sinYaw + dy * cosYaw;
+  const cosPitch = Math.cos(camera.pitch);
+  const sinPitch = Math.sin(camera.pitch);
+  return localY * cosPitch - (z - camera.height) * sinPitch;
+}
+
+/** Outward from the oval. Straights point ±Y; bends point away from the bend center. */
+export function outwardFromTrack(point: Vec2): Vec2 {
+  if (point.x < -HALF) {
+    const dx = point.x + HALF;
+    const dy = point.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return { x: dx / len, y: dy / len };
+  }
+  if (point.x > HALF) {
+    const dx = point.x - HALF;
+    const dy = point.y;
+    const len = Math.hypot(dx, dy) || 1;
+    return { x: dx / len, y: dy / len };
+  }
+  return { x: 0, y: point.y >= 0 ? 1 : -1 };
+}
+
+/**
+ * Trees face away from the oval. Stands face the oval, so the camera across
+ * the infield sees the crowd and a stand that has wrapped behind the lens does not.
+ */
+export function segmentFacesCamera(from: Vec2, to: Vec2, camera: Camera, face: "outward" | "inward") {
+  const mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+  const outward = outwardFromTrack(mid);
+  const dot = (camera.groundX - mid.x) * outward.x + (camera.groundY - mid.y) * outward.y;
+  return face === "outward" ? dot > 0 : dot < 0;
+}
+
+/** A single sprite. Rejects anything behind the near plane or taller than the cap. */
+export function propSpriteAccepted(camera: Camera, x: number, y: number, heightLu: number) {
+  const pose = projectHeight(x, y, 0, camera);
+  if (!pose.visible) return false;
+  const depth = cameraSpaceDepth(camera, x, y, 0);
+  if (depth < PROP_NEAR_PLANE) return false;
+  const screen = (camera.focalLength * Math.max(0, heightLu)) / Math.max(depth, 1);
+  return screen <= propMaxScreenPx();
+}
+
+/**
+ * One vertical strip segment. Both ends must clear the near plane and the size cap,
+ * the face must point at the camera, and the projected quad must fit the view.
+ */
+export function propStripAccepted(
+  camera: Camera,
+  from: Vec2,
+  to: Vec2,
+  above: number,
+  below: number,
+  face: "outward" | "inward",
+) {
+  if (!segmentFacesCamera(from, to, camera, face)) return false;
+  const height = above + below;
+  if (!propSpriteAccepted(camera, from.x, from.y, height)) return false;
+  if (!propSpriteAccepted(camera, to.x, to.y, height)) return false;
+  const corners = [
+    projectHeight(from.x, from.y, above, camera),
+    projectHeight(from.x, from.y, -below, camera),
+    projectHeight(to.x, to.y, above, camera),
+    projectHeight(to.x, to.y, -below, camera),
+  ];
+  if (corners.some((corner) => !corner.visible)) return false;
+  const top = Math.min(...corners.map((corner) => corner.y));
+  const bottom = Math.max(...corners.map((corner) => corner.y));
+  const left = Math.min(...corners.map((corner) => corner.x));
+  const right = Math.max(...corners.map((corner) => corner.x));
+  if (bottom - top > propMaxScreenPx()) return false;
+  if (right - left > GAME_WIDTH * PROP_MAX_WIDTH_FRAC) return false;
+  return true;
 }
 
 /** Closed oval, about one sample per meter. The first point is not repeated. */
