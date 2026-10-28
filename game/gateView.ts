@@ -1,117 +1,110 @@
 import Phaser from "phaser";
-import { laneColorValue } from "./laneColors";
+import {
+  cameraOnGateExitSide,
+  frontQuadCorners,
+  gateArtStallGround,
+  gateArtView,
+  gateTopAnchorWorld,
+  placeAnchoredStrip,
+  topGateSheet,
+} from "./gateArt";
 import { projectHeight } from "./trackArt";
 import type { Camera } from "./track";
-import { tintGatePlate } from "./startingGate";
-import type { StartingGate } from "./startingGate";
-import { gateLayout } from "./startingGate";
 
-/** Provisional venue board. The final lettering arrives with the gate art. */
-export const GATE_SIGN_TEXT = "RACE PARK";
+/** In front of the horses, behind the near rail. Holes in the art stay transparent. */
+const GATE_DEPTH = 2000;
 
-export function gatePlateKey(lane: number) {
-  return `gate-plate-${lane}`;
-}
-
-/**
- * Placeholder plate textures. A real file loaded under the same key wins.
- * Mask G is the whole plate until the gate mask is painted.
- */
-export function ensureGatePlateTextures(scene: Phaser.Scene, stallCount: number) {
-  const width = 64;
-  const height = 40;
-  for (let lane = 1; lane <= stallCount; lane += 1) {
-    const key = gatePlateKey(lane);
-    if (scene.textures.exists(key)) {
-      const existing = scene.textures.get(key);
-      if (existing.key !== "__MISSING") continue;
-    }
-    const pixels = width * height;
-    const color = new Uint8ClampedArray(pixels * 4);
-    const mask = new Uint8ClampedArray(pixels * 4);
-    for (let index = 0; index < pixels; index += 1) {
-      const offset = index * 4;
-      color[offset] = 220;
-      color[offset + 1] = 220;
-      color[offset + 2] = 220;
-      color[offset + 3] = 255;
-      mask[offset + 1] = 255;
-    }
-    const tinted = new Uint8ClampedArray(color.length);
-    tintGatePlate(color, mask, lane, tinted);
-    const canvas = scene.textures.createCanvas(key, width, height);
-    if (!canvas) continue;
-    const image = canvas.getContext().createImageData(width, height);
-    image.data.set(tinted);
-    canvas.getContext().putImageData(image, 0, 0);
-    canvas.refresh();
-  }
-}
-
-type GatePaint = {
-  graphics: Phaser.GameObjects.Graphics;
-  plates: Phaser.GameObjects.Image[];
-  numbers: Phaser.GameObjects.Text[];
-  sign: Phaser.GameObjects.Text;
-  gate: StartingGate;
-  camera: Camera;
+type MeshSlot = {
+  mesh: Phaser.GameObjects.Mesh2D;
+  verts: number[];
+  indices: number[];
 };
 
-/** Screen-space stall frames, doors, and plates. Art files can replace the plate keys. */
-export function paintStartingGate({ graphics, plates, numbers, sign, gate, camera }: GatePaint) {
-  graphics.clear();
-  const parts = gateLayout(gate.config);
-  let signX = 0;
-  let signY = 0;
-  let signCount = 0;
-  for (const plate of plates) plate.setVisible(false);
-  for (const number of numbers) number.setVisible(false);
-  sign.setVisible(false);
+export type GateArt = {
+  paint: (camera: Camera, visible: boolean) => void;
+};
 
-  for (const part of parts) {
-    const pose = projectHeight(part.x, part.y, part.z, camera);
-    if (!pose.visible) continue;
-    const scale = Math.max(0.2, Math.min(pose.scale, 1.35));
-    if (pose.scale > 2.4) continue;
-    if (part.role === "stall" || part.role === "end-left" || part.role === "end-right") {
-      const postW = (part.role === "stall" ? 10 : 16) * scale;
-      const postH = 78 * scale;
-      graphics.fillStyle(part.role === "stall" ? 0xd7d2c8 : 0x1c4f86, 1);
-      graphics.fillRect(pose.x - postW / 2, pose.y - postH, postW, postH);
-      continue;
+export function createGateArt(scene: Phaser.Scene): GateArt {
+  const front = makeMesh(scene, "gate-front", GATE_DEPTH);
+  const top = scene.add.image(0, 0, "gate-top").setDepth(GATE_DEPTH).setVisible(false);
+  const sheet = topGateSheet();
+
+  function paint(camera: Camera, visible: boolean) {
+    clearSlot(front);
+    top.setVisible(false);
+    if (!visible) return;
+    const elevationDeg = (camera.pitch * 180) / Math.PI;
+    if (gateArtView(elevationDeg) === "front") {
+      if (!cameraOnGateExitSide(camera.groundX)) return;
+      paintFront(front, camera);
+      return;
     }
-    if (part.role === "door") {
-      const open = gate.doors[part.index]?.amount ?? 0;
-      const leafW = 18 * scale;
-      const leafH = 34 * scale;
-      const gap = (10 + open * 28) * scale;
-      graphics.fillStyle(0xf4f0e6, 1);
-      graphics.fillRect(pose.x - gap - leafW, pose.y - leafH, leafW, leafH);
-      graphics.fillRect(pose.x + gap, pose.y - leafH, leafW, leafH);
-      continue;
-    }
-    const plate = plates[part.index];
-    const number = numbers[part.index];
-    if (!plate || !number) continue;
-    const plateW = 62 * scale;
-    const plateH = 36 * scale;
-    const plateDepth = pose.scale > 1.15 ? pose.y : 6000;
-    plate.setVisible(true).setPosition(pose.x, pose.y).setDisplaySize(plateW, plateH).setDepth(plateDepth);
-    number
+    const anchorWorld = gateTopAnchorWorld();
+    const anchor = projectHeight(anchorWorld.x, anchorWorld.y, anchorWorld.z, camera);
+    const stalls = sheet.stallPx.map((_, index) => {
+      const ground = gateArtStallGround(index);
+      return projectHeight(ground.x, ground.y, ground.z, camera);
+    });
+    const placed = placeAnchoredStrip({
+      imageWidth: sheet.width,
+      imageHeight: sheet.height,
+      anchorPx: sheet.anchorPx,
+      stallPx: sheet.stallPx,
+      anchor,
+      stalls,
+    });
+    if (!placed.visible) return;
+    top
       .setVisible(true)
-      .setPosition(pose.x, pose.y)
-      .setScale(Math.min(scale, 1))
-      .setDepth(plateDepth + 1)
-      .setColor("#ffffff");
-    number.setTint(0xffffff);
-    graphics.lineStyle(Math.max(2, 4 * scale), laneColorValue(part.index + 1), 1);
-    graphics.strokeRect(pose.x - plateW / 2, pose.y - plateH / 2, plateW, plateH);
-    signX += pose.x;
-    signY += pose.y - plateH * 0.9;
-    signCount += 1;
+      .setOrigin(placed.originX, placed.originY)
+      .setPosition(placed.x, placed.y)
+      .setScale(placed.scale)
+      .setRotation(placed.rotation)
+      .setDepth(GATE_DEPTH);
   }
 
-  if (signCount > 0) {
-    sign.setVisible(true).setPosition(signX / signCount, signY / signCount).setDepth(6002);
-  }
+  return { paint };
+}
+
+function paintFront(slot: MeshSlot, camera: Camera) {
+  const projected = frontQuadCorners().map((corner) => ({
+    ...corner,
+    pose: projectHeight(corner.world.x, corner.world.y, corner.world.z, camera),
+  }));
+  if (projected.some((corner) => !corner.pose.visible)) return;
+  const tl = projected[0];
+  const bl = projected[1];
+  const tr = projected[2];
+  const br = projected[3];
+  if (!tl || !bl || !tr || !br) return;
+  const i0 = pushVert(slot, tl.pose.x, tl.pose.y, tl.u, tl.v);
+  const i1 = pushVert(slot, bl.pose.x, bl.pose.y, bl.u, bl.v);
+  const i2 = pushVert(slot, tr.pose.x, tr.pose.y, tr.u, tr.v);
+  const i3 = pushVert(slot, br.pose.x, br.pose.y, br.u, br.v);
+  pushTri(slot, i0, i1, i2);
+  pushTri(slot, i1, i3, i2);
+}
+
+function makeMesh(scene: Phaser.Scene, key: string, depth: number): MeshSlot {
+  const verts: number[] = [];
+  const indices: number[] = [];
+  const mesh = scene.add.mesh2d(0, 0, key, verts, indices);
+  mesh.setRenderAsTriangles(true);
+  mesh.setDepth(depth);
+  mesh.setAlpha(1);
+  return { mesh, verts, indices };
+}
+
+function clearSlot(slot: MeshSlot) {
+  slot.verts.length = 0;
+  slot.indices.length = 0;
+}
+
+function pushVert(slot: MeshSlot, x: number, y: number, u: number, v: number) {
+  slot.verts.push(x, y, u, v);
+  return slot.verts.length / 4 - 1;
+}
+
+function pushTri(slot: MeshSlot, a: number, b: number, c: number) {
+  slot.indices.push(a, b, c, 0);
 }

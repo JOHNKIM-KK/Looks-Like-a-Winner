@@ -47,7 +47,7 @@ import { LOGICAL_PER_METER, horseSpriteScale } from "@/game/artScale";
 import { createHorseCoatLibrary, type HorseCoatLibrary } from "@/game/horseCoat";
 import { introCountdownAt, introStartLook, sampleIntro } from "@/game/introCamera";
 import { createGateConfig, createStartingGate, type StartingGate } from "@/game/startingGate";
-import { GATE_SIGN_TEXT, ensureGatePlateTextures, gatePlateKey, paintStartingGate } from "@/game/gateView";
+import { createGateArt, type GateArt } from "@/game/gateView";
 import {
   HORSE_ANGLES,
   gallopFrame,
@@ -297,10 +297,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   let lastPhaseSig = "";
   let lastPresentationAt = -1;
   let lastComment = "";
-  let gates: Phaser.GameObjects.Graphics | null = null;
-  let gatePlates: Phaser.GameObjects.Image[] = [];
-  let gateNumbers: Phaser.GameObjects.Text[] = [];
-  let gateSign: Phaser.GameObjects.Text | null = null;
+  let gateArt: GateArt | null = null;
   let startingGate: StartingGate | null = null;
   let debugOverlay: Phaser.GameObjects.Graphics | null = null;
   let debugText: Phaser.GameObjects.Text | null = null;
@@ -344,6 +341,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       this.load.image("rail-segment", "/track/v2/rail_segment.png");
       this.load.image("sky", "/track/v2/sky_strip.webp");
       this.load.image("stands-strip", "/track/v2/stands_strip_v4.webp");
+      this.load.image("gate-front", "/track/gate/gate_front.webp");
+      this.load.image("gate-top", "/track/gate/gate_top.webp");
       this.load.image("trees-strip", "/track/v2/trees_strip.png");
       this.load.image("prop-distance", "/track/props/distance_post.webp");
       this.load.image("prop-finish", "/track/props/finish_post.webp");
@@ -504,28 +503,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         .setVisible(false);
 
       startingGate = createStartingGate(createGateConfig());
-      ensureGatePlateTextures(this, startingGate.config.stallCount);
-      gates = this.add.graphics().setDepth(20);
-      gatePlates = [];
-      gateNumbers = [];
-      for (let index = 0; index < startingGate.config.stallCount; index += 1) {
-        gatePlates.push(this.add.image(0, 0, gatePlateKey(index + 1)).setVisible(false).setDepth(6000));
-        gateNumbers.push(
-          this.add.text(0, 0, String(index + 1), {
-            fontFamily: "sans-serif",
-            fontSize: "32px",
-            color: "#ffffff",
-            fontStyle: "bold",
-          }).setOrigin(0.5).setVisible(false).setDepth(6001),
-        );
-      }
-      gateSign = this.add.text(0, 0, GATE_SIGN_TEXT, {
-        fontFamily: "sans-serif",
-        fontSize: "28px",
-        color: "#14315c",
-        backgroundColor: "#f7f1e4",
-        padding: { x: 16, y: 6 },
-      }).setOrigin(0.5).setVisible(false).setDepth(6002);
+      gateArt = createGateArt(this);
       this.input.on("pointerdown", () => {
         if (introActive) {
           introActive = false;
@@ -1295,24 +1273,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
 
 
     paintGates() {
-      if (!gates || !startingGate || !gateSign) return;
+      if (!gateArt) return;
       const behind = started && gateOpen >= 1 && lastLeadProgress > segmentEnds().pocketEnd + 0.08;
-      if (behind) {
-        gates.clear();
-        for (const plate of gatePlates) plate.setVisible(false);
-        for (const number of gateNumbers) number.setVisible(false);
-        gateSign.setVisible(false);
-        return;
-      }
-      gates.setDepth(20);
-      paintStartingGate({
-        graphics: gates,
-        plates: gatePlates,
-        numbers: gateNumbers,
-        sign: gateSign,
-        gate: startingGate,
-        camera: currentCamera,
-      });
+      gateArt.paint(currentCamera, !behind);
     }
 
     frameCamera(immediate: boolean) {
