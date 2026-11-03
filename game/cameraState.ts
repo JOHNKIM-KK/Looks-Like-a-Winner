@@ -112,11 +112,6 @@ export function exitCloseup(current: CameraState): CameraState {
   };
 }
 
-/** Straights sit above the corner viewpoints. Corners stay lower and outside the bend. */
-export const STRAIGHT_EARLY_ELEVATION = cameraConfig.states.STRAIGHT_EARLY.elevation;
-export const STRAIGHT_HOME_ELEVATION = cameraConfig.states.STRAIGHT_HOME.elevation;
-export const CORNER_IN_ELEVATION = cameraConfig.states.CORNER_IN.elevation;
-export const CORNER_OUT_ELEVATION = cameraConfig.states.CORNER_OUT.elevation;
 /** Look inward from outside the entry of the left-hand bend. */
 export const CORNER_IN_AZIMUTH = cameraConfig.states.CORNER_IN.azimuth;
 /** Look inward from outside the exit of the left-hand bend. */
