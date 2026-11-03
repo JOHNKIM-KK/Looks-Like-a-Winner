@@ -22,10 +22,6 @@ export type Vec2 = { x: number; y: number };
 
 const HALF = STRAIGHT / 2;
 
-export function cameraForward(camera: Camera): Vec2 {
-  return { x: -Math.sin(camera.yaw), y: Math.cos(camera.yaw) };
-}
-
 export function isDirt(x: number, y: number) {
   const far = farRailRadius();
   const near = nearRailRadius();
@@ -228,63 +224,12 @@ function standRadius() {
   return nearRailRadius() + STANDS_BEHIND_OUTER_M * LOGICAL_PER_METER;
 }
 
-/** Arc outside a bend. Angles are radians around the bend center, CCW from +X. */
-function bendArc(cx: number, radius: number, a0: number, a1: number): Vec2[] {
-  const span = Math.abs(a1 - a0) * radius;
-  const steps = Math.max(1, Math.round(span / LOGICAL_PER_METER / 12));
-  const points: Vec2[] = [];
-  for (let index = 0; index <= steps; index += 1) {
-    const angle = a0 + ((a1 - a0) * index) / steps;
-    points.push({ x: cx + Math.cos(angle) * radius, y: Math.sin(angle) * radius });
-  }
-  return points;
-}
-
-function joinStrips(parts: Vec2[][]): Vec2[] {
-  const points: Vec2[] = [];
-  for (const part of parts) {
-    for (const point of part) {
-      const prev = points[points.length - 1];
-      if (prev && Math.hypot(prev.x - point.x, prev.y - point.y) < 1) continue;
-      points.push(point);
-    }
-  }
-  return points;
-}
-
 /**
- * Stands 20 m outside the outermost rail, on the side opposite the camera.
- * The straight in front of the camera wins. A side-on camera (finish) takes the farther rail.
- * Each side includes the bends, so a camera looking down the chute still sees the far curve.
+ * The one main stand, 20 m outside the outermost rail behind the home straight (scene 01).
+ * It runs past the east bend and stops halfway along the chute, short of the gate.
  */
-export function standLineOppositeCamera(camera: Camera): Vec2[] {
-  const outside = standRadius();
-  const forward = cameraForward(camera);
-  const homeMark = { x: 0, y: outside };
-  const backMark = { x: 0, y: -outside };
-  const ahead = (point: Vec2) => (point.x - camera.groundX) * forward.x + (point.y - camera.groundY) * forward.y;
-  const homeAhead = ahead(homeMark);
-  const backAhead = ahead(backMark);
-  let useHome = homeAhead > backAhead;
-  if (Math.abs(homeAhead - backAhead) <= LOGICAL_PER_METER) {
-    const homeDist = Math.hypot(homeMark.x - camera.groundX, homeMark.y - camera.groundY);
-    const backDist = Math.hypot(backMark.x - camera.groundX, backMark.y - camera.groundY);
-    useHome = homeDist > backDist;
-  }
-  if (useHome) {
-    const gateX = -HALF - CHUTE;
-    return joinStrips([
-      bendArc(HALF, outside, 0, Math.PI / 2),
-      straightSegment(HALF, gateX, outside),
-      straightSegment(gateX, -HALF, outside),
-      bendArc(-HALF, outside, Math.PI / 2, Math.PI),
-    ]);
-  }
-  return joinStrips([
-    bendArc(-HALF, outside, Math.PI, Math.PI * 1.5),
-    straightSegment(-HALF, HALF, -outside),
-    bendArc(HALF, outside, -Math.PI / 2, 0),
-  ]);
+export function mainStandLine(): Vec2[] {
+  return straightSegment(HALF * 1.6, -HALF - CHUTE * 0.5, standRadius());
 }
 
 /** Thin placeholder across the gate. The real gate arrives in a later pass. */

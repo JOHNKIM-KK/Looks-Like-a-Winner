@@ -10,9 +10,9 @@ const board = path.resolve("docs/stage2/storyboard");
 fs.mkdirSync(outDir, { recursive: true });
 
 const scenes = [
-  { name: "01_drone_park", introSec: 0.4 },
-  { name: "02_drone_descend", introSec: 2.6 },
-  { name: "03_gate_front", introSec: 4.75 },
+  { name: "01_drone_park", line: "오늘의 무대", afterMs: 300 },
+  { name: "02_drone_descend", line: "출발 게이트로 갑니다", afterMs: 150 },
+  { name: "03_gate_front", line: "게이트 진입 완료", afterMs: 500 },
   { name: "04_countdown", wall: 0.4 },
   { name: "05_gates_open", wall: 3.1 },
   { name: "06_early_straight", lead: 40 / 222 },
@@ -44,12 +44,12 @@ try {
   await page.getByRole("button", { name: "출발" }).click();
   await page.waitForSelector("canvas", { timeout: 15000 });
   await page.waitForFunction(() => window.__raceCamera !== undefined, null, { timeout: 15000, polling: 16 });
-  const introStart = Date.now();
 
   const tmp = fs.mkdtempSync(path.join(fs.realpathSync(process.env.TMPDIR ?? "/tmp"), "scenes-"));
   for (const scene of scenes) {
-    if (scene.introSec !== undefined) {
-      await page.waitForTimeout(Math.max(0, introStart + scene.introSec * 1000 - Date.now()));
+    if (scene.line !== undefined) {
+      await page.getByText(scene.line).first().waitFor({ timeout: 15000 });
+      await page.waitForTimeout(scene.afterMs);
     } else if (scene.wall !== undefined) {
       await page.waitForFunction((t) => (window.__raceCamera?.wallClock ?? 0) >= t, scene.wall, { timeout: 30000, polling: 16 });
     } else if (scene.lead !== undefined) {

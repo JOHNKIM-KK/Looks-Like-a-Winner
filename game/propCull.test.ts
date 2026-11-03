@@ -10,7 +10,7 @@ import {
   propMaxScreenPx,
   propSpriteAccepted,
   propStripAccepted,
-  standLineOppositeCamera,
+  mainStandLine,
   straightTreeLines,
 } from "./trackArt";
 
@@ -85,7 +85,7 @@ describe("prop near-plane and size cull", () => {
     if (!nearest) return;
     expect(propStripAccepted(camera, nearest.from, nearest.to, TREE_ABOVE, 0, "outward")).toBe(false);
 
-    const stands = segments(standLineOppositeCamera(camera)).filter((segment) =>
+    const stands = segments(mainStandLine()).filter((segment) =>
       propStripAccepted(camera, segment.from, segment.to, STAND_ABOVE, 0, "inward"),
     );
     expect(stands.length).toBeGreaterThan(2);
@@ -107,7 +107,7 @@ describe("prop near-plane and size cull", () => {
           expect(screen).toBeLessThanOrEqual(treeCap + 0.01);
         }
       }
-      for (const segment of segments(standLineOppositeCamera(camera))) {
+      for (const segment of segments(mainStandLine())) {
         if (!propStripAccepted(camera, segment.from, segment.to, STAND_ABOVE, 0, "inward")) continue;
         expect(cameraSpaceDepth(camera, segment.from.x, segment.from.y, 0)).toBeGreaterThanOrEqual(PROP_NEAR_PLANE);
         const screen =
