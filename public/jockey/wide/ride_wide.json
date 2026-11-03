@@ -1,0 +1,95 @@
+{
+ "angles": [
+  {
+   "index": 0,
+   "yaw_deg": -90,
+   "color": "ride_wide_color_a0.webp",
+   "mask": "ride_wide_mask_a0.webp",
+   "frame_w": 72,
+   "frame_h": 85,
+   "offset_in_horse_frame": [
+    -6,
+    16
+   ],
+   "sheet": "12 frames in one row"
+  },
+  {
+   "index": 1,
+   "yaw_deg": -75,
+   "color": "ride_wide_color_a1.webp",
+   "mask": "ride_wide_mask_a1.webp",
+   "frame_w": 83,
+   "frame_h": 88,
+   "offset_in_horse_frame": [
+    26,
+    14
+   ],
+   "sheet": "12 frames in one row"
+  },
+  {
+   "index": 2,
+   "yaw_deg": -60,
+   "color": "ride_wide_color_a2.webp",
+   "mask": "ride_wide_mask_a2.webp",
+   "frame_w": 99,
+   "frame_h": 90,
+   "offset_in_horse_frame": [
+    60,
+    7
+   ],
+   "sheet": "12 frames in one row"
+  },
+  {
+   "index": 3,
+   "yaw_deg": -45,
+   "color": "ride_wide_color_a3.webp",
+   "mask": "ride_wide_mask_a3.webp",
+   "frame_w": 112,
+   "frame_h": 94,
+   "offset_in_horse_frame": [
+    86,
+    -5
+   ],
+   "sheet": "12 frames in one row"
+  },
+  {
+   "index": 4,
+   "yaw_deg": 45,
+   "color": "ride_wide_color_a4.webp",
+   "mask": "ride_wide_mask_a4.webp",
+   "frame_w": 110,
+   "frame_h": 117,
+   "offset_in_horse_frame": [
+    89,
+    -7
+   ],
+   "sheet": "12 frames in one row"
+  },
+  {
+   "index": 5,
+   "yaw_deg": 60,
+   "color": "ride_wide_color_a5.webp",
+   "mask": "ride_wide_mask_a5.webp",
+   "frame_w": 97,
+   "frame_h": 119,
+   "offset_in_horse_frame": [
+    60,
+    -3
+   ],
+   "sheet": "12 frames in one row"
+  },
+  {
+   "index": 6,
+   "yaw_deg": 75,
+   "color": "ride_wide_color_a6.webp",
+   "mask": "ride_wide_mask_a6.webp",
+   "frame_w": 82,
+   "frame_h": 118,
+   "offset_in_horse_frame": [
+    24,
+    0
+   ],
+   "sheet": "12 frames in one row"
+  }
+ ]
+}

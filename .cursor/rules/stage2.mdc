@@ -1,0 +1,5 @@
+---
+description: 2단계 작업 기준
+alwaysApply: true
+---
+2단계 작업은 docs/stage2/SPEC.md 와 docs/stage2/storyboard/ 를 기준으로 한다. 토큰 절약: 필요한 파일만 읽고, grep은 좁게, 큰 파일은 반복해서 읽지 않는다.
