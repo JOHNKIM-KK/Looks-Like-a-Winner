@@ -1,22 +1,16 @@
+import { REFERENCE } from "./stage";
+
 /**
- * Race HUD geometry in the internal 540×1170 frame.
+ * Race HUD geometry in the 1600×900 reference frame.
  * Every overlay position and size lives here.
- * The race shell insets the frame with env(safe-area-inset-*).
+ * HUD boxes pin to the edges of the stage's safe HUD rect, so a notch that
+ * reaches into the frame pushes them inward.
  *
- * Minimap: 0–4% of the height. Ranking faces: 4–20%, so twelve chips fit.
- * The bottom caption keeps the existing commentary chrome.
+ * Ranking sits top left, the caption and progress bar along the bottom.
  * The skill banner is an empty slot.
  */
-const view = { width: 540, height: 1170 } as const;
-
 export const overlayLayout = {
-  view,
-  safeArea: {
-    top: "env(safe-area-inset-top)",
-    right: "env(safe-area-inset-right)",
-    bottom: "env(safe-area-inset-bottom)",
-    left: "env(safe-area-inset-left)",
-  },
+  view: REFERENCE,
   style: {
     fontFamily: '"Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif',
     fontWeight: 700,
@@ -31,8 +25,10 @@ export const overlayLayout = {
     3: "#D8A06A",
   },
   minimap: {
-    top: 0,
-    height: view.height * 0.04,
+    left: 24,
+    right: 24,
+    bottom: 24,
+    height: 47,
     insetX: 16,
     barHeight: 8,
     marker: 12,
@@ -41,8 +37,10 @@ export const overlayLayout = {
     lead: "#FFD54A",
   },
   ranking: {
-    top: view.height * 0.04,
-    height: view.height * 0.16,
+    left: 24,
+    top: 24,
+    width: 720,
+    height: 150,
     paddingX: 8,
     paddingTop: 6,
     rowGap: 6,
@@ -65,12 +63,12 @@ export const overlayLayout = {
   },
   countdown: {
     fontSize: 112,
-    centerY: view.height * 0.42,
+    centerY: REFERENCE.height * 0.42,
   },
   caption: {
-    top: 948,
-    left: 12,
-    right: 12,
+    left: 24,
+    right: 24,
+    bottom: 80,
     height: 96,
     fontSize: 16,
     fontWeight: 400,
@@ -83,9 +81,9 @@ export const overlayLayout = {
     color: "#fff6ea",
   },
   skillSlot: {
-    top: 1052,
-    left: 12,
-    right: 12,
+    top: 24,
+    right: 24,
+    width: 360,
     height: 100,
     borderWidth: 2,
     borderColor: "rgba(255, 255, 255, 0.35)",

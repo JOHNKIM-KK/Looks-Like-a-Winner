@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
+import type { CSSProperties } from "react";
 import { laneColor } from "@/game/laneColors";
 import type { RankSlotMode } from "@/game/rankDisplay";
 import {
@@ -9,15 +9,14 @@ import {
   type OverlayHorse,
   type RaceOverlaySnapshot,
 } from "@/game/overlayLayout";
+import type { LandscapeStage } from "@/game/stage";
 
 type Props = {
-  hostRef: RefObject<HTMLDivElement | null>;
+  stage: LandscapeStage;
   snapshot: RaceOverlaySnapshot;
   comment: string;
   slotMode?: RankSlotMode;
 };
-
-type Frame = { left: number; top: number; scale: number };
 
 type RankMetrics = {
   face: number;
@@ -28,75 +27,40 @@ type RankMetrics = {
   chipGap: number;
 };
 
-export function RaceOverlay({ hostRef, snapshot, comment, slotMode = "name" }: Props) {
-  const frame = useCanvasFrame(hostRef);
+export function RaceOverlay({ stage, snapshot, comment, slotMode = "name" }: Props) {
+  const { frame, scale, hud } = stage;
   const showHud = snapshot.phase === "racing";
 
   return (
     <div data-testid="race-overlay" data-phase={snapshot.phase} className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
-      {frame.scale > 0 ? (
+      <div
+        style={{
+          position: "absolute",
+          left: frame.x,
+          top: frame.y,
+          width: overlayLayout.view.width,
+          height: overlayLayout.view.height,
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
+        }}
+      >
+        {showHud ? null : <Countdown label={snapshot.countdown ?? "3"} />}
         <div
-          style={{
-            position: "absolute",
-            left: frame.left,
-            top: frame.top,
-            width: overlayLayout.view.width,
-            height: overlayLayout.view.height,
-            transform: `scale(${frame.scale})`,
-            transformOrigin: "top left",
-          }}
+          data-testid="race-hud"
+          style={{ position: "absolute", left: hud.x, top: hud.y, width: hud.width, height: hud.height }}
         >
           {showHud ? (
             <>
               <Minimap horses={snapshot.horses} />
               <Ranking horses={snapshot.horses} slotMode={slotMode} />
             </>
-          ) : (
-            <Countdown label={snapshot.countdown ?? "3"} />
-          )}
+          ) : null}
           <Caption comment={comment} />
           <SkillSlot />
         </div>
-      ) : null}
+      </div>
     </div>
   );
-}
-
-function useCanvasFrame(hostRef: RefObject<HTMLDivElement | null>): Frame {
-  const [frame, setFrame] = useState<Frame>({ left: 0, top: 0, scale: 0 });
-
-  useLayoutEffect(() => {
-    const observer = new ResizeObserver(() => measure());
-
-    function measure() {
-      const host = hostRef.current;
-      const root = host?.parentElement;
-      const canvas = host?.querySelector("canvas");
-      if (!host || !root || !canvas) return;
-      const rootBox = root.getBoundingClientRect();
-      const canvasBox = canvas.getBoundingClientRect();
-      if (canvasBox.width < 1 || canvasBox.height < 1) return;
-      observer.observe(canvas);
-      observer.observe(host);
-      const next = {
-        left: Math.round((canvasBox.left - rootBox.left) * 10) / 10,
-        top: Math.round((canvasBox.top - rootBox.top) * 10) / 10,
-        scale: Math.round((canvasBox.width / overlayLayout.view.width) * 1000) / 1000,
-      };
-      setFrame((prev) => (prev.left === next.left && prev.top === next.top && prev.scale === next.scale ? prev : next));
-    }
-
-    measure();
-    const timer = window.setInterval(measure, 250);
-    const stop = window.setTimeout(() => window.clearInterval(timer), 8000);
-    return () => {
-      window.clearInterval(timer);
-      window.clearTimeout(stop);
-      observer.disconnect();
-    };
-  }, [hostRef]);
-
-  return frame;
 }
 
 function labelStyle(fontSize: number, color: string, fontWeight: number = overlayLayout.style.fontWeight): CSSProperties {
@@ -119,7 +83,6 @@ function clamp01(value: number) {
 
 function Minimap({ horses }: { horses: OverlayHorse[] }) {
   const bar = overlayLayout.minimap;
-  const trackWidth = overlayLayout.view.width - bar.insetX * 2;
   const lead = horses.reduce((max, horse) => Math.max(max, clamp01(horse.progress)), 0);
   const barTop = (bar.height - bar.barHeight) / 2;
 
@@ -128,9 +91,9 @@ function Minimap({ horses }: { horses: OverlayHorse[] }) {
       data-testid="minimap"
       style={{
         position: "absolute",
-        top: bar.top,
-        left: 0,
-        width: overlayLayout.view.width,
+        left: bar.left,
+        right: bar.right,
+        bottom: bar.bottom,
         height: bar.height,
         background: overlayLayout.style.background,
       }}
@@ -139,8 +102,8 @@ function Minimap({ horses }: { horses: OverlayHorse[] }) {
         style={{
           position: "absolute",
           left: bar.insetX,
+          right: bar.insetX,
           top: barTop,
-          width: trackWidth,
           height: bar.barHeight,
           background: bar.track,
         }}
@@ -152,7 +115,7 @@ function Minimap({ horses }: { horses: OverlayHorse[] }) {
           key={horse.id}
           style={{
             position: "absolute",
-            left: bar.insetX + clamp01(horse.progress) * trackWidth - bar.marker / 2,
+            left: `calc(${bar.insetX - bar.marker / 2}px + ${clamp01(horse.progress)} * (100% - ${bar.insetX * 2}px))`,
             top: (bar.height - bar.marker) / 2,
             width: bar.marker,
             height: bar.marker,
@@ -177,8 +140,8 @@ function Ranking({ horses, slotMode }: { horses: OverlayHorse[]; slotMode: RankS
       style={{
         position: "absolute",
         top: band.top,
-        left: 0,
-        width: overlayLayout.view.width,
+        left: band.left,
+        width: band.width,
         height: band.height,
         background: overlayLayout.style.background,
         padding: `${band.paddingTop}px ${band.paddingX}px 0`,
@@ -295,9 +258,9 @@ function Caption({ comment }: { comment: string }) {
       aria-live="polite"
       style={{
         position: "absolute",
-        top: box.top,
         left: box.left,
         right: box.right,
+        bottom: box.bottom,
         height: box.height,
         margin: 0,
         overflow: "hidden",
@@ -326,8 +289,8 @@ function SkillSlot() {
       style={{
         position: "absolute",
         top: slot.top,
-        left: slot.left,
         right: slot.right,
+        width: slot.width,
         height: slot.height,
         boxSizing: "border-box",
         background: overlayLayout.style.background,

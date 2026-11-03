@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RaceResult } from "@/lib/race";
-import type { RankRow } from "@/game/createRaceGame";
-import { overlayLayout, type RaceOverlaySnapshot } from "@/game/overlayLayout";
+import type { RaceGameHandle, RankRow } from "@/game/createRaceGame";
+import type { RaceOverlaySnapshot } from "@/game/overlayLayout";
 import { rankSlotModeFromSearch, type RankSlotMode } from "@/game/rankDisplay";
 import { RaceOverlay } from "@/components/RaceOverlay";
+import { RotatePrompt } from "@/components/RotatePrompt";
+import { SAFE_AREA_PADDING, useStage } from "@/components/useStage";
 
 type Props = {
   race: RaceResult;
@@ -20,7 +22,11 @@ const EMPTY_OVERLAY: RaceOverlaySnapshot = {
 };
 
 export function RaceGame({ race, onComplete, isRacing }: Props) {
+  const shellRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
+  const gameRef = useRef<RaceGameHandle | null>(null);
+  const stage = useStage(shellRef);
+  const stageRef = useRef(stage);
   const onCompleteRef = useRef(onComplete);
   const [comment, setComment] = useState("게이트 앞에서 대기 중입니다.");
   const [ranks, setRanks] = useState<RankRow[]>([]);
@@ -35,15 +41,19 @@ export function RaceGame({ race, onComplete, isRacing }: Props) {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
+  useLayoutEffect(() => {
+    stageRef.current = stage;
+    if (stage) gameRef.current?.setStage(stage);
+  }, [stage]);
+
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
     let dead = false;
-    let game: { destroy: (removeCanvas: boolean) => void } | null = null;
 
     void import("@/game/createRaceGame").then(({ createRaceGame }) => {
       if (dead || !hostRef.current) return;
-      game = createRaceGame(hostRef.current, race, {
+      const game = createRaceGame(hostRef.current, race, {
         onComment: setComment,
         // Skill cut-ins stay in the Phaser scene. The overlay slot is empty.
         onCutin: () => {},
@@ -51,29 +61,27 @@ export function RaceGame({ race, onComplete, isRacing }: Props) {
         onPresentation: setOverlay,
         onComplete: () => onCompleteRef.current(),
       });
+      gameRef.current = game;
+      if (stageRef.current) game.setStage(stageRef.current);
     });
 
     return () => {
       dead = true;
-      game?.destroy(true);
+      gameRef.current?.destroy(true);
+      gameRef.current = null;
     };
   }, [race]);
 
   if (isRacing) {
     return (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-[#3F4630]"
-        style={{
-          paddingTop: overlayLayout.safeArea.top,
-          paddingRight: overlayLayout.safeArea.right,
-          paddingBottom: overlayLayout.safeArea.bottom,
-          paddingLeft: overlayLayout.safeArea.left,
-        }}
-      >
-        <div className="relative h-full w-full max-w-[540px] overflow-hidden">
-          <div ref={hostRef} className="h-full w-full" />
-          <RaceOverlay hostRef={hostRef} snapshot={overlay} comment={comment} slotMode={slotMode} />
-        </div>
+      // The shell's padding only exposes the safe-area insets to `useStage`. Absolute children
+      // fill the padding box, so the canvas still covers the whole viewport.
+      <div ref={shellRef} className="fixed inset-0 z-50 overflow-hidden bg-[#3F4630]" style={SAFE_AREA_PADDING}>
+        <div ref={hostRef} className="absolute inset-0" />
+        {stage?.kind === "landscape" ? (
+          <RaceOverlay stage={stage} snapshot={overlay} comment={comment} slotMode={slotMode} />
+        ) : null}
+        {stage?.kind === "portrait" ? <RotatePrompt /> : null}
       </div>
     );
   }
