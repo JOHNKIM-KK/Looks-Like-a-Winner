@@ -71,18 +71,9 @@ import type { RaceOverlaySnapshot } from "@/game/overlayLayout";
 import { orderByPresentation } from "@/game/rankOrder";
 import { PROJECTION_CENTER, REFERENCE, type LandscapeStage, type Rect, type Stage } from "@/game/stage";
 
-export type RankRow = {
-  id: string;
-  name: string;
-  place: number;
-  color: string;
-  portrait: string;
-};
-
 type Hooks = {
   onComment: (message: string) => void;
   onCutin: (cutin: SkillCutin | null) => void;
-  onRanks: (ranks: RankRow[]) => void;
   onPresentation: (snapshot: RaceOverlaySnapshot) => void;
   onComplete: () => void;
 };
@@ -296,7 +287,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   let crownMark: Phaser.GameObjects.Image | null = null;
   let slash: Phaser.GameObjects.Image | null = null;
   let sparks: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
-  let rankKey = "";
   let lastPhaseSig = "";
   let lastPresentationAt = -1;
   let lastComment = "";
@@ -1234,18 +1224,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         raceNow,
       );
       const nextKey = ordered.map((horse) => horse.id).join(">");
-      if (nextKey !== rankKey) {
-        rankKey = nextKey;
-        hooks.onRanks(
-          ordered.map((horse, index) => ({
-            id: horse.id,
-            name: horse.name,
-            place: index + 1,
-            color: horse.color,
-            portrait: horse.portrait,
-          })),
-        );
-      }
       const phaseSig = `${phase}|${countdown ?? ""}|${nextKey}`;
       if (phaseSig === lastPhaseSig && wallClock - lastPresentationAt < 0.1) return;
       lastPhaseSig = phaseSig;

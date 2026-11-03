@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { RaceGame } from "@/components/RaceGame";
-import { RaceResult } from "@/components/RaceResult";
 import { mockHorses } from "@/lib/mockHorses";
 import { skillById } from "@/lib/skills";
 import { primeStartSound } from "@/game/bang";
@@ -92,15 +91,14 @@ export default function HomePage() {
       ) : null}
 
       {race && phase !== "idle" ? (
-        <div className="relative">
-          <RaceGame 
-            key={race.seed} 
-            race={race} 
-            onComplete={() => setPhase("done")} 
-            isRacing={phase === "racing"}
-          />
-          {phase === "done" ? <RaceResult race={race} onRematch={start} /> : null}
-        </div>
+        <RaceGame
+          key={race.seed}
+          race={race}
+          finished={phase === "done"}
+          onComplete={() => setPhase("done")}
+          onRematch={start}
+          onExit={() => setPhase("idle")}
+        />
       ) : null}
     </main>
   );
