@@ -1,5 +1,6 @@
 import sheet from "../public/horses/horses.json";
 import { HORSE_PX_PER_M, SHADOW_ALPHA, SHADOW_BLUR_PX, SHADOW_SHEAR, SHADOW_SQUASH } from "./artScale";
+import { REFERENCE } from "./stage";
 
 export const HORSE_FPS = sheet.fps;
 export const HORSE_FRAMES = sheet.frames;
@@ -119,8 +120,8 @@ export function gallopFrame(horseNumber: number, animSeconds: number, fps = HORS
   return (offset + tick) % HORSE_FRAMES;
 }
 
-export function glyphHeightPx(plateH: number, spriteScale: number, viewWidth = 540) {
-  const minimum = (48 * viewWidth) / 1080;
+export function glyphHeightPx(plateH: number, spriteScale: number, viewShortSide: number = REFERENCE.height) {
+  const minimum = (48 * viewShortSide) / 1080;
   return Math.max(minimum, 1.15 * plateH * spriteScale);
 }
 

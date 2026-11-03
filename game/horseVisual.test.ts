@@ -104,6 +104,7 @@ describe("saddle number", () => {
     expect(glyphHeightPx(30, 1, 1080)).toBe(48);
     expect(glyphHeightPx(40, 2, 1080)).toBeCloseTo(92, 5);
     expect(glyphHeightPx(10, 1, 540)).toBe(24);
+    expect(glyphHeightPx(10, 1)).toBe(40);
     expect(glyphFontPx(48)).toBeCloseTo(62.4, 5);
     expect(glyphOutlinePx(20)).toBe(3);
     expect(glyphOutlinePx(40)).toBeCloseTo(4.8, 5);

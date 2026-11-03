@@ -69,22 +69,11 @@ import { RIDE_ANGLES, ridePose } from "@/game/jockeyRide";
 import { createTrackRenderer, trackViewFor } from "@/game/trackRenderer";
 import type { RaceOverlaySnapshot } from "@/game/overlayLayout";
 import { orderByPresentation } from "@/game/rankOrder";
-
-const GAME_WIDTH = 540;
-const GAME_HEIGHT = 1170;
-
-export type RankRow = {
-  id: string;
-  name: string;
-  place: number;
-  color: string;
-  portrait: string;
-};
+import { PROJECTION_CENTER, REFERENCE, type LandscapeStage, type Rect, type Stage } from "@/game/stage";
 
 type Hooks = {
   onComment: (message: string) => void;
   onCutin: (cutin: SkillCutin | null) => void;
-  onRanks: (ranks: RankRow[]) => void;
   onPresentation: (snapshot: RaceOverlaySnapshot) => void;
   onComplete: () => void;
 };
@@ -149,9 +138,9 @@ function cameraStateLabel(state: CameraState, lead: number): string {
  * pre-desaturated turf is not lifted toward beige. Warmth is the 1.07:0.93:0.78
  * ratio (1 : 0.87 : 0.73) only toward the corners, plus a small upper-left sun.
  */
-function paintGoldenGrade(scene: Phaser.Scene) {
-  const width = GAME_WIDTH;
-  const height = GAME_HEIGHT;
+function paintGoldenGrade(scene: Phaser.Scene): Phaser.GameObjects.Image[] {
+  const { width, height } = REFERENCE;
+  const layers: Phaser.GameObjects.Image[] = [];
   const vignette = scene.textures.createCanvas("grade-vignette", width, height);
   if (vignette) {
     const context = vignette.getContext();
@@ -162,7 +151,7 @@ function paintGoldenGrade(scene: Phaser.Scene) {
     context.fillStyle = ink;
     context.fillRect(0, 0, width, height);
     vignette.refresh();
-    scene.add.image(width / 2, height / 2, "grade-vignette").setScrollFactor(0).setDepth(8000).setBlendMode(Phaser.BlendModes.MULTIPLY);
+    layers.push(scene.add.image(0, 0, "grade-vignette").setDepth(8000).setBlendMode(Phaser.BlendModes.MULTIPLY));
   }
   const sun = scene.textures.createCanvas("grade-sun", width, height);
   if (sun) {
@@ -174,8 +163,9 @@ function paintGoldenGrade(scene: Phaser.Scene) {
     context.fillStyle = glow;
     context.fillRect(0, 0, width, height);
     sun.refresh();
-    scene.add.image(width / 2, height / 2, "grade-sun").setScrollFactor(0).setDepth(8001).setBlendMode(Phaser.BlendModes.ADD);
+    layers.push(scene.add.image(0, 0, "grade-sun").setDepth(8001).setBlendMode(Phaser.BlendModes.ADD));
   }
+  return layers;
 }
 
 function farShade(scale: number) {
@@ -254,8 +244,17 @@ function countdownLabel(wallClock: number) {
   return ["3", "2", "1"][step] ?? "1";
 }
 
-export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hooks) {
+export type RaceGameHandle = {
+  setStage(stage: Stage): void;
+  destroy(removeCanvas: boolean): void;
+};
+
+export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hooks): RaceGameHandle {
   const actors: Actor[] = [];
+  let stage: LandscapeStage | null = null;
+  let waitingForLandscape = true;
+  let created = false;
+  let grade: Phaser.GameObjects.Image[] = [];
   let raceTime = 0;
   let wallClock = 0;
   let started = false;
@@ -288,7 +287,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   let crownMark: Phaser.GameObjects.Image | null = null;
   let slash: Phaser.GameObjects.Image | null = null;
   let sparks: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
-  let rankKey = "";
   let lastPhaseSig = "";
   let lastPresentationAt = -1;
   let lastComment = "";
@@ -357,7 +355,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       this.cameras.main.setBackgroundColor("#3F4630");
       coats = createHorseCoatLibrary(this);
       world = createTrackRenderer(this);
-      paintGoldenGrade(this);
+      grade = paintGoldenGrade(this);
 
       for (const horse of race.horses) {
         const canvas = this.textures.createCanvas(`face-${horse.id}`, 64, 64);
@@ -461,7 +459,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       cutPath = this.add.graphics().setDepth(37);
       brakeSkid = this.add.graphics().setDepth(36);
       brakeHaze = this.add.graphics().setDepth(38);
-      crack = this.add.graphics().setScrollFactor(0).setDepth(4200);
+      crack = this.add.graphics().setDepth(4200);
       const plateSource = this.textures.get("crack-plate").getSourceImage() as CanvasImageSource & {
         width: number;
         height: number;
@@ -487,7 +485,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       }
       crackPlate = this.add
         .image(0, 0, plateCanvas ? "crack-glass" : "crack-plate")
-        .setScrollFactor(0)
         .setOrigin(0.5)
         .setDepth(4250)
         .setVisible(false);
@@ -503,12 +500,14 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       lastComment = "게이트 앞에서 대기 중입니다.";
       hooks.onComment(lastComment);
       this.placeHorses();
-      this.frameCamera(true);
+      created = true;
+      if (stage) applyStage(this, stage);
       this.publishField("countdown", "3");
       this.events.once("render", () => fadeInCanvas(this.game.canvas));
     }
 
     update(_time: number, delta: number) {
+      if (waitingForLandscape) return;
       if (DEBUG_ENABLED && cameraDebugHost().__cameraFreeze) {
         if (cameraDebugHost().__raceDebugVisible === false) this.paintDebugOverlay();
         return;
@@ -523,7 +522,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           this.placeHorses();
           this.paintTrack();
           this.publishField("countdown", label);
-          this.frameCamera(false);
           this.publishCameraDebug();
           if (DEBUG_ENABLED) {
             this.paintDebugOverlay();
@@ -589,7 +587,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       this.placeHorses();
       this.paintTrack();
       this.publishField("racing", null);
-      this.frameCamera(false);
       this.publishCameraDebug();
 
       if (DEBUG_ENABLED) {
@@ -605,7 +602,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
 
     paintTrack() {
-      world?.paint(currentCamera, trackViewFor(cameraState.name, lastLeadProgress, segmentEnds().corner34Exit));
+      world?.paint(currentCamera, trackViewFor(cameraState.name, lastLeadProgress, segmentEnds().corner34Exit), visibleArea());
     }
 
     placeHorses() {
@@ -850,7 +847,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const plate = angle.plates[frame] ?? angle.plates[0];
         if (plate) {
           const plateAt = plateScreenOffset(plate, angle.anchorX, angle.anchorY, drawn, picked.flipX);
-          const glyph = glyphHeightPx(plate.h, drawn, GAME_WIDTH);
+          const glyph = glyphHeightPx(plate.h, drawn);
           actor.number.setPosition(plateAt.x, plateAt.y);
           const ink = laneNumberInk(actor.horse.number);
           actor.number.setColor(ink.color);
@@ -1200,26 +1197,15 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         showGhosts(3, 24);
         burst(caster.container.x, caster.container.y - 70, 18);
       } else if (kind === "crack" && crackPlate) {
-        const camera = this.cameras.main;
-        const zoomNow = camera.zoom || 1;
-        const screenX = (caster.container.x - camera.scrollX - camera.width / 2) * zoomNow + camera.width / 2;
-        const screenY = (caster.container.y - camera.scrollY - camera.height / 2) * zoomNow + camera.height / 2;
-        const cover = Math.max(camera.width / crackPlateWidth, camera.height / crackPlateHeight) * 1.35;
+        const area = visibleArea();
+        const cover = Math.max(area.width / crackPlateWidth, area.height / crackPlateHeight) * 1.35;
         const fade = age < 0.75 ? 1 : 1 - (age - 0.75) / 0.35;
-        crackPlate.setPosition(screenX, screenY).setScale(cover).setAlpha(Math.max(0, fade)).setVisible(true);
+        crackPlate.setPosition(caster.container.x, caster.container.y).setScale(cover).setAlpha(Math.max(0, fade)).setVisible(true);
         if (age < 0.08 && crack) {
           crack.fillStyle(0xffffff, 0.72);
-          crack.fillRect(0, 0, camera.width, camera.height);
+          crack.fillRect(area.x, area.y, area.width, area.height);
         }
       }
-    }
-
-
-    frameCamera(immediate: boolean) {
-      const camera = this.cameras.main;
-      camera.setZoom(1);
-      camera.scrollX = 0;
-      camera.scrollY = 0;
     }
 
     publishField(phase: "countdown" | "racing", countdown: string | null) {
@@ -1238,18 +1224,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         raceNow,
       );
       const nextKey = ordered.map((horse) => horse.id).join(">");
-      if (nextKey !== rankKey) {
-        rankKey = nextKey;
-        hooks.onRanks(
-          ordered.map((horse, index) => ({
-            id: horse.id,
-            name: horse.name,
-            place: index + 1,
-            color: horse.color,
-            portrait: horse.portrait,
-          })),
-        );
-      }
       const phaseSig = `${phase}|${countdown ?? ""}|${nextKey}`;
       if (phaseSig === lastPhaseSig && wallClock - lastPresentationAt < 0.1) return;
       lastPhaseSig = phaseSig;
@@ -1314,11 +1288,10 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       horsePosSum.y /= actors.length;
       
       // 화면 중심 (파란 선 - 가로/세로 전체)
-      const centerX = GAME_WIDTH / 2;
-      const centerY = GAME_HEIGHT * 0.474;
+      const { x: centerX, y: centerY } = PROJECTION_CENTER;
       debugOverlay.lineStyle(2, 0x0000ff, 0.6);
-      debugOverlay.lineBetween(0, centerY, GAME_WIDTH, centerY);
-      debugOverlay.lineBetween(centerX, 0, centerX, GAME_HEIGHT);
+      debugOverlay.lineBetween(0, centerY, REFERENCE.width, centerY);
+      debugOverlay.lineBetween(centerX, 0, centerX, REFERENCE.height);
       
       // 실제 말 평균 위치 (초록 십자선)
       debugOverlay.lineStyle(4, 0x00ff00, 1);
@@ -1330,7 +1303,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const logical = getLogicalAt(actor.progress, actor.horse.number);
         const projected = projectWithCamera(logical, currentCamera);
         
-        if (projected.visible && projected.x >= 0 && projected.x <= GAME_WIDTH && projected.y >= 0 && projected.y <= GAME_HEIGHT) {
+        if (projected.visible && projected.x >= 0 && projected.x <= REFERENCE.width && projected.y >= 0 && projected.y <= REFERENCE.height) {
           visibleCount++;
         }
         
@@ -1378,11 +1351,31 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
   }
 
+  function visibleArea(): Rect {
+    return stage?.bleed ?? { x: 0, y: 0, ...REFERENCE };
+  }
+
+  function applyStage(scene: Phaser.Scene, next: LandscapeStage) {
+    const { backing, bleed, viewport } = next;
+    game.scale.resize(backing.width, backing.height);
+    // NONE mode only rewrites the canvas CSS size when its own zoom differs, so set it here.
+    game.canvas.style.width = `${viewport.width}px`;
+    game.canvas.style.height = `${viewport.height}px`;
+    const camera = scene.cameras.main;
+    camera.setSize(backing.width, backing.height);
+    camera.setOrigin(0, 0);
+    camera.setZoom(backing.zoom);
+    camera.setScroll(bleed.x, bleed.y);
+    for (const layer of grade) {
+      layer.setPosition(bleed.x + bleed.width / 2, bleed.y + bleed.height / 2).setDisplaySize(bleed.width, bleed.height);
+    }
+  }
+
   const game = new Phaser.Game({
     type: Phaser.WEBGL,
     parent,
-    width: GAME_WIDTH,
-    height: GAME_HEIGHT,
+    width: REFERENCE.width,
+    height: REFERENCE.height,
     backgroundColor: "#3F4630",
     callbacks: {
       postBoot: (booted) => {
@@ -1394,11 +1387,18 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       mipmapFilter: "LINEAR_MIPMAP_LINEAR",
     },
     scale: {
-      mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_HORIZONTALLY,
+      mode: Phaser.Scale.NONE,
     },
     banner: false,
   });
   cameraDebugHost().__raceGame = game;
-  return game;
+  return {
+    setStage(next) {
+      waitingForLandscape = next.kind === "portrait";
+      if (next.kind === "portrait") return;
+      stage = next;
+      if (created) applyStage(game.scene.getScene("race"), next);
+    },
+    destroy: (removeCanvas) => game.destroy(removeCanvas),
+  };
 }

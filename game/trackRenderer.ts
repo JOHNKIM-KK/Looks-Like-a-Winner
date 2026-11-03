@@ -7,7 +7,8 @@ import {
   distancePostProgresses,
   propSpriteScale,
 } from "./artScale";
-import { GAME_HEIGHT, GAME_WIDTH, groundAt, skyStripBottomY } from "./cameraFrame";
+import { groundAt, skyStripBottomY } from "./cameraFrame";
+import type { Rect } from "./stage";
 import { finishGoalX, presentationOnRadius, type Camera } from "./track";
 import {
   chutePolyline,
@@ -39,6 +40,8 @@ const DEPTH = {
   nearRail: 3500,
 } as const;
 
+const GROUND_CELL = 48;
+const FOG_BANDS = 16;
 const FOG_START_M = 36;
 const FOG_END_M = 170;
 
@@ -74,22 +77,18 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   enableTurfMipmaps(scene);
   scene.textures.get("ground-dirt").setWrap(Phaser.Textures.WrapMode.REPEAT, Phaser.Textures.WrapMode.REPEAT);
   const skyFrame = scene.textures.get("sky").get();
-  const sky = scene.add
-    .image(GAME_WIDTH / 2, 0, "sky")
-    .setOrigin(0.5, 1)
-    .setDepth(DEPTH.sky)
-    .setScrollFactor(0)
-    .setDisplaySize(skyFrame.width, skyFrame.height);
+  const sky = scene.add.tileSprite(0, 0, skyFrame.width, skyFrame.height, "sky").setOrigin(0, 1).setDepth(DEPTH.sky);
+  const skyCap = scene.add.rectangle(0, 0, 1, 1, skyTopColor(scene, skyFrame.width)).setOrigin(0, 0).setDepth(DEPTH.sky);
 
   const turf = makeMesh(scene, "ground-turf", DEPTH.turf);
   const dirt = makeMesh(scene, "ground-dirt", DEPTH.dirt);
-  const fog = scene.add.graphics().setDepth(DEPTH.fog).setScrollFactor(0);
+  const fog = scene.add.graphics().setDepth(DEPTH.fog);
   const farRail = makeMesh(scene, "rail-segment", DEPTH.farRail);
   const nearRail = makeMesh(scene, "rail-segment", DEPTH.nearRail);
   const stands = makeMesh(scene, "stands-strip", DEPTH.stands);
   stands.mesh.setAlpha(1).setBlendMode(Phaser.BlendModes.NORMAL);
   const checker = makeMesh(scene, "finish-checker", DEPTH.checker);
-  const startLine = scene.add.graphics().setDepth(DEPTH.checker).setScrollFactor(0);
+  const startLine = scene.add.graphics().setDepth(DEPTH.checker);
 
   const farLoop = ovalPolyline(farRailRadius());
   const nearLoop = ovalPolyline(nearRailRadius());
@@ -101,10 +100,15 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   );
   const finishPost = scene.add.image(0, 0, "prop-finish").setOrigin(0.5, 1).setDepth(DEPTH.props).setVisible(false);
 
-  function paint(camera: Camera, view: TrackView) {
-    sky.setPosition(GAME_WIDTH / 2, skyStripBottomY(camera));
-    paintGround(camera, turf, dirt);
-    paintFog(fog, camera);
+  function paint(camera: Camera, view: TrackView, area: Rect) {
+    const skyBottom = skyStripBottomY(camera);
+    sky.setPosition(area.x, skyBottom).setSize(area.width, skyFrame.height);
+    sky.tilePositionX = area.x;
+    const capBottom = skyBottom - skyFrame.height;
+    skyCap.setVisible(capBottom > area.y);
+    if (capBottom > area.y) skyCap.setPosition(area.x, area.y).setSize(area.width, capBottom - area.y);
+    paintGround(camera, turf, dirt, area);
+    paintFog(fog, camera, area);
     clearSlot(farRail);
     clearSlot(nearRail);
     paintVertical(farRail, farLoop, true, RAIL_IMAGE, 1, camera, null);
@@ -118,19 +122,19 @@ export function createTrackRenderer(scene: Phaser.Scene) {
     }
     paintChecker(checker, camera, view.showFinish);
     paintStartLine(startLine, camera);
-    paintProps(camera, view);
+    paintProps(camera, view, area);
   }
 
-  function paintProps(camera: Camera, view: TrackView) {
+  function paintProps(camera: Camera, view: TrackView, area: Rect) {
     postProgress.forEach((progress, index) => {
       const image = posts[index];
       if (!image) return;
       const point = presentationOnRadius(progress, farRailRadius());
-      placeProp(image, point.x, point.y, camera, GROUND_PX_PER_M);
+      placeProp(image, point.x, point.y, camera, GROUND_PX_PER_M, area);
     });
     if (view.showFinish) {
       const y = farRailRadius() - 1.6 * LOGICAL_PER_METER;
-      placeProp(finishPost, finishGoalX(), y, camera, GROUND_PX_PER_M);
+      placeProp(finishPost, finishGoalX(), y, camera, GROUND_PX_PER_M, area);
     } else {
       finishPost.setVisible(false);
     }
@@ -169,25 +173,25 @@ function crossesHorizon(camera: Camera, sx0: number, sy0: number, sx1: number, s
   return hits > 0 && hits < 4;
 }
 
-function paintFog(fog: Phaser.GameObjects.Graphics, camera: Camera) {
+function paintFog(fog: Phaser.GameObjects.Graphics, camera: Camera, area: Rect) {
   fog.clear();
-  const bands = 16;
-  const bandH = GAME_HEIGHT / bands;
-  for (let index = 0; index < bands; index += 1) {
-    const sy = bandH * index + bandH / 2;
-    const distance = rowDistance(camera, sy);
+  const bandH = area.height / FOG_BANDS;
+  for (let index = 0; index < FOG_BANDS; index += 1) {
+    const top = area.y + bandH * index;
+    const distance = rowDistance(camera, area, top + bandH / 2);
     if (distance == null) continue;
     const amount = fogAmount(distance);
     if (amount < 0.02) continue;
     fog.fillStyle(0x3f4630, amount);
-    fog.fillRect(0, bandH * index, GAME_WIDTH, bandH + 0.5);
+    fog.fillRect(area.x, top, area.width, bandH + 0.5);
   }
 }
 
-function rowDistance(camera: Camera, sy: number) {
+function rowDistance(camera: Camera, area: Rect, sy: number) {
   let sum = 0;
   let count = 0;
-  for (const sx of [GAME_WIDTH * 0.2, GAME_WIDTH * 0.5, GAME_WIDTH * 0.8]) {
+  for (const fraction of [0.2, 0.5, 0.8]) {
+    const sx = area.x + area.width * fraction;
     const ground = groundAt(camera, sx, sy);
     if (!ground.ok) continue;
     sum += Math.hypot(ground.x - camera.groundX, ground.y - camera.groundY);
@@ -224,18 +228,37 @@ function enableTurfMipmaps(scene: Phaser.Scene) {
   );
 }
 
-function paintGround(camera: Camera, turf: MeshSlot, dirt: MeshSlot) {
+function paintGround(camera: Camera, turf: MeshSlot, dirt: MeshSlot, area: Rect) {
   clearSlot(turf);
   clearSlot(dirt);
-  const cols = 18;
-  const rows = 24;
-  const cellW = GAME_WIDTH / cols;
-  const cellH = GAME_HEIGHT / rows;
-  for (let row = 0; row < rows; row += 1) {
-    for (let col = 0; col < cols; col += 1) {
-      emitGround(camera, turf, dirt, col * cellW, row * cellH, (col + 1) * cellW, (row + 1) * cellH, 0);
+  const col0 = Math.floor(area.x / GROUND_CELL);
+  const col1 = Math.ceil((area.x + area.width) / GROUND_CELL);
+  const row0 = Math.floor(area.y / GROUND_CELL);
+  const row1 = Math.ceil((area.y + area.height) / GROUND_CELL);
+  for (let row = row0; row < row1; row += 1) {
+    for (let col = col0; col < col1; col += 1) {
+      const sx = col * GROUND_CELL;
+      const sy = row * GROUND_CELL;
+      emitGround(camera, turf, dirt, sx, sy, sx + GROUND_CELL, sy + GROUND_CELL, 0);
     }
   }
+}
+
+function skyTopColor(scene: Phaser.Scene, width: number) {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+  let count = 0;
+  for (let x = 0; x < width; x += 20) {
+    const pixel = scene.textures.getPixel(x, 0, "sky");
+    if (!pixel) continue;
+    r += pixel.red;
+    g += pixel.green;
+    b += pixel.blue;
+    count += 1;
+  }
+  if (count === 0) return 0x3f4630;
+  return Phaser.Display.Color.GetColor(Math.round(r / count), Math.round(g / count), Math.round(b / count));
 }
 
 function emitGround(
@@ -400,15 +423,15 @@ function emitCheckerRow(
   pushTri(slot, i1, i3, i2);
 }
 
-function placeProp(image: Phaser.GameObjects.Image, x: number, y: number, camera: Camera, pxPerM: number) {
+function placeProp(image: Phaser.GameObjects.Image, x: number, y: number, camera: Camera, pxPerM: number, area: Rect) {
   const heightLu = (image.height / pxPerM) * LOGICAL_PER_METER;
   const pose = projectHeight(x, y, 0, camera);
   const onScreen =
     propSpriteAccepted(camera, x, y, heightLu) &&
-    pose.x > -240 &&
-    pose.x < GAME_WIDTH + 240 &&
-    pose.y > -420 &&
-    pose.y < GAME_HEIGHT + 80;
+    pose.x > area.x - 240 &&
+    pose.x < area.x + area.width + 240 &&
+    pose.y > area.y - 420 &&
+    pose.y < area.y + area.height + 80;
   image.setVisible(onScreen);
   if (!onScreen) return;
   image.setPosition(pose.x, pose.y);

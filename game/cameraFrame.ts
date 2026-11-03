@@ -8,6 +8,7 @@ import {
   type CameraLook,
   type CameraStateName,
 } from "./cameraState";
+import { PROJECTION_CENTER, REFERENCE } from "./stage";
 import {
   LANE_COUNT,
   STRAIGHT,
@@ -17,14 +18,12 @@ import {
   type Camera,
 } from "./track";
 
-export const GAME_WIDTH = cameraConfig.view.width;
-export const GAME_HEIGHT = cameraConfig.view.height;
-export const FRAME_LEFT = GAME_WIDTH * cameraConfig.view.marginX;
-export const FRAME_RIGHT = GAME_WIDTH * (1 - cameraConfig.view.marginX);
+export const FRAME_LEFT = REFERENCE.width * cameraConfig.view.marginX;
+export const FRAME_RIGHT = REFERENCE.width * (1 - cameraConfig.view.marginX);
 export const HUD_TOP = cameraConfig.view.hudTop;
 export const BANNER_TOP = cameraConfig.view.bannerTop;
-export const FRAME_TOP = GAME_HEIGHT * HUD_TOP;
-export const FRAME_BOTTOM = GAME_HEIGHT * BANNER_TOP;
+export const FRAME_TOP = REFERENCE.height * HUD_TOP;
+export const FRAME_BOTTOM = REFERENCE.height * BANNER_TOP;
 export const FRAME_DAMP_SEC = cameraConfig.framing.dampSec;
 export const GRASS_TARGET = cameraConfig.framing.grassTarget;
 export const STRAIGHT_GRASS_MAX = cameraConfig.framing.straightGrassMax;
@@ -36,8 +35,6 @@ export const CORNER_SAGITTA_MIN = cameraConfig.framing.cornerSagittaMin;
 const SPRITE_W = 213;
 const SPRITE_H = 211;
 const HORSE_H = 96;
-const CENTER_X = 270;
-const CENTER_Y = 555;
 const HALF = STRAIGHT / 2;
 
 export type FrameSubject = {
@@ -229,10 +226,10 @@ function radial(x: number, y: number) {
 /**
  * Screen y of the ground's vanishing line.
  * A horizontal ray sits `tan(pitch)` above the view axis, so
- * `sy = centerY - focal * tan(pitch)` (centerY is 555).
+ * `sy = centerY - focal * tan(pitch)`.
  */
 export function horizonScreenY(camera: Camera) {
-  return CENTER_Y - camera.focalLength * Math.tan(camera.pitch);
+  return PROJECTION_CENTER.y - camera.focalLength * Math.tan(camera.pitch);
 }
 
 /** The sky strip's bottom edge. 24px under the vanishing line, so the hills tuck into the ground. */
@@ -243,8 +240,8 @@ export function skyStripBottomY(camera: Camera) {
 }
 
 export function groundAt(camera: Camera, sx: number, sy: number) {
-  const fx = (CENTER_X - sx) / camera.focalLength;
-  const fy = (CENTER_Y - sy) / camera.focalLength;
+  const fx = (PROJECTION_CENTER.x - sx) / camera.focalLength;
+  const fy = (PROJECTION_CENTER.y - sy) / camera.focalLength;
   const cosP = Math.cos(camera.pitch);
   const sinP = Math.sin(camera.pitch);
   const denom = sinP - fy * cosP;
@@ -268,23 +265,23 @@ export function grassBelowRailFraction(camera: Camera, lanes = LANE_COUNT) {
   let worst = 0;
   const cols = 18;
   for (let i = 1; i < cols; i += 1) {
-    const sx = (i / cols) * GAME_WIDTH;
-    const bottom = groundAt(camera, sx, GAME_HEIGHT - 2);
+    const sx = (i / cols) * REFERENCE.width;
+    const bottom = groundAt(camera, sx, REFERENCE.height - 2);
     if (!bottom.ok || radial(bottom.x, bottom.y) <= outer) continue;
     let lo = 2;
-    let hi = GAME_HEIGHT - 2;
+    let hi = REFERENCE.height - 2;
     for (let step = 0; step < 10; step += 1) {
       const mid = (lo + hi) / 2;
       const sample = groundAt(camera, sx, mid);
       if (sample.ok && radial(sample.x, sample.y) > outer) hi = mid;
       else lo = mid;
     }
-    worst = Math.max(worst, (GAME_HEIGHT - hi) / GAME_HEIGHT);
+    worst = Math.max(worst, (REFERENCE.height - hi) / REFERENCE.height);
   }
   return worst;
 }
 
-const LANE_CENTER_Y = (GAME_HEIGHT * (LANE_AREA_TOP + LANE_AREA_BOTTOM)) / 2;
+const LANE_CENTER_Y = (REFERENCE.height * (LANE_AREA_TOP + LANE_AREA_BOTTOM)) / 2;
 
 /** Screen-space bow of the left-hand outer rail that actually falls inside the view. */
 export function cornerRailSagitta(camera: Camera, lanes = LANE_COUNT) {
@@ -297,7 +294,7 @@ export function cornerRailSagitta(camera: Camera, lanes = LANE_COUNT) {
       { x: -HALF + Math.cos(angle) * radius, y: Math.sin(angle) * radius, tx: 0, ty: 0 },
       camera,
     );
-    if (pose.visible && pose.x >= 8 && pose.x <= GAME_WIDTH - 8 && pose.y >= 8 && pose.y <= GAME_HEIGHT - 8) {
+    if (pose.visible && pose.x >= 8 && pose.x <= REFERENCE.width - 8 && pose.y >= 8 && pose.y <= REFERENCE.height - 8) {
       points.push(pose);
     }
   }
@@ -318,7 +315,7 @@ export function cornerRailSagitta(camera: Camera, lanes = LANE_COUNT) {
 
 export function anchorVisible(look: CameraLook, anchor: FrameAnchor) {
   const pose = projectWithCamera({ x: anchor.x, y: anchor.y, tx: 0, ty: 0 }, cameraFromLook(look));
-  return pose.visible && pose.x >= 0 && pose.x <= GAME_WIDTH && pose.y >= 0 && pose.y <= GAME_HEIGHT;
+  return pose.visible && pose.x >= 0 && pose.x <= REFERENCE.width && pose.y >= 0 && pose.y <= REFERENCE.height;
 }
 
 function widened(look: CameraLook, factor: number): CameraLook {

@@ -1,210 +1,109 @@
 "use client";
 
-import { useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { laneColor } from "@/game/laneColors";
 import type { RankSlotMode } from "@/game/rankDisplay";
 import {
+  clamp01,
+  leadMeters,
   overlayLayout,
-  placeAccent,
   type OverlayHorse,
   type RaceOverlaySnapshot,
 } from "@/game/overlayLayout";
+import { RACE_METERS } from "@/game/track";
+import type { LandscapeStage } from "@/game/stage";
+import { LaneBadge } from "@/components/LaneBadge";
 
 type Props = {
-  hostRef: RefObject<HTMLDivElement | null>;
+  stage: LandscapeStage;
   snapshot: RaceOverlaySnapshot;
   comment: string;
   slotMode?: RankSlotMode;
+  results?: ReactNode;
 };
 
-type Frame = { left: number; top: number; scale: number };
-
-type RankMetrics = {
-  face: number;
-  gap: number;
-  fontSize: number;
-  borderWidth: number;
-  chipPad: number;
-  chipGap: number;
-};
-
-export function RaceOverlay({ hostRef, snapshot, comment, slotMode = "name" }: Props) {
-  const frame = useCanvasFrame(hostRef);
+export function RaceOverlay({ stage, snapshot, comment, slotMode = "name", results }: Props) {
+  const { frame, scale, hud } = stage;
   const showHud = snapshot.phase === "racing";
 
   return (
     <div data-testid="race-overlay" data-phase={snapshot.phase} className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
-      {frame.scale > 0 ? (
-        <div
-          style={{
-            position: "absolute",
-            left: frame.left,
-            top: frame.top,
-            width: overlayLayout.view.width,
-            height: overlayLayout.view.height,
-            transform: `scale(${frame.scale})`,
-            transformOrigin: "top left",
-          }}
-        >
-          {showHud ? (
-            <>
-              <Minimap horses={snapshot.horses} />
-              <Ranking horses={snapshot.horses} slotMode={slotMode} />
-            </>
-          ) : (
-            <Countdown label={snapshot.countdown ?? "3"} />
-          )}
-          <Caption comment={comment} />
-          <SkillSlot />
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function useCanvasFrame(hostRef: RefObject<HTMLDivElement | null>): Frame {
-  const [frame, setFrame] = useState<Frame>({ left: 0, top: 0, scale: 0 });
-
-  useLayoutEffect(() => {
-    const observer = new ResizeObserver(() => measure());
-
-    function measure() {
-      const host = hostRef.current;
-      const root = host?.parentElement;
-      const canvas = host?.querySelector("canvas");
-      if (!host || !root || !canvas) return;
-      const rootBox = root.getBoundingClientRect();
-      const canvasBox = canvas.getBoundingClientRect();
-      if (canvasBox.width < 1 || canvasBox.height < 1) return;
-      observer.observe(canvas);
-      observer.observe(host);
-      const next = {
-        left: Math.round((canvasBox.left - rootBox.left) * 10) / 10,
-        top: Math.round((canvasBox.top - rootBox.top) * 10) / 10,
-        scale: Math.round((canvasBox.width / overlayLayout.view.width) * 1000) / 1000,
-      };
-      setFrame((prev) => (prev.left === next.left && prev.top === next.top && prev.scale === next.scale ? prev : next));
-    }
-
-    measure();
-    const timer = window.setInterval(measure, 250);
-    const stop = window.setTimeout(() => window.clearInterval(timer), 8000);
-    return () => {
-      window.clearInterval(timer);
-      window.clearTimeout(stop);
-      observer.disconnect();
-    };
-  }, [hostRef]);
-
-  return frame;
-}
-
-function labelStyle(fontSize: number, color: string, fontWeight: number = overlayLayout.style.fontWeight): CSSProperties {
-  const { style } = overlayLayout;
-  return {
-    color,
-    fontFamily: style.fontFamily,
-    fontWeight,
-    fontSize,
-    lineHeight: 1,
-    WebkitTextStroke: `${style.outlineWidth}px ${style.outlineColor}`,
-    paintOrder: "stroke fill",
-  };
-}
-
-function clamp01(value: number) {
-  if (!Number.isFinite(value)) return 0;
-  return Math.min(1, Math.max(0, value));
-}
-
-function Minimap({ horses }: { horses: OverlayHorse[] }) {
-  const bar = overlayLayout.minimap;
-  const trackWidth = overlayLayout.view.width - bar.insetX * 2;
-  const lead = horses.reduce((max, horse) => Math.max(max, clamp01(horse.progress)), 0);
-  const barTop = (bar.height - bar.barHeight) / 2;
-
-  return (
-    <div
-      data-testid="minimap"
-      style={{
-        position: "absolute",
-        top: bar.top,
-        left: 0,
-        width: overlayLayout.view.width,
-        height: bar.height,
-        background: overlayLayout.style.background,
-      }}
-    >
       <div
         style={{
           position: "absolute",
-          left: bar.insetX,
-          top: barTop,
-          width: trackWidth,
-          height: bar.barHeight,
-          background: bar.track,
+          left: frame.x,
+          top: frame.y,
+          width: overlayLayout.view.width,
+          height: overlayLayout.view.height,
+          transform: `scale(${scale})`,
+          transformOrigin: "top left",
         }}
       >
-        <div style={{ width: `${lead * 100}%`, height: "100%", background: bar.lead }} />
-      </div>
-      {horses.map((horse) => (
+        {showHud ? null : <Countdown label={snapshot.countdown ?? "3"} />}
         <div
-          key={horse.id}
-          style={{
-            position: "absolute",
-            left: bar.insetX + clamp01(horse.progress) * trackWidth - bar.marker / 2,
-            top: (bar.height - bar.marker) / 2,
-            width: bar.marker,
-            height: bar.marker,
-            background: laneColor(horse.number),
-            border: `${bar.markerBorder}px solid ${overlayLayout.style.outlineColor}`,
-            boxSizing: "border-box",
-          }}
-        />
-      ))}
+          data-testid="race-hud"
+          style={{ position: "absolute", left: hud.x, top: hud.y, width: hud.width, height: hud.height }}
+        >
+          {showHud ? <RankBoard horses={snapshot.horses} slotMode={slotMode} /> : null}
+          <Ticker comment={comment} horses={showHud ? snapshot.horses : []} />
+          {results}
+        </div>
+      </div>
     </div>
   );
 }
 
-function Ranking({ horses, slotMode }: { horses: OverlayHorse[]; slotMode: RankSlotMode }) {
-  const band = overlayLayout.ranking;
+function panelStyle(radius: number): CSSProperties {
+  return {
+    position: "absolute",
+    boxSizing: "border-box",
+    borderRadius: radius,
+    background: overlayLayout.style.panel,
+    boxShadow: `inset 0 0 0 1px ${overlayLayout.style.panelEdge}`,
+  };
+}
+
+function textStyle(fontSize: number, color: string, fontWeight = 700): CSSProperties {
+  return {
+    color,
+    fontFamily: overlayLayout.style.fontFamily,
+    fontWeight,
+    fontSize,
+    lineHeight: 1,
+    whiteSpace: "nowrap",
+  };
+}
+
+function RankBoard({ horses, slotMode }: { horses: OverlayHorse[]; slotMode: RankSlotMode }) {
+  const board = overlayLayout.board;
   const podium = horses.filter((horse) => horse.place >= 1 && horse.place <= 3);
   const chase = horses.filter((horse) => horse.place >= 4 && horse.place <= 12);
 
   return (
     <div
       data-testid="ranking"
-      style={{
-        position: "absolute",
-        top: band.top,
-        left: 0,
-        width: overlayLayout.view.width,
-        height: band.height,
-        background: overlayLayout.style.background,
-        padding: `${band.paddingTop}px ${band.paddingX}px 0`,
-        boxSizing: "border-box",
-        overflow: "hidden",
-      }}
+      style={{ ...panelStyle(board.radius), left: board.left, top: board.top, width: board.width, height: board.height }}
     >
-      <ol style={rowStyle(band.podium.gap)}>
+      <ol style={rowStyle(board.padX, board.podium.top, board.podium.gap)}>
         {podium.map((horse) => (
-          <RankChip key={horse.id} horse={horse} metrics={band.podium} slotMode={slotMode} />
+          <PodiumCard key={horse.id} horse={horse} slotMode={slotMode} />
         ))}
       </ol>
-      <ol style={{ ...rowStyle(band.chase.gap), marginTop: band.rowGap, flexWrap: "wrap" }}>
+      <ol style={rowStyle(board.padX, board.chase.top, board.chase.gap)}>
         {chase.map((horse) => (
-          <RankChip key={horse.id} horse={horse} metrics={band.chase} slotMode={slotMode} />
+          <ChaseChip key={horse.id} horse={horse} />
         ))}
       </ol>
     </div>
   );
 }
 
-function rowStyle(gap: number): CSSProperties {
+function rowStyle(left: number, top: number, gap: number): CSSProperties {
   return {
+    position: "absolute",
+    left,
+    top,
     display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
     gap,
     margin: 0,
     padding: 0,
@@ -212,38 +111,31 @@ function rowStyle(gap: number): CSSProperties {
   };
 }
 
-function RankChip({ horse, metrics, slotMode }: { horse: OverlayHorse; metrics: RankMetrics; slotMode: RankSlotMode }) {
-  const nameWidth = metrics.face >= 32 ? 108 : 64;
-  const nameFont = metrics.face >= 32 ? 12 : 8;
+function PodiumCard({ horse, slotMode }: { horse: OverlayHorse; slotMode: RankSlotMode }) {
+  const card = overlayLayout.board.podium;
+  const { style } = overlayLayout;
+  const first = horse.place === 1;
   return (
     <li
       style={{
+        width: card.width,
+        height: card.height,
+        boxSizing: "border-box",
         display: "flex",
         alignItems: "center",
-        flexShrink: 0,
-        gap: metrics.chipGap,
-        padding: metrics.chipPad,
-        border: `${metrics.borderWidth}px solid ${laneColor(horse.number)}`,
+        paddingLeft: card.padLeft,
+        borderRadius: card.radius,
+        border: `${card.border}px solid ${first ? style.first : style.border}`,
       }}
     >
-      <span style={labelStyle(metrics.fontSize, placeAccent(horse.place) ?? overlayLayout.style.textColor)}>{horse.place}</span>
+      <span style={{ ...textStyle(card.placeSize, first ? style.first : style.text, 800), width: card.placeWidth }}>
+        {horse.place}
+      </span>
+      <LaneBadge number={horse.number} size={card.badge} fontSize={card.badgeSize} />
       {slotMode === "name" ? (
         <span
           data-testid="rank-slot-name"
-          style={{
-            width: nameWidth,
-            height: metrics.face,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            overflow: "hidden",
-            textAlign: "center",
-            color: "#ffffff",
-            fontFamily: overlayLayout.style.fontFamily,
-            fontWeight: 700,
-            fontSize: nameFont,
-            lineHeight: 1.05,
-          }}
+          style={{ ...textStyle(card.nameSize, style.text, 800), marginLeft: card.nameGap, overflow: "hidden" }}
         >
           {horse.name}
         </span>
@@ -253,22 +145,127 @@ function RankChip({ horse, metrics, slotMode }: { horse: OverlayHorse; metrics: 
         <img
           src={horse.portrait}
           alt=""
-          width={metrics.face}
-          height={metrics.face}
-          style={{
-            width: metrics.face,
-            height: metrics.face,
-            objectFit: "cover",
-            display: "block",
-          }}
+          width={card.badge}
+          height={card.badge}
+          style={{ width: card.badge, height: card.badge, objectFit: "cover", marginLeft: card.nameGap }}
         />
       )}
     </li>
   );
 }
 
+function ChaseChip({ horse }: { horse: OverlayHorse }) {
+  const chip = overlayLayout.board.chase;
+  return (
+    <li
+      style={{
+        width: chip.width,
+        height: chip.height,
+        boxSizing: "border-box",
+        display: "flex",
+        alignItems: "center",
+        paddingLeft: chip.padLeft,
+        borderRadius: chip.radius,
+        border: `${chip.border}px solid ${overlayLayout.style.border}`,
+      }}
+    >
+      <span style={{ ...textStyle(chip.placeSize, overlayLayout.style.text, 600), width: chip.placeWidth, letterSpacing: -0.5 }}>
+        {horse.place}
+      </span>
+      <LaneBadge number={horse.number} size={chip.badge} fontSize={chip.badgeSize} />
+    </li>
+  );
+}
+
+function Ticker({ comment, horses }: { comment: string; horses: OverlayHorse[] }) {
+  const ticker = overlayLayout.ticker;
+  const { caption } = ticker;
+  const { style } = overlayLayout;
+  return (
+    <div
+      data-testid="ticker"
+      style={{ ...panelStyle(ticker.radius), left: ticker.left, right: ticker.right, bottom: ticker.bottom, height: ticker.height }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          left: caption.insetX,
+          right: caption.insetX,
+          top: caption.top,
+          height: caption.height,
+          boxSizing: "border-box",
+          display: "flex",
+          alignItems: "center",
+          gap: caption.labelGap,
+          padding: `0 ${caption.padX}px`,
+          borderRadius: caption.radius,
+          border: `${caption.border}px solid ${style.border}`,
+        }}
+      >
+        <span style={textStyle(caption.labelSize, style.border)}>{caption.label}</span>
+        <p aria-live="polite" style={{ ...textStyle(caption.textSize, style.text, 800), margin: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+          {comment}
+        </p>
+      </div>
+      <Progress horses={horses} />
+    </div>
+  );
+}
+
+function Progress({ horses }: { horses: OverlayHorse[] }) {
+  const bar = overlayLayout.ticker.progress;
+  const lead = horses.reduce((max, horse) => Math.max(max, clamp01(horse.progress)), 0);
+  const back = [...horses].sort((a, b) => b.place - a.place);
+  return (
+    <>
+      <div
+        data-testid="progress"
+        style={{
+          position: "absolute",
+          left: bar.left,
+          right: bar.right,
+          top: bar.centerY - bar.barHeight / 2,
+          height: bar.barHeight,
+          borderRadius: bar.barHeight / 2,
+          background: bar.track,
+        }}
+      >
+        <div style={{ width: `${lead * 100}%`, height: "100%", borderRadius: "inherit", background: bar.fill }} />
+        {back.map((horse) => (
+          <span
+            key={horse.id}
+            style={{
+              position: "absolute",
+              left: `calc(${clamp01(horse.progress) * 100}% - ${bar.marker / 2}px)`,
+              top: (bar.barHeight - bar.marker) / 2,
+              width: bar.marker,
+              height: bar.marker,
+              boxSizing: "border-box",
+              borderRadius: "50%",
+              background: laneColor(horse.number),
+              border: `${bar.markerEdge}px solid #FFFFFF`,
+            }}
+          />
+        ))}
+      </div>
+      <span
+        style={{
+          ...textStyle(bar.distanceSize, overlayLayout.style.text, 600),
+          position: "absolute",
+          right: bar.distanceRight,
+          top: bar.centerY,
+          transform: "translateY(-50%)",
+        }}
+      >
+        {leadMeters(horses)} / {RACE_METERS}m
+      </span>
+    </>
+  );
+}
+
 function Countdown({ label }: { label: string }) {
   const box = overlayLayout.countdown;
+  const { style } = overlayLayout;
   return (
     <div
       data-testid="countdown"
@@ -280,59 +277,12 @@ function Countdown({ label }: { label: string }) {
         top: box.centerY,
         transform: "translateY(-50%)",
         textAlign: "center",
-        ...labelStyle(box.fontSize, overlayLayout.style.textColor),
+        ...textStyle(box.fontSize, style.text),
+        WebkitTextStroke: `${style.outlineWidth}px ${style.outlineColor}`,
+        paintOrder: "stroke fill",
       }}
     >
       {label}
     </div>
-  );
-}
-
-function Caption({ comment }: { comment: string }) {
-  const box = overlayLayout.caption;
-  return (
-    <p
-      aria-live="polite"
-      style={{
-        position: "absolute",
-        top: box.top,
-        left: box.left,
-        right: box.right,
-        height: box.height,
-        margin: 0,
-        overflow: "hidden",
-        boxSizing: "border-box",
-        border: `${box.borderWidth}px solid ${box.borderColor}`,
-        background: box.background,
-        color: box.color,
-        fontFamily: overlayLayout.style.fontFamily,
-        fontWeight: box.fontWeight,
-        fontSize: box.fontSize,
-        lineHeight: `${box.lineHeight}px`,
-        padding: `${box.paddingY}px ${box.paddingX}px`,
-      }}
-    >
-      {comment}
-    </p>
-  );
-}
-
-function SkillSlot() {
-  const slot = overlayLayout.skillSlot;
-  return (
-    <div
-      data-testid="skill-slot"
-      aria-hidden="true"
-      style={{
-        position: "absolute",
-        top: slot.top,
-        left: slot.left,
-        right: slot.right,
-        height: slot.height,
-        boxSizing: "border-box",
-        background: overlayLayout.style.background,
-        border: `${slot.borderWidth}px solid ${slot.borderColor}`,
-      }}
-    />
   );
 }
