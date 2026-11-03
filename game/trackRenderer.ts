@@ -63,7 +63,7 @@ export function trackViewFor(stateName: string, leadProgress: number, cornerEnd:
   };
 }
 
-type MeshSlot = {
+export type MeshSlot = {
   mesh: Phaser.GameObjects.Mesh2D;
   verts: number[];
   indices: number[];
@@ -438,7 +438,7 @@ function placeProp(image: Phaser.GameObjects.Image, x: number, y: number, camera
   image.setScale(propSpriteScale(pose.scale, pxPerM));
 }
 
-function makeMesh(scene: Phaser.Scene, key: string, depth: number): MeshSlot {
+export function makeMesh(scene: Phaser.Scene, key: string, depth: number): MeshSlot {
   const verts: number[] = [];
   const indices: number[] = [];
   const mesh = scene.add.mesh2d(0, 0, key, verts, indices);
@@ -447,16 +447,16 @@ function makeMesh(scene: Phaser.Scene, key: string, depth: number): MeshSlot {
   return { mesh, verts, indices };
 }
 
-function clearSlot(slot: MeshSlot) {
+export function clearSlot(slot: MeshSlot) {
   slot.verts.length = 0;
   slot.indices.length = 0;
 }
 
-function pushVert(slot: MeshSlot, x: number, y: number, u: number, v: number) {
+export function pushVert(slot: MeshSlot, x: number, y: number, u: number, v: number) {
   slot.verts.push(x, y, u, v);
   return slot.verts.length / 4 - 1;
 }
 
-function pushTri(slot: MeshSlot, a: number, b: number, c: number) {
+export function pushTri(slot: MeshSlot, a: number, b: number, c: number) {
   slot.indices.push(a, b, c, 0);
 }

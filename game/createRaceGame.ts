@@ -13,7 +13,7 @@ import {
   beatAt,
   type ShowBeat,
 } from "@/game/skillShow";
-import { playBang } from "@/game/bang";
+import { playBell } from "@/game/bang";
 import { renderLane, projectWithCamera, presentationLogical, finishPostLogical, finishOuterLogical, segmentEnds } from "@/game/track";
 import {
   createInitialState,
@@ -67,6 +67,10 @@ import {
 } from "@/game/mountedPair";
 import { RIDE_ANGLES, ridePose } from "@/game/jockeyRide";
 import { createTrackRenderer, trackViewFor } from "@/game/trackRenderer";
+import { INTRO_END, INTRO_SKIP_TO, introCamera, introGateSwap, introLine, introShowsStands } from "@/game/droneIntro";
+import { createGatePlate, preloadGatePlates } from "@/game/gatePlate";
+import { BELL_AT, clearOfStall, countdownLabel, doorState, gateCamera, gateOffset, gatePlateAlpha } from "@/game/gateStart";
+import type { GateView } from "@/game/gateViews";
 import type { RaceOverlaySnapshot } from "@/game/overlayLayout";
 import { orderByPresentation } from "@/game/rankOrder";
 import { PROJECTION_CENTER, REFERENCE, type LandscapeStage, type Rect, type Stage } from "@/game/stage";
@@ -236,13 +240,7 @@ function liveShown(horse: RaceHorse, progress: number, time: number) {
   return horse.swapFrom + (progress - horse.swapFrom) * swapBlend;
 }
 
-const COUNT_STEP = 0.8;
 const SKILL_LEAD = 0.1;
-
-function countdownLabel(wallClock: number) {
-  const step = Math.min(2, Math.floor(wallClock / COUNT_STEP));
-  return ["3", "2", "1"][step] ?? "1";
-}
 
 export type RaceGameHandle = {
   setStage(stage: Stage): void;
@@ -256,6 +254,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   let created = false;
   let grade: Phaser.GameObjects.Image[] = [];
   let raceTime = 0;
+  let introClock = 0;
   let wallClock = 0;
   let started = false;
   let gateOpen = 0;
@@ -319,6 +318,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   const goalInnerLogical = finishPostLogical();
   const goalOuterLogical = finishOuterLogical(Math.max(1, race.horses.length));
   let world: ReturnType<typeof createTrackRenderer> | null = null;
+  let gatePlates: Record<GateView, ReturnType<typeof createGatePlate>> | null = null;
   let coats: HorseCoatLibrary | null = null;
 
   class RaceScene extends Phaser.Scene {
@@ -349,12 +349,21 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         this.load.image(`portrait-${horse.id}`, horse.portrait);
       }
       this.load.image("crack-plate", "/fx/screen-crack.jpg");
+      preloadGatePlates(this);
     }
 
     create() {
       this.cameras.main.setBackgroundColor("#3F4630");
       coats = createHorseCoatLibrary(this);
       world = createTrackRenderer(this);
+      gatePlates = {
+        drone: createGatePlate(this, "drone"),
+        top: createGatePlate(this, "top"),
+        start: createGatePlate(this, "start"),
+      };
+      this.input.on("pointerdown", () => {
+        if (introClock < INTRO_SKIP_TO) introClock = INTRO_SKIP_TO;
+      });
       grade = paintGoldenGrade(this);
 
       for (const horse of race.horses) {
@@ -497,12 +506,13 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         backgroundColor: '#000000dd',
         padding: { x: 10, y: 10 },
       }).setDepth(10001).setVisible(DEBUG_ENABLED).setScrollFactor(0);
-      lastComment = "게이트 앞에서 대기 중입니다.";
+      lastComment = introLine(introClock);
       hooks.onComment(lastComment);
       this.placeHorses();
+      this.paintGate();
       created = true;
       if (stage) applyStage(this, stage);
-      this.publishField("countdown", "3");
+      this.publishField("intro", null);
       this.events.once("render", () => fadeInCanvas(this.game.canvas));
     }
 
@@ -514,14 +524,31 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       }
       const wall = Math.min(delta, 40) / 1000;
       frameDt = wall;
+      if (introClock < INTRO_END) {
+        introClock = Math.min(INTRO_END, introClock + wall);
+        const intro = introClock < INTRO_END;
+        raceTime = 0;
+        this.placeHorses();
+        this.paintTrack();
+        const line = intro ? introLine(introClock) : "게이트 앞에서 대기 중입니다.";
+        if (line !== lastComment) {
+          lastComment = line;
+          hooks.onComment(line);
+        }
+        this.publishField(intro ? "intro" : "countdown", intro ? null : countdownLabel(wallClock));
+        this.publishCameraDebug();
+        if (DEBUG_ENABLED) {
+          this.paintDebugOverlay();
+        }
+        return;
+      }
       wallClock += wall;
       if (!started) {
-        const label = countdownLabel(wallClock);
-        if (wallClock < COUNT_STEP * 3) {
+        if (wallClock < BELL_AT) {
           raceTime = 0;
           this.placeHorses();
           this.paintTrack();
-          this.publishField("countdown", label);
+          this.publishField("countdown", countdownLabel(wallClock));
           this.publishCameraDebug();
           if (DEBUG_ENABLED) {
             this.paintDebugOverlay();
@@ -529,7 +556,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           return;
         }
         started = true;
-        playBang();
+        playBell();
         lastComment = "게이트가 열렸습니다.";
         hooks.onComment(lastComment);
       }
@@ -602,7 +629,16 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
 
     paintTrack() {
-      world?.paint(currentCamera, trackViewFor(cameraState.name, lastLeadProgress, segmentEnds().corner34Exit), visibleArea());
+      const view = trackViewFor(cameraState.name, lastLeadProgress, segmentEnds().corner34Exit);
+      if (!introShowsStands(introClock)) view.showStands = false;
+      world?.paint(currentCamera, view, visibleArea());
+      this.paintGate();
+    }
+
+    paintGate() {
+      const alpha = gatePlateAlpha(wallClock, introGateSwap(introClock));
+      const door = doorState(wallClock);
+      for (const view of Object.keys(alpha) as GateView[]) gatePlates?.[view].paint(currentCamera, alpha[view], door);
     }
 
     placeHorses() {
@@ -678,7 +714,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         framed.look,
         requiredFrameSubjects(subjects, cameraState.name, snapshot.leadProgress),
       ).worst;
-      currentCamera = cameraFromLook(framed.look);
+      currentCamera = introCamera(introClock, gateCamera(wallClock, cameraFromLook(framed.look)));
+      const intro = introGateSwap(introClock);
 
       for (const actor of actors) {
         const sample = progressAt(actor.horse.samples, raceTime);
@@ -704,11 +741,13 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const cutBlend = cutting ? (raceTime - actor.horse.skillTime) / (actor.horse.cutUntil - actor.horse.skillTime) : 0;
         const displayLane = renderLane(actor.horse.number, actor.progress, race.seed);
         const logical = getLogicalAt(actor.progress, displayLane);
-        const heading = cutting
+        const path = cutting
           ? blendLogical(getLogicalAt(actor.horse.cutFrom, displayLane), getLogicalAt(actor.horse.cutTo, displayLane), cutBlend)
           : swapping
             ? blendLogical(getLogicalAt(actor.horse.swapFrom, displayLane), logical, swapBlend)
             : logical;
+        const offset = gateOffset(displayLane, actor.progress, wallClock, intro);
+        const heading = { ...path, x: path.x + offset.x, y: path.y + offset.y };
         const pose = projectWithCamera(heading, currentCamera);
         const ahead = !started ? 0 : actor.progress >= 1 ? progressAt(actor.horse.samples, raceTime + 0.2) - actor.progress : 1;
         const braking = actor.progress >= 1;
@@ -739,7 +778,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const brakeLean = braking ? Math.sin((1 - pull) * Math.PI) * 20 : 0;
         actor.container.setAngle(brakeLean * (pose.flipX ? 1 : -1));
         actor.container.setScale(1);
-        actor.container.setDepth(pose.y);
+        actor.container.setDepth(clearOfStall(heading.x) ? 3001 + pose.y / 10 : pose.y);
         const punch = castingNow && kind === "start" && payoffAge < 0.08 ? 1.08 : 1;
         const inCornerCloseup = cameraState.name === "CLOSEUP" &&
           cameraState.closeupHorseIndex === (actor.horse.number - 1) &&
@@ -825,7 +864,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const dir = picked.flipX ? 1 : -1;
         const puff = (raceTime * 10 + actor.horse.number) % 1;
         actor.face.setVisible(onFoot && !sucking);
-        actor.number.setVisible(!onFoot);
+        // Phaser draws container Text after the gate's Mesh2D front regardless of depth, so the doors cannot hide it.
+        actor.number.setVisible(!onFoot && clearOfStall(heading.x));
         if (onFoot && !sucking) {
           const swing = Math.sin(raceTime * 16 + actor.horse.number) * 14;
           actor.body.lineStyle(5, 0x24180f, 1);
@@ -1208,7 +1248,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       }
     }
 
-    publishField(phase: "countdown" | "racing", countdown: string | null) {
+    publishField(phase: RaceOverlaySnapshot["phase"], countdown: string | null) {
       const raceNow = phase === "racing" ? raceTime : 0;
       const ordered = orderByPresentation(
         actors.map((actor) => ({

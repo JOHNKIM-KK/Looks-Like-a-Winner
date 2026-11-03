@@ -129,6 +129,7 @@ export const overlayLayout = {
   countdown: {
     fontSize: 112,
     centerY: REFERENCE.height * 0.42,
+    color: "#FFD000",
   },
 } as const;
 
@@ -143,7 +144,7 @@ export type OverlayHorse = {
 };
 
 export type RaceOverlaySnapshot = {
-  phase: "countdown" | "racing";
+  phase: "intro" | "countdown" | "racing";
   countdown: string | null;
   horses: OverlayHorse[];
 };
