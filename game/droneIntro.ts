@@ -51,7 +51,7 @@ function clamp01(value: number) {
   return Math.min(1, Math.max(0, value));
 }
 
-function smoothstep(value: number) {
+export function smoothstep(value: number) {
   const t = clamp01(value);
   return t * t * (3 - 2 * t);
 }
@@ -89,7 +89,7 @@ function cameraAlong(from: IntroShot, to: IntroShot, t: number): Camera {
   };
 }
 
-function blendCamera(from: Camera, to: Camera, t: number): Camera {
+export function blendCamera(from: Camera, to: Camera, t: number): Camera {
   const turn = Math.atan2(Math.sin(to.yaw - from.yaw), Math.cos(to.yaw - from.yaw));
   return {
     groundX: lerp(from.groundX, to.groundX, t),
