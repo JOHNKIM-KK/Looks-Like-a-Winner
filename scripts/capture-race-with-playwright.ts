@@ -13,7 +13,7 @@ async function captureRaceScreenshots() {
   const browser = await chromium.launch({ headless: true });
 
   try {
-    const viewport = { width: 390, height: 844, name: 'iPhone13' };
+    const viewport = { width: 1600, height: 900, name: 'desktop16x9' };
     console.log(`\n📱 ${viewport.name} (${viewport.width}x${viewport.height}) 캡처 중...`);
     
     const context = await browser.newContext({
