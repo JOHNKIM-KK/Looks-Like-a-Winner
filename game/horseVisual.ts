@@ -53,8 +53,8 @@ export function angleSetForElevation(elevationDeg: number): AngleSetName {
 
 /**
  * Camera-relative yaw in degrees.
- * yaw = atan2(-dot(toCam, heading), dot(toCam, rightOfHeading)).
- * Negative means the camera is in front of the horse.
+ * yaw = atan2(dot(toCam, heading), dot(toCam, rightOfHeading)).
+ * Positive means the camera is in front of the horse.
  */
 export function relativeYawDeg(headingX: number, headingY: number, toCamX: number, toCamY: number) {
   const length = Math.hypot(headingX, headingY) || 1;
@@ -64,7 +64,7 @@ export function relativeYawDeg(headingX: number, headingY: number, toCamX: numbe
   const ry = -hx;
   const dotH = toCamX * hx + toCamY * hy;
   const dotR = toCamX * rx + toCamY * ry;
-  return (Math.atan2(-dotH, dotR) * 180) / Math.PI;
+  return (Math.atan2(dotH, dotR) * 180) / Math.PI;
 }
 
 export type PickedAngle = {
@@ -94,6 +94,16 @@ export function pickHorseAngle(yawDeg: number, elevationDeg: number): PickedAngl
     }
   }
   return { set, index: best, yawDeg: angles[best]?.yawDeg ?? 0, flip };
+}
+
+export type PickedHorseVisual = Omit<PickedAngle, "flip"> & {
+  flipX: boolean;
+};
+
+/** Selects the authored view while keeping screen-space travel authoritative for facing. */
+export function pickHorseVisual(yawDeg: number, elevationDeg: number, trackFlipX: boolean): PickedHorseVisual {
+  const { set, index, yawDeg: pickedYawDeg } = pickHorseAngle(yawDeg, elevationDeg);
+  return { set, index, yawDeg: pickedYawDeg, flipX: trackFlipX };
 }
 
 /**

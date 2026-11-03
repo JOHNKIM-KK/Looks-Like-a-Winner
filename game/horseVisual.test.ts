@@ -11,6 +11,7 @@ import {
   glyphOutlinePx,
   luminance,
   pickHorseAngle,
+  pickHorseVisual,
   plateScreenOffset,
   relativeYawDeg,
   JOCKEY_TINT_GAMMA,
@@ -19,13 +20,15 @@ import {
 } from "./horseVisual";
 import { distancePostProgresses } from "./artScale";
 import { cameraFromLook } from "./cameraState";
-import { laneRadius, presentationLogical, projectWithCamera } from "./track";
+import { createDefaultCamera, laneRadius, presentationLogical, projectWithCamera, segmentEnds } from "./track";
 import { isDirt } from "./trackArt";
 
 describe("horse angle", () => {
-  test("yaw is negative in front of the horse and zero from its right side", () => {
-    expect(relativeYawDeg(1, 0, 1, 0)).toBeCloseTo(-90, 5);
+  test("yaw is positive in front of the horse and zero from its right side", () => {
+    expect(relativeYawDeg(1, 0, 1, 0)).toBeCloseTo(90, 5);
     expect(relativeYawDeg(1, 0, 0, -1)).toBeCloseTo(0, 5);
+    expect(relativeYawDeg(1, 0, 1, -1)).toBeCloseTo(45, 5);
+    expect(relativeYawDeg(1, 0, -1, -1)).toBeCloseTo(-45, 5);
   });
 
   test("straight cameras use five yaws and corner cameras use three", () => {
@@ -43,6 +46,33 @@ describe("horse angle", () => {
   test("a view from inside the bend flips the sheet", () => {
     const picked = pickHorseAngle(120, 22);
     expect(picked.flip).toBe(true);
+  });
+
+  test("selected sprites face the screen-space travel direction around the track", () => {
+    const ends = segmentEnds();
+    const samples = [
+      ["start chute", 0],
+      ["corner", (ends.corner12Entry + ends.corner12Exit) / 2],
+      ["back straight", (ends.corner12Exit + ends.backEnd) / 2],
+      ["home straight", (ends.corner34Exit + 1) / 2],
+      ["finish", 1],
+    ] as const;
+    const camera = createDefaultCamera();
+
+    for (const [name, progress] of samples) {
+      const logical = presentationLogical(progress, 6);
+      const pose = projectWithCamera(logical, camera);
+      const yaw = relativeYawDeg(
+        logical.tx,
+        logical.ty,
+        camera.groundX - logical.x,
+        camera.groundY - logical.y,
+      );
+      const picked = pickHorseVisual(yaw, (camera.pitch * 180) / Math.PI, pose.flipX);
+      const spriteFacingX = picked.flipX ? -1 : 1;
+
+      expect(spriteFacingX * pose.tangentX, name).toBeGreaterThan(0);
+    }
   });
 });
 
