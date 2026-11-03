@@ -17,6 +17,11 @@ export const SKILL_SLOW = 1 / 1.35;
 export const MIN_SKILL_GAP = 1.2;
 export const BRAKE_TIME = 1.5;
 
+export const RACE_FEATURES: { readonly horseStats: boolean; readonly skills: boolean } = {
+  horseStats: false,
+  skills: false,
+};
+
 function brakeFor(arrive: number) {
   const span = 0.016;
   return Math.min(BRAKE_TIME, Math.max(0.8, (2 * span) / Math.max(arrive, 0.012)));
@@ -100,6 +105,7 @@ export type RaceResult = {
 };
 
 const STAT_KEYS = ["start", "accel", "stamina", "corner", "mental", "luck"] as const;
+const NEUTRAL_BIASES: HorseStats = { start: 0, accel: 0, stamina: 0, corner: 0, mental: 0, luck: 0 };
 /**
  * Neutral progress per second. The lap grew from ~120 m to 222 m (~1.85×),
  * so the same progress rate is already ~1.85× in meters and still finishes near 40 s.
@@ -450,7 +456,7 @@ function buildEvents(horses: RaceHorse[]): RaceEvent[] {
     },
   ];
 
-  for (const horse of horses) {
+  for (const horse of RACE_FEATURES.skills ? horses : []) {
     const skill = skillById(horse.skillId);
     const effect = horse.skillHit ? skill.effect : skill.miss;
     const call = horse.skillHit ? "발동" : "빗나감";
@@ -507,7 +513,8 @@ export function simulateRace(horses: HorseInput[], seed: number): RaceResult {
     throw new Error(`출전마는 1마리에서 ${MAX_HORSES}마리까지입니다.`);
   }
   const runners: Runner[] = horses.map((input, index) => {
-    const stats = buildStats(input.biases, mulberry32(mixSeed(seed, index)));
+    const biases = RACE_FEATURES.horseStats ? input.biases : NEUTRAL_BIASES;
+    const stats = buildStats(biases, mulberry32(mixSeed(seed, index)));
     return {
       input,
       number: index + 1,
@@ -517,9 +524,9 @@ export function simulateRace(horses: HorseInput[], seed: number): RaceResult {
       finishTime: 0,
       arriveSpeed: 0,
       brakeFor: BRAKE_TIME,
-      skillTime: 12,
+      skillTime: RACE_FEATURES.skills ? 12 : Number.POSITIVE_INFINITY,
       skillHit: false,
-      skillUsed: false,
+      skillUsed: !RACE_FEATURES.skills,
       buffUntil: 0,
       buffMul: 1,
       slowFrom: 0,
@@ -538,7 +545,7 @@ export function simulateRace(horses: HorseInput[], seed: number): RaceResult {
     };
   });
 
-  scheduleSkills(runners, seed);
+  if (RACE_FEATURES.skills) scheduleSkills(runners, seed);
   simulate(runners);
 
   const raced: RaceHorse[] = runners.map((runner) => {
