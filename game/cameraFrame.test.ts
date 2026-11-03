@@ -86,7 +86,7 @@ describe("lane colors", () => {
       "#8A5530",
       "#A6E22E",
     ]);
-    expect(overlayLayout.caption.borderColor.toUpperCase()).toBe("#5CE1FF");
+    expect(overlayLayout.style.border.toUpperCase()).toBe("#5CE1FF");
     expect(LANE_COLORS).not.toContain("#5CE1FF");
     for (const lane of [3, 10, 12]) {
       expect(laneNumberInk(lane).color).toBe("#14181F");
