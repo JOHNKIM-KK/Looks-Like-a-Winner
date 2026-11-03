@@ -886,9 +886,10 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const picked = pickHorseAngle(view, cameraElevationDeg(currentCamera.height, toCamX, toCamY), previous);
         actor.picked = picked;
         if (process.env.NODE_ENV !== "production") {
-          const mismatch = picked.flip !== pose.flipX && view.side >= 0.05;
+          // pose.flipX is undefined when travel projects straight up or down the screen.
+          const mismatch = picked.flip !== pose.flipX && view.side >= 0.05 && Math.abs(pose.tangentX) >= 0.05;
           if (mismatch && !actor.flipMismatch) {
-            console.warn("heading flip mismatch", actor.horse.number);
+            console.warn("heading flip mismatch", actor.horse.number, JSON.stringify({ side: view.side, sheetYaw: view.sheetYaw, tangentX: pose.tangentX, tangentY: pose.tangentY, progress: actor.progress }));
             window.__headingFlipMismatch = (window.__headingFlipMismatch ?? 0) + 1;
           }
           actor.flipMismatch = mismatch;
