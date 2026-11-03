@@ -67,6 +67,8 @@ import {
 } from "@/game/mountedPair";
 import { RIDE_ANGLES, ridePose } from "@/game/jockeyRide";
 import { createTrackRenderer, trackViewFor } from "@/game/trackRenderer";
+import { INTRO_END, INTRO_SKIP_TO, introCamera, introFade, introLine } from "@/game/droneIntro";
+import { createGatePlate, preloadGatePlate } from "@/game/gatePlate";
 import type { RaceOverlaySnapshot } from "@/game/overlayLayout";
 import { orderByPresentation } from "@/game/rankOrder";
 import { PROJECTION_CENTER, REFERENCE, type LandscapeStage, type Rect, type Stage } from "@/game/stage";
@@ -256,6 +258,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   let created = false;
   let grade: Phaser.GameObjects.Image[] = [];
   let raceTime = 0;
+  let introClock = 0;
   let wallClock = 0;
   let started = false;
   let gateOpen = 0;
@@ -319,6 +322,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   const goalInnerLogical = finishPostLogical();
   const goalOuterLogical = finishOuterLogical(Math.max(1, race.horses.length));
   let world: ReturnType<typeof createTrackRenderer> | null = null;
+  let gatePlate: ReturnType<typeof createGatePlate> | null = null;
   let coats: HorseCoatLibrary | null = null;
 
   class RaceScene extends Phaser.Scene {
@@ -349,12 +353,17 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         this.load.image(`portrait-${horse.id}`, horse.portrait);
       }
       this.load.image("crack-plate", "/fx/screen-crack.jpg");
+      preloadGatePlate(this);
     }
 
     create() {
       this.cameras.main.setBackgroundColor("#3F4630");
       coats = createHorseCoatLibrary(this);
       world = createTrackRenderer(this);
+      gatePlate = createGatePlate(this);
+      this.input.on("pointerdown", () => {
+        if (introClock < INTRO_SKIP_TO) introClock = INTRO_SKIP_TO;
+      });
       grade = paintGoldenGrade(this);
 
       for (const horse of race.horses) {
@@ -497,12 +506,13 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         backgroundColor: '#000000dd',
         padding: { x: 10, y: 10 },
       }).setDepth(10001).setVisible(DEBUG_ENABLED).setScrollFactor(0);
-      lastComment = "게이트 앞에서 대기 중입니다.";
+      lastComment = introLine(introClock);
       hooks.onComment(lastComment);
       this.placeHorses();
+      gatePlate.paint(currentCamera, 1 - introFade(introClock));
       created = true;
       if (stage) applyStage(this, stage);
-      this.publishField("countdown", "3");
+      this.publishField("intro", null);
       this.events.once("render", () => fadeInCanvas(this.game.canvas));
     }
 
@@ -514,6 +524,25 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       }
       const wall = Math.min(delta, 40) / 1000;
       frameDt = wall;
+      if (introClock < INTRO_END) {
+        introClock = Math.min(INTRO_END, introClock + wall);
+        const intro = introClock < INTRO_END;
+        raceTime = 0;
+        this.placeHorses();
+        this.paintTrack();
+        gatePlate?.paint(currentCamera, 1 - introFade(introClock));
+        const line = intro ? introLine(introClock) : "게이트 앞에서 대기 중입니다.";
+        if (line !== lastComment) {
+          lastComment = line;
+          hooks.onComment(line);
+        }
+        this.publishField(intro ? "intro" : "countdown", intro ? null : countdownLabel(wallClock));
+        this.publishCameraDebug();
+        if (DEBUG_ENABLED) {
+          this.paintDebugOverlay();
+        }
+        return;
+      }
       wallClock += wall;
       if (!started) {
         const label = countdownLabel(wallClock);
@@ -679,6 +708,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         requiredFrameSubjects(subjects, cameraState.name, snapshot.leadProgress),
       ).worst;
       currentCamera = cameraFromLook(framed.look);
+      if (introClock < INTRO_END) currentCamera = introCamera(introClock, currentCamera);
+      const presence = introFade(introClock);
 
       for (const actor of actors) {
         const sample = progressAt(actor.horse.samples, raceTime);
@@ -726,8 +757,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
                 : 1;
         if (started) actor.animTime += frameDt * gallopRate;
 
-        actor.container.setVisible(pose.visible);
-        actor.shadow.setVisible(false);
+        actor.container.setVisible(pose.visible && presence > 0).setAlpha(presence);
+        actor.shadow.setVisible(false).setAlpha(presence);
         if (!pose.visible) continue;
 
         actor.container.setPosition(pose.x, pose.y);
@@ -1208,7 +1239,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       }
     }
 
-    publishField(phase: "countdown" | "racing", countdown: string | null) {
+    publishField(phase: RaceOverlaySnapshot["phase"], countdown: string | null) {
       const raceNow = phase === "racing" ? raceTime : 0;
       const ordered = orderByPresentation(
         actors.map((actor) => ({

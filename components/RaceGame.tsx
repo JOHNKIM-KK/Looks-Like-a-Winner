@@ -19,8 +19,8 @@ type Props = {
 };
 
 const EMPTY_OVERLAY: RaceOverlaySnapshot = {
-  phase: "countdown",
-  countdown: "3",
+  phase: "intro",
+  countdown: null,
   horses: [],
 };
 

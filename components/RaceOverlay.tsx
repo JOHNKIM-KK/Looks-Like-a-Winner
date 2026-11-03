@@ -24,7 +24,7 @@ type Props = {
 
 export function RaceOverlay({ stage, snapshot, comment, slotMode = "name", results }: Props) {
   const { frame, scale, hud } = stage;
-  const showHud = snapshot.phase === "racing";
+  const showHud = snapshot.phase !== "countdown";
 
   return (
     <div data-testid="race-overlay" data-phase={snapshot.phase} className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
