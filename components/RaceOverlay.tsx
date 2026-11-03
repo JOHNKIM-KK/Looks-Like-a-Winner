@@ -39,13 +39,13 @@ export function RaceOverlay({ stage, snapshot, comment, slotMode = "name", resul
           transformOrigin: "top left",
         }}
       >
-        {showHud ? null : <Countdown label={snapshot.countdown ?? "3"} />}
+        {!showHud && snapshot.countdown ? <Countdown label={snapshot.countdown} /> : null}
         <div
           data-testid="race-hud"
           style={{ position: "absolute", left: hud.x, top: hud.y, width: hud.width, height: hud.height }}
         >
           {showHud ? <RankBoard horses={snapshot.horses} slotMode={slotMode} /> : null}
-          <Ticker comment={comment} horses={showHud ? snapshot.horses : []} />
+          {showHud ? <Ticker comment={comment} horses={snapshot.horses} /> : null}
           {results}
         </div>
       </div>
@@ -277,7 +277,7 @@ function Countdown({ label }: { label: string }) {
         top: box.centerY,
         transform: "translateY(-50%)",
         textAlign: "center",
-        ...textStyle(box.fontSize, style.text),
+        ...textStyle(box.fontSize, box.color),
         WebkitTextStroke: `${style.outlineWidth}px ${style.outlineColor}`,
         paintOrder: "stroke fill",
       }}

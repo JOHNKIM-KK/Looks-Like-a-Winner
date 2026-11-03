@@ -129,6 +129,7 @@ export const overlayLayout = {
   countdown: {
     fontSize: 112,
     centerY: REFERENCE.height * 0.42,
+    color: "#FFD000",
   },
 } as const;
 
