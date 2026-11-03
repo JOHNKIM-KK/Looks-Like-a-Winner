@@ -52,12 +52,10 @@ describe("drone intro timeline", () => {
 });
 
 describe("intro stands", () => {
-  test("show over the park, step aside for the low gate shots, and return for the countdown", () => {
+  test("show over the park, step aside for the low drone flight, and stay from the start/ camera on", () => {
     const mid = (shot: (typeof INTRO_SHOTS)[number]) => (shot.hold[0] + shot.hold[1]) / 2;
     expect(introShowsStands(mid(INTRO_SHOTS[0]!))).toBe(true);
     expect(introShowsStands(mid(INTRO_SHOTS[1]!))).toBe(false);
-    expect(introShowsStands(mid(INTRO_SHOTS[2]!))).toBe(false);
-    expect(introShowsStands(INTRO_SKIP_TO)).toBe(true);
-    expect(introShowsStands(INTRO_END + 1)).toBe(true);
+    for (let t = INTRO_SHOTS[2]!.hold[0]; t <= INTRO_END + 1; t += 0.05) expect(introShowsStands(t)).toBe(true);
   });
 });

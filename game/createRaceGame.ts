@@ -67,7 +67,7 @@ import {
 } from "@/game/mountedPair";
 import { RIDE_ANGLES, ridePose } from "@/game/jockeyRide";
 import { createTrackRenderer, trackViewFor } from "@/game/trackRenderer";
-import { INTRO_END, INTRO_SKIP_TO, introCamera, introFade, introLine, introShowsStands } from "@/game/droneIntro";
+import { INTRO_END, INTRO_SKIP_TO, introCamera, introGateSwap, introLine, introShowsStands } from "@/game/droneIntro";
 import { createGatePlate, preloadGatePlates } from "@/game/gatePlate";
 import { BELL_AT, clearOfStall, countdownLabel, doorState, gateCamera, gateOffset, gatePlateAlpha } from "@/game/gateStart";
 import type { GateView } from "@/game/gateViews";
@@ -636,7 +636,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
 
     paintGate() {
-      const alpha = gatePlateAlpha(wallClock, introFade(introClock));
+      const alpha = gatePlateAlpha(wallClock, introGateSwap(introClock));
       const door = doorState(wallClock);
       for (const view of Object.keys(alpha) as GateView[]) gatePlates?.[view].paint(currentCamera, alpha[view], door);
     }
@@ -715,7 +715,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         requiredFrameSubjects(subjects, cameraState.name, snapshot.leadProgress),
       ).worst;
       currentCamera = introCamera(introClock, gateCamera(wallClock, cameraFromLook(framed.look)));
-      const intro = introFade(introClock);
+      const intro = introGateSwap(introClock);
 
       for (const actor of actors) {
         const sample = progressAt(actor.horse.samples, raceTime);

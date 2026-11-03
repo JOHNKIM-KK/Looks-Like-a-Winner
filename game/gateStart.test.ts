@@ -9,6 +9,7 @@ import {
   gatePlateAlpha,
   stallFoot,
 } from "./gateStart";
+import { INTRO_END, INTRO_SHOTS, introCamera, introGateSwap } from "./droneIntro";
 import { GATE_VIEWS, GATE_X, type GateView } from "./gateViews";
 import {
   ENGINE_PX_PER_M,
@@ -27,15 +28,26 @@ function metresToProgress(metres: number) {
 }
 
 describe("countdown", () => {
-  test("counts 3, 2, 1 at 0.8 s a beat, then leaves the screen for the cut", () => {
+  test("counts 3, 2, 1 at 0.8 s a beat and rings the bell on the next beat", () => {
     expect([0.1, 0.9, 1.7].map(countdownLabel)).toEqual(["3", "2", "1"]);
-    expect(countdownLabel(2.5)).toBeNull();
+    expect(BELL_AT).toBeCloseTo(2.4, 9);
     expect(countdownLabel(BELL_AT + 1)).toBeNull();
   });
+});
 
-  test("films the top view while counting and the start view from the bell", () => {
-    for (let t = 0; t < 2.4; t += 0.1) expect(gateCamera(t, race)).toEqual(GATE_VIEWS.top.camera);
-    for (let t = BELL_AT; t < BELL_AT + 1.4; t += 0.1) expect(gateCamera(t, race)).toEqual(GATE_VIEWS.start.camera);
+describe("one camera angle from the drone landing to the break", () => {
+  test("holds the start/ asset camera from the end of the drone flight until horses have run 1 s", () => {
+    const land = INTRO_SHOTS[2]!.hold[0];
+    for (let t = land; t <= INTRO_END + 0.5; t += 0.02) {
+      expect(introCamera(t, gateCamera(0, race))).toEqual(GATE_VIEWS.start.camera);
+    }
+    for (let t = 0; t < BELL_AT + 1.0; t += 0.02) expect(gateCamera(t, race)).toEqual(GATE_VIEWS.start.camera);
+  });
+
+  test("never shows the top/ gate", () => {
+    for (let t = 0; t < AFTER; t += 0.05) {
+      for (const swap of [0, 0.5, 1]) expect(gatePlateAlpha(t, swap).top).toBe(0);
+    }
   });
 });
 
@@ -75,19 +87,18 @@ describe("camera handoff", () => {
 });
 
 describe("gate plates", () => {
-  test("cross-fade drone to top through the intro handoff", () => {
+  test("cross-fade drone to start at the end of the drone flight", () => {
     expect(gatePlateAlpha(0, 0)).toEqual({ drone: 1, top: 0, start: 0 });
     const mid = gatePlateAlpha(0, 0.5);
-    expect(mid.drone + mid.top).toBeCloseTo(1, 9);
-    expect(gatePlateAlpha(0, 1)).toEqual({ drone: 0, top: 1, start: 0 });
+    expect(mid.drone + mid.start).toBeCloseTo(1, 9);
+    expect(gatePlateAlpha(0, 1)).toEqual({ drone: 0, top: 0, start: 1 });
+    const land = INTRO_SHOTS[2]!.hold[0];
+    expect(introGateSwap(land - 0.41)).toBe(0);
+    expect(introGateSwap(land)).toBe(1);
   });
 
-  test("cross-fade top to start through the cut with full coverage", () => {
-    for (let t = 2.4; t <= BELL_AT; t += 0.02) {
-      const alpha = gatePlateAlpha(t, 1);
-      expect(alpha.top + alpha.start).toBeCloseTo(1, 9);
-    }
-    expect(gatePlateAlpha(BELL_AT + 0.5, 1)).toEqual({ drone: 0, top: 0, start: 1 });
+  test("stay on the start/ set through the countdown and the break", () => {
+    for (let t = 0; t < BELL_AT + 1.0; t += 0.05) expect(gatePlateAlpha(t, 1)).toEqual({ drone: 0, top: 0, start: 1 });
   });
 
   test("leave the race camera without a gate plate", () => {
@@ -98,7 +109,7 @@ describe("gate plates", () => {
 describe("horses in the stalls", () => {
   const shots: [GateView, number, number][] = [
     ["drone", 0, 0],
-    ["top", 1, 1],
+    ["start", 0, 1],
     ["start", BELL_AT, 1],
   ];
 

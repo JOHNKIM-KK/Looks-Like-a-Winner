@@ -37,15 +37,19 @@ const DRONE_02: CameraLook = {
   focalLength: 1050,
 };
 
+const START_CAMERA = GATE_VIEWS.start.camera;
+const START_TO_GATE = Math.hypot(START_CAMERA.groundX - GATE_X, START_CAMERA.groundY - GATE_CENTER_Y, START_CAMERA.height);
+
+/** Shot 03 ends on the start/ asset camera, which then holds through the countdown and the break. */
 export const INTRO_SHOTS: readonly IntroShot[] = [
   shot("01", [0, 0.7], DRONE_01, DRONE_01.distance, "오늘의 무대, RACE PARK! 12마리가 출전합니다."),
   shot("02", [2.2, 2.5], DRONE_02, DRONE_02.distance, "출발 게이트로 갑니다. 1번부터 12번까지 입장 완료."),
-  // The fitted look target sits 45 m out on the ground; pivoting there swings the path wide of the gate.
-  shot("03", [3.8, 4.5], GATE_VIEWS.drone.look, 17.35 * M, "각 말 게이트 진입 완료… 긴장감이 흐릅니다!"),
+  shot("03", [3.8, 4.5], GATE_VIEWS.start.look, START_TO_GATE, "각 말 게이트 진입 완료… 긴장감이 흐릅니다!"),
 ];
 
 export const INTRO_SKIP_TO = 4.5;
 export const INTRO_END = 5.0;
+const GATE_SWAP_SEC = 0.4;
 
 function clamp01(value: number) {
   return Math.min(1, Math.max(0, value));
@@ -120,10 +124,16 @@ export function introFade(t: number) {
   return smoothstep((t - INTRO_SKIP_TO) / (INTRO_END - INTRO_SKIP_TO));
 }
 
-/** The stands strip stands opposite the camera; from the low 02/03 cameras it walls off the storyboard's sky. */
+/** 0 while the drone/ gate plate owns the shot, 1 once the flight lands on the start/ camera. */
+export function introGateSwap(t: number) {
+  const land = INTRO_SHOTS[2]!.hold[0];
+  return smoothstep((t - (land - GATE_SWAP_SEC)) / GATE_SWAP_SEC);
+}
+
+/** The stands strip walls off the sky from the low 02 flight; from the start/ camera it sits where the asset expects it. */
 export function introShowsStands(t: number) {
   const hideFrom = (INTRO_SHOTS[0]!.hold[1] + INTRO_SHOTS[1]!.hold[0]) / 2;
-  return t < hideFrom || t >= INTRO_SKIP_TO;
+  return t < hideFrom || introGateSwap(t) > 0;
 }
 
 export function introLine(t: number) {
