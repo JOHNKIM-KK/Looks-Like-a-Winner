@@ -1,0 +1,644 @@
+{
+ "view": "front",
+ "frame": [
+  1600,
+  900
+ ],
+ "placement": "every PNG is a crop of the same 1600x900 camera frame; draw it with top-left at (x,y)",
+ "zorder": [
+  "back.png",
+  "horses (foot at horseFoot)",
+  "doors",
+  "front.png",
+  "sign.png"
+ ],
+ "layers": {
+  "back.png": {
+   "x": 162,
+   "y": 392,
+   "w": 1276,
+   "h": 244
+  },
+  "front.png": {
+   "x": 162,
+   "y": 254,
+   "w": 1276,
+   "h": 382
+  },
+  "sign.png": {
+   "x": 729,
+   "y": 279,
+   "w": 143,
+   "h": 22
+  }
+ },
+ "door_states": {
+  "closed": 0,
+  "opening1": 62,
+  "opening2": 106,
+  "open": 112
+ },
+ "stalls": [
+  {
+   "lane": 1,
+   "centerX": 1341.5,
+   "doorTop": [
+    1341.54,
+    466.41
+   ],
+   "doorBottom": [
+    1341.54,
+    610.0
+   ],
+   "plate": [
+    1341.54,
+    365.9
+   ],
+   "horseFoot": [
+    1341.54,
+    634.62
+   ],
+   "doors": {
+    "closed": {
+     "file": "doors/door_closed.png",
+     "x": 1296,
+     "y": 463,
+     "w": 91,
+     "h": 151
+    },
+    "opening1": {
+     "file": "doors/door_opening1.png",
+     "x": 1294,
+     "y": 462,
+     "w": 95,
+     "h": 152
+    },
+    "opening2": {
+     "file": "doors/door_opening2.png",
+     "x": 1292,
+     "y": 462,
+     "w": 99,
+     "h": 152
+    },
+    "open": {
+     "file": "doors/door_open.png",
+     "x": 1292,
+     "y": 462,
+     "w": 99,
+     "h": 152
+    }
+   }
+  },
+  {
+   "lane": 2,
+   "centerX": 1243.1,
+   "doorTop": [
+    1243.08,
+    466.41
+   ],
+   "doorBottom": [
+    1243.08,
+    610.0
+   ],
+   "plate": [
+    1243.08,
+    365.9
+   ],
+   "horseFoot": [
+    1243.08,
+    634.62
+   ],
+   "doors": {
+    "closed": {
+     "file": "doors/door_closed.png",
+     "x": 1198,
+     "y": 463,
+     "w": 90,
+     "h": 151
+    },
+    "opening1": {
+     "file": "doors/door_opening1.png",
+     "x": 1196,
+     "y": 463,
+     "w": 94,
+     "h": 151
+    },
+    "opening2": {
+     "file": "doors/door_opening2.png",
+     "x": 1194,
+     "y": 463,
+     "w": 98,
+     "h": 151
+    },
+    "open": {
+     "file": "doors/door_open.png",
+     "x": 1194,
+     "y": 463,
+     "w": 98,
+     "h": 151
+    }
+   }
+  },
+  {
+   "lane": 3,
+   "centerX": 1144.6,
+   "doorTop": [
+    1144.62,
+    466.41
+   ],
+   "doorBottom": [
+    1144.62,
+    610.0
+   ],
+   "plate": [
+    1144.62,
+    365.9
+   ],
+   "horseFoot": [
+    1144.62,
+    634.62
+   ],
+   "doors": {
+    "closed": {
+     "file": "doors/door_closed.png",
+     "x": 1099,
+     "y": 462,
+     "w": 91,
+     "h": 152
+    },
+    "opening1": {
+     "file": "doors/door_opening1.png",
+     "x": 1097,
+     "y": 463,
+     "w": 95,
+     "h": 151
+    },
+    "opening2": {
+     "file": "doors/door_opening2.png",
+     "x": 1095,
+     "y": 463,
+     "w": 99,
+     "h": 151
+    },
+    "open": {
+     "file": "doors/door_open.png",
+     "x": 1095,
+     "y": 463,
+     "w": 99,
+     "h": 151
+    }
+   }
+  },
+  {
+   "lane": 4,
+   "centerX": 1046.2,
+   "doorTop": [
+    1046.15,
+    466.41
+   ],
+   "doorBottom": [
+    1046.15,
+    610.0
+   ],
+   "plate": [
+    1046.15,
+    365.9
+   ],
+   "horseFoot": [
+    1046.15,
+    634.62
+   ],
+   "doors": {
+    "closed": {
+     "file": "doors/door_closed.png",
+     "x": 1001,
+     "y": 462,
+     "w": 91,
+     "h": 152
+    },
+    "opening1": {
+     "file": "doors/door_opening1.png",
+     "x": 999,
+     "y": 462,
+     "w": 94,
+     "h": 152
+    },
+    "opening2": {
+     "file": "doors/door_opening2.png",
+     "x": 997,
+     "y": 463,
+     "w": 98,
+     "h": 151
+    },
+    "open": {
+     "file": "doors/door_open.png",
+     "x": 997,
+     "y": 462,
+     "w": 98,
+     "h": 152
+    }
+   }
+  },
+  {
+   "lane": 5,
+   "centerX": 947.7,
+   "doorTop": [
+    947.69,
+    466.41
+   ],
+   "doorBottom": [
+    947.69,
+    610.0
+   ],
+   "plate": [
+    947.69,
+    365.9
+   ],
+   "horseFoot": [
+    947.69,
+    634.62
+   ],
+   "doors": {
+    "closed": {
+     "file": "doors/door_closed.png",
+     "x": 902,
+     "y": 463,
+     "w": 91,
+     "h": 151
+    },
+    "opening1": {
+     "file": "doors/door_opening1.png",
+     "x": 901,
+     "y": 463,
+     "w": 94,
+     "h": 151
+    },
+    "opening2": {
+     "file": "doors/door_opening2.png",
+     "x": 898,
+     "y": 463,
+     "w": 99,
+     "h": 151
+    },
+    "open": {
+     "file": "doors/door_open.png",
+     "x": 898,
+     "y": 463,
+     "w": 99,
+     "h": 151
+    }
+   }
+  },
+  {
+   "lane": 6,
+   "centerX": 849.2,
+   "doorTop": [
+    849.23,
+    466.41
+   ],
+   "doorBottom": [
+    849.23,
+    610.0
+   ],
+   "plate": [
+    849.23,
+    365.9
+   ],
+   "horseFoot": [
+    849.23,
+    634.62
+   ],
+   "doors": {
+    "closed": {
+     "file": "doors/door_closed.png",
+     "x": 803,
+     "y": 462,
+     "w": 92,
+     "h": 152
+    },
+    "opening1": {
+     "file": "doors/door_opening1.png",
+     "x": 802,
+     "y": 463,
+     "w": 95,
+     "h": 151
+    },
+    "opening2": {
+     "file": "doors/door_opening2.png",
+     "x": 800,
+     "y": 463,
+     "w": 98,
+     "h": 151
+    },
+    "open": {
+     "file": "doors/door_open.png",
+     "x": 800,
+     "y": 463,
+     "w": 98,
+     "h": 151
+    }
+   }
+  },
+  {
+   "lane": 7,
+   "centerX": 750.8,
+   "doorTop": [
+    750.77,
+    466.41
+   ],
+   "doorBottom": [
+    750.77,
+    610.0
+   ],
+   "plate": [
+    750.77,
+    365.9
+   ],
+   "horseFoot": [
+    750.77,
+    634.62
+   ],
+   "doors": {
+    "closed": {
+     "file": "doors/door_closed.png",
+     "x": 705,
+     "y": 462,
+     "w": 91,
+     "h": 152
+    },
+    "opening1": {
+     "file": "doors/door_opening1.png",
+     "x": 704,
+     "y": 463,
+     "w": 94,
+     "h": 151
+    },
+    "opening2": {
+     "file": "doors/door_opening2.png",
+     "x": 702,
+     "y": 463,
+     "w": 98,
+     "h": 151
+    },
+    "open": {
+     "file": "doors/door_open.png",
+     "x": 702,
+     "y": 463,
+     "w": 98,
+     "h": 151
+    }
+   }
+  },
+  {
+   "lane": 8,
+   "centerX": 652.3,
+   "doorTop": [
+    652.31,
+    466.41
+   ],
+   "doorBottom": [
+    652.31,
+    610.0
+   ],
+   "plate": [
+    652.31,
+    365.9
+   ],
+   "horseFoot": [
+    652.31,
+    634.62
+   ],
+   "doors": {
+    "closed": {
+     "file": "doors/door_closed.png",
+     "x": 607,
+     "y": 462,
+     "w": 91,
+     "h": 152
+    },
+    "opening1": {
+     "file": "doors/door_opening1.png",
+     "x": 605,
+     "y": 462,
+     "w": 95,
+     "h": 152
+    },
+    "opening2": {
+     "file": "doors/door_opening2.png",
+     "x": 603,
+     "y": 463,
+     "w": 99,
+     "h": 151
+    },
+    "open": {
+     "file": "doors/door_open.png",
+     "x": 603,
+     "y": 463,
+     "w": 99,
+     "h": 151
+    }
+   }
+  },
+  {
+   "lane": 9,
+   "centerX": 553.9,
+   "doorTop": [
+    553.85,
+    466.41
+   ],
+   "doorBottom": [
+    553.85,
+    610.0
+   ],
+   "plate": [
+    553.85,
+    365.9
+   ],
+   "horseFoot": [
+    553.85,
+    634.62
+   ],
+   "doors": {
+    "closed": {
+     "file": "doors/door_closed.png",
+     "x": 508,
+     "y": 463,
+     "w": 91,
+     "h": 151
+    },
+    "opening1": {
+     "file": "doors/door_opening1.png",
+     "x": 507,
+     "y": 463,
+     "w": 94,
+     "h": 151
+    },
+    "opening2": {
+     "file": "doors/door_opening2.png",
+     "x": 505,
+     "y": 463,
+     "w": 98,
+     "h": 151
+    },
+    "open": {
+     "file": "doors/door_open.png",
+     "x": 505,
+     "y": 463,
+     "w": 98,
+     "h": 151
+    }
+   }
+  },
+  {
+   "lane": 10,
+   "centerX": 455.4,
+   "doorTop": [
+    455.38,
+    466.41
+   ],
+   "doorBottom": [
+    455.38,
+    610.0
+   ],
+   "plate": [
+    455.38,
+    365.9
+   ],
+   "horseFoot": [
+    455.38,
+    634.62
+   ],
+   "doors": {
+    "closed": {
+     "file": "doors/door_closed.png",
+     "x": 410,
+     "y": 462,
+     "w": 91,
+     "h": 152
+    },
+    "opening1": {
+     "file": "doors/door_opening1.png",
+     "x": 408,
+     "y": 462,
+     "w": 95,
+     "h": 152
+    },
+    "opening2": {
+     "file": "doors/door_opening2.png",
+     "x": 406,
+     "y": 463,
+     "w": 99,
+     "h": 151
+    },
+    "open": {
+     "file": "doors/door_open.png",
+     "x": 406,
+     "y": 462,
+     "w": 99,
+     "h": 152
+    }
+   }
+  },
+  {
+   "lane": 11,
+   "centerX": 356.9,
+   "doorTop": [
+    356.92,
+    466.41
+   ],
+   "doorBottom": [
+    356.92,
+    610.0
+   ],
+   "plate": [
+    356.92,
+    365.9
+   ],
+   "horseFoot": [
+    356.92,
+    634.62
+   ],
+   "doors": {
+    "closed": {
+     "file": "doors/door_closed.png",
+     "x": 311,
+     "y": 463,
+     "w": 91,
+     "h": 151
+    },
+    "opening1": {
+     "file": "doors/door_opening1.png",
+     "x": 310,
+     "y": 463,
+     "w": 94,
+     "h": 151
+    },
+    "opening2": {
+     "file": "doors/door_opening2.png",
+     "x": 308,
+     "y": 463,
+     "w": 98,
+     "h": 151
+    },
+    "open": {
+     "file": "doors/door_open.png",
+     "x": 308,
+     "y": 463,
+     "w": 98,
+     "h": 151
+    }
+   }
+  },
+  {
+   "lane": 12,
+   "centerX": 258.5,
+   "doorTop": [
+    258.46,
+    466.41
+   ],
+   "doorBottom": [
+    258.46,
+    610.0
+   ],
+   "plate": [
+    258.46,
+    365.9
+   ],
+   "horseFoot": [
+    258.46,
+    634.62
+   ],
+   "doors": {
+    "closed": {
+     "file": "doors/door_closed.png",
+     "x": 213,
+     "y": 462,
+     "w": 91,
+     "h": 152
+    },
+    "opening1": {
+     "file": "doors/door_opening1.png",
+     "x": 211,
+     "y": 463,
+     "w": 95,
+     "h": 151
+    },
+    "opening2": {
+     "file": "doors/door_opening2.png",
+     "x": 209,
+     "y": 463,
+     "w": 99,
+     "h": 151
+    },
+    "open": {
+     "file": "doors/door_open.png",
+     "x": 209,
+     "y": 463,
+     "w": 99,
+     "h": 151
+    }
+   }
+  }
+ ],
+ "reusable_door": "one door image per state (cut from lane 6); place at stalls[i].doors[state].x/y. The ortho camera makes all stalls identical."
+}

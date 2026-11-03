@@ -1,0 +1,703 @@
+{
+ "view": "start",
+ "frame": [
+  1600,
+  900
+ ],
+ "placement": "every PNG is a crop of the same 1600x900 camera frame; draw it with top-left at (x,y)",
+ "zorder": [
+  "back.png",
+  "horses (foot at horseFoot)",
+  "doors",
+  "front.png",
+  "sign.png"
+ ],
+ "layers": {
+  "back.png": {
+   "x": 439,
+   "y": 291,
+   "w": 926,
+   "h": 389
+  },
+  "front.png": {
+   "x": 422,
+   "y": 201,
+   "w": 802,
+   "h": 489
+  },
+  "sign.png": {
+   "x": 677,
+   "y": 228,
+   "w": 83,
+   "h": 24
+  }
+ },
+ "door_states": {
+  "closed": 0,
+  "opening1": 62,
+  "opening2": 106,
+  "open": 112
+ },
+ "stalls": [
+  {
+   "lane": 1,
+   "centerX": 1116.7,
+   "doorTop": [
+    1124.42,
+    467.45
+   ],
+   "doorBottom": [
+    1116.72,
+    627.15
+   ],
+   "plate": [
+    1127.28,
+    351.38
+   ],
+   "horseFoot": [
+    1186.31,
+    624.6
+   ],
+   "exitDir": [
+    -0.9247,
+    0.3806
+   ],
+   "exitPxPerM": 59.9,
+   "doors": {
+    "closed": {
+     "file": "doors/lane01_closed.png",
+     "x": 1072,
+     "y": 454,
+     "w": 90,
+     "h": 190
+    },
+    "opening1": {
+     "file": "doors/lane01_opening1.png",
+     "x": 1072,
+     "y": 445,
+     "w": 90,
+     "h": 198
+    },
+    "opening2": {
+     "file": "doors/lane01_opening2.png",
+     "x": 1072,
+     "y": 448,
+     "w": 90,
+     "h": 195
+    },
+    "open": {
+     "file": "doors/lane01_open.png",
+     "x": 1072,
+     "y": 447,
+     "w": 90,
+     "h": 196
+    }
+   }
+  },
+  {
+   "lane": 2,
+   "centerX": 1026.7,
+   "doorTop": [
+    1031.85,
+    450.99
+   ],
+   "doorBottom": [
+    1026.66,
+    602.11
+   ],
+   "plate": [
+    1032.82,
+    341.38
+   ],
+   "horseFoot": [
+    1098.17,
+    601.25
+   ],
+   "exitDir": [
+    -0.9407,
+    0.3392
+   ],
+   "exitPxPerM": 59.8,
+   "doors": {
+    "closed": {
+     "file": "doors/lane02_closed.png",
+     "x": 986,
+     "y": 439,
+     "w": 86,
+     "h": 178
+    },
+    "opening1": {
+     "file": "doors/lane02_opening1.png",
+     "x": 986,
+     "y": 431,
+     "w": 86,
+     "h": 186
+    },
+    "opening2": {
+     "file": "doors/lane02_opening2.png",
+     "x": 986,
+     "y": 433,
+     "w": 86,
+     "h": 184
+    },
+    "open": {
+     "file": "doors/lane02_open.png",
+     "x": 986,
+     "y": 433,
+     "w": 86,
+     "h": 184
+    }
+   }
+  },
+  {
+   "lane": 3,
+   "centerX": 946.1,
+   "doorTop": [
+    949.31,
+    436.31
+   ],
+   "doorBottom": [
+    946.14,
+    579.73
+   ],
+   "plate": [
+    948.77,
+    332.49
+   ],
+   "horseFoot": [
+    1018.82,
+    580.23
+   ],
+   "exitDir": [
+    -0.9522,
+    0.3055
+   ],
+   "exitPxPerM": 59.4,
+   "doors": {
+    "closed": {
+     "file": "doors/lane03_closed.png",
+     "x": 910,
+     "y": 427,
+     "w": 76,
+     "h": 166
+    },
+    "opening1": {
+     "file": "doors/lane03_opening1.png",
+     "x": 910,
+     "y": 418,
+     "w": 76,
+     "h": 175
+    },
+    "opening2": {
+     "file": "doors/lane03_opening2.png",
+     "x": 910,
+     "y": 420,
+     "w": 76,
+     "h": 173
+    },
+    "open": {
+     "file": "doors/lane03_open.png",
+     "x": 910,
+     "y": 420,
+     "w": 76,
+     "h": 173
+    }
+   }
+  },
+  {
+   "lane": 4,
+   "centerX": 873.7,
+   "doorTop": [
+    875.25,
+    423.14
+   ],
+   "doorBottom": [
+    873.73,
+    559.61
+   ],
+   "plate": [
+    873.5,
+    324.52
+   ],
+   "horseFoot": [
+    947.02,
+    561.21
+   ],
+   "exitDir": [
+    -0.9607,
+    0.2776
+   ],
+   "exitPxPerM": 58.9,
+   "doors": {
+    "closed": {
+     "file": "doors/lane04_closed.png",
+     "x": 841,
+     "y": 414,
+     "w": 69,
+     "h": 158
+    },
+    "opening1": {
+     "file": "doors/lane04_opening1.png",
+     "x": 841,
+     "y": 406,
+     "w": 69,
+     "h": 166
+    },
+    "opening2": {
+     "file": "doors/lane04_opening2.png",
+     "x": 841,
+     "y": 408,
+     "w": 69,
+     "h": 164
+    },
+    "open": {
+     "file": "doors/lane04_open.png",
+     "x": 841,
+     "y": 408,
+     "w": 69,
+     "h": 164
+    }
+   }
+  },
+  {
+   "lane": 5,
+   "centerX": 808.3,
+   "doorTop": [
+    808.42,
+    411.25
+   ],
+   "doorBottom": [
+    808.26,
+    541.41
+   ],
+   "plate": [
+    805.71,
+    317.34
+   ],
+   "horseFoot": [
+    881.72,
+    543.91
+   ],
+   "exitDir": [
+    -0.9672,
+    0.2542
+   ],
+   "exitPxPerM": 58.2,
+   "doors": {
+    "closed": {
+     "file": "doors/lane05_closed.png",
+     "x": 779,
+     "y": 403,
+     "w": 61,
+     "h": 150
+    },
+    "opening1": {
+     "file": "doors/lane05_opening1.png",
+     "x": 779,
+     "y": 396,
+     "w": 62,
+     "h": 157
+    },
+    "opening2": {
+     "file": "doors/lane05_opening2.png",
+     "x": 779,
+     "y": 397,
+     "w": 62,
+     "h": 156
+    },
+    "open": {
+     "file": "doors/lane05_open.png",
+     "x": 779,
+     "y": 397,
+     "w": 62,
+     "h": 156
+    }
+   }
+  },
+  {
+   "lane": 6,
+   "centerX": 748.8,
+   "doorTop": [
+    747.82,
+    400.48
+   ],
+   "doorBottom": [
+    748.78,
+    524.88
+   ],
+   "plate": [
+    744.32,
+    310.84
+   ],
+   "horseFoot": [
+    822.1,
+    528.12
+   ],
+   "exitDir": [
+    -0.9722,
+    0.2343
+   ],
+   "exitPxPerM": 57.4,
+   "doors": {
+    "closed": {
+     "file": "doors/lane06_closed.png",
+     "x": 722,
+     "y": 393,
+     "w": 57,
+     "h": 142
+    },
+    "opening1": {
+     "file": "doors/lane06_opening1.png",
+     "x": 722,
+     "y": 386,
+     "w": 57,
+     "h": 149
+    },
+    "opening2": {
+     "file": "doors/lane06_opening2.png",
+     "x": 722,
+     "y": 388,
+     "w": 57,
+     "h": 148
+    },
+    "open": {
+     "file": "doors/lane06_open.png",
+     "x": 722,
+     "y": 387,
+     "w": 57,
+     "h": 149
+    }
+   }
+  },
+  {
+   "lane": 7,
+   "centerX": 694.5,
+   "doorTop": [
+    692.62,
+    390.66
+   ],
+   "doorBottom": [
+    694.5,
+    509.79
+   ],
+   "plate": [
+    688.48,
+    304.93
+   ],
+   "horseFoot": [
+    767.43,
+    513.64
+   ],
+   "exitDir": [
+    -0.9761,
+    0.2173
+   ],
+   "exitPxPerM": 56.6,
+   "doors": {
+    "closed": {
+     "file": "doors/lane07_closed.png",
+     "x": 670,
+     "y": 384,
+     "w": 52,
+     "h": 136
+    },
+    "opening1": {
+     "file": "doors/lane07_opening1.png",
+     "x": 670,
+     "y": 378,
+     "w": 52,
+     "h": 142
+    },
+    "opening2": {
+     "file": "doors/lane07_opening2.png",
+     "x": 670,
+     "y": 379,
+     "w": 52,
+     "h": 141
+    },
+    "open": {
+     "file": "doors/lane07_open.png",
+     "x": 670,
+     "y": 379,
+     "w": 52,
+     "h": 141
+    }
+   }
+  },
+  {
+   "lane": 8,
+   "centerX": 644.8,
+   "doorTop": [
+    642.13,
+    381.68
+   ],
+   "doorBottom": [
+    644.77,
+    495.97
+   ],
+   "plate": [
+    637.47,
+    299.53
+   ],
+   "horseFoot": [
+    717.13,
+    500.31
+   ],
+   "exitDir": [
+    -0.9793,
+    0.2026
+   ],
+   "exitPxPerM": 55.7,
+   "doors": {
+    "closed": {
+     "file": "doors/lane08_closed.png",
+     "x": 622,
+     "y": 375,
+     "w": 48,
+     "h": 131
+    },
+    "opening1": {
+     "file": "doors/lane08_opening1.png",
+     "x": 622,
+     "y": 369,
+     "w": 48,
+     "h": 136
+    },
+    "opening2": {
+     "file": "doors/lane08_opening2.png",
+     "x": 622,
+     "y": 371,
+     "w": 48,
+     "h": 135
+    },
+    "open": {
+     "file": "doors/lane08_open.png",
+     "x": 622,
+     "y": 370,
+     "w": 48,
+     "h": 136
+    }
+   }
+  },
+  {
+   "lane": 9,
+   "centerX": 599.0,
+   "doorTop": [
+    595.76,
+    373.43
+   ],
+   "doorBottom": [
+    599.04,
+    483.26
+   ],
+   "plate": [
+    590.68,
+    294.58
+   ],
+   "horseFoot": [
+    670.7,
+    488.01
+   ],
+   "exitDir": [
+    -0.9819,
+    0.1894
+   ],
+   "exitPxPerM": 54.8,
+   "doors": {
+    "closed": {
+     "file": "doors/lane09_closed.png",
+     "x": 578,
+     "y": 367,
+     "w": 44,
+     "h": 125
+    },
+    "opening1": {
+     "file": "doors/lane09_opening1.png",
+     "x": 578,
+     "y": 362,
+     "w": 44,
+     "h": 130
+    },
+    "opening2": {
+     "file": "doors/lane09_opening2.png",
+     "x": 578,
+     "y": 363,
+     "w": 44,
+     "h": 129
+    },
+    "open": {
+     "file": "doors/lane09_open.png",
+     "x": 578,
+     "y": 363,
+     "w": 44,
+     "h": 129
+    }
+   }
+  },
+  {
+   "lane": 10,
+   "centerX": 556.9,
+   "doorTop": [
+    553.03,
+    365.83
+   ],
+   "doorBottom": [
+    556.85,
+    471.53
+   ],
+   "plate": [
+    547.61,
+    290.02
+   ],
+   "horseFoot": [
+    627.7,
+    476.62
+   ],
+   "exitDir": [
+    -0.984,
+    0.1781
+   ],
+   "exitPxPerM": 53.8,
+   "doors": {
+    "closed": {
+     "file": "doors/lane10_closed.png",
+     "x": 537,
+     "y": 360,
+     "w": 41,
+     "h": 119
+    },
+    "opening1": {
+     "file": "doors/lane10_opening1.png",
+     "x": 537,
+     "y": 355,
+     "w": 41,
+     "h": 124
+    },
+    "opening2": {
+     "file": "doors/lane10_opening2.png",
+     "x": 537,
+     "y": 356,
+     "w": 41,
+     "h": 124
+    },
+    "open": {
+     "file": "doors/lane10_open.png",
+     "x": 537,
+     "y": 356,
+     "w": 41,
+     "h": 124
+    }
+   }
+  },
+  {
+   "lane": 11,
+   "centerX": 517.8,
+   "doorTop": [
+    513.53,
+    358.81
+   ],
+   "doorBottom": [
+    517.8,
+    460.68
+   ],
+   "plate": [
+    507.84,
+    285.81
+   ],
+   "horseFoot": [
+    587.76,
+    466.04
+   ],
+   "exitDir": [
+    -0.9858,
+    0.1681
+   ],
+   "exitPxPerM": 52.8,
+   "doors": {
+    "closed": {
+     "file": "doors/lane11_closed.png",
+     "x": 500,
+     "y": 354,
+     "w": 37,
+     "h": 114
+    },
+    "opening1": {
+     "file": "doors/lane11_opening1.png",
+     "x": 500,
+     "y": 349,
+     "w": 37,
+     "h": 119
+    },
+    "opening2": {
+     "file": "doors/lane11_opening2.png",
+     "x": 500,
+     "y": 350,
+     "w": 37,
+     "h": 119
+    },
+    "open": {
+     "file": "doors/lane11_open.png",
+     "x": 500,
+     "y": 350,
+     "w": 37,
+     "h": 119
+    }
+   }
+  },
+  {
+   "lane": 12,
+   "centerX": 481.6,
+   "doorTop": [
+    476.91,
+    352.3
+   ],
+   "doorBottom": [
+    481.55,
+    450.6
+   ],
+   "plate": [
+    471.0,
+    281.91
+   ],
+   "horseFoot": [
+    550.57,
+    456.19
+   ],
+   "exitDir": [
+    -0.9873,
+    0.1589
+   ],
+   "exitPxPerM": 51.9,
+   "doors": {
+    "closed": {
+     "file": "doors/lane12_closed.png",
+     "x": 463,
+     "y": 347,
+     "w": 37,
+     "h": 112
+    },
+    "opening1": {
+     "file": "doors/lane12_opening1.png",
+     "x": 463,
+     "y": 346,
+     "w": 37,
+     "h": 112
+    },
+    "opening2": {
+     "file": "doors/lane12_opening2.png",
+     "x": 463,
+     "y": 344,
+     "w": 37,
+     "h": 114
+    },
+    "open": {
+     "file": "doors/lane12_open.png",
+     "x": 463,
+     "y": 344,
+     "w": 37,
+     "h": 114
+    }
+   }
+  }
+ ]
+}
