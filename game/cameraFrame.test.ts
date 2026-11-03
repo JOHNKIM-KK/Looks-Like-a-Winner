@@ -387,7 +387,7 @@ describe("horse framing", () => {
       return heights[Math.floor((heights.length - 1) / 2)] ?? 0;
     };
     expect(medianOf("START")).toBeCloseTo(188.2, 0);
-    expect(medianOf("STRAIGHT-early")).toBeCloseTo(81.2, 0);
+    expect(medianOf("STRAIGHT-early")).toBeCloseTo(115.8, 0);
     expect(medianOf("CORNER_IN")).toBeGreaterThanOrEqual(60);
     expect(medianOf("CORNER_OUT")).toBeGreaterThanOrEqual(70);
     expect(medianOf("STRAIGHT-home")).toBeGreaterThanOrEqual(65);

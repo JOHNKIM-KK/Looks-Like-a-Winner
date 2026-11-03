@@ -6,7 +6,7 @@ import { mockHorses } from "@/lib/mockHorses";
 import { skillById } from "@/lib/skills";
 import { primeStartSound } from "@/game/bang";
 import { fieldHorses } from "@/lib/field";
-import { MAX_HORSES, simulateRace, type RaceResult as RaceData } from "@/lib/race";
+import { MAX_HORSES, RACE_FEATURES, simulateRace, type RaceResult as RaceData } from "@/lib/race";
 
 type Phase = "idle" | "racing" | "done";
 
@@ -60,7 +60,9 @@ export default function HomePage() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="bg-[#ffe14a] px-2 py-0.5 text-xs font-black text-[#1a1024]">{index + 1}번</span>
-                    <span className="truncate text-xs font-bold tracking-wide text-[#5ce1ff]">{skill.name}</span>
+                    {RACE_FEATURES.skills ? (
+                      <span className="truncate text-xs font-bold tracking-wide text-[#5ce1ff]">{skill.name}</span>
+                    ) : null}
                   </div>
                   {/* Portrait is a local mock illustration, not a user upload. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
