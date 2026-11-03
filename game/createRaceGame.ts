@@ -48,14 +48,16 @@ import { LOGICAL_PER_METER, horseSpriteScale } from "@/game/artScale";
 import { createHorseCoatLibrary, type HorseCoatLibrary } from "@/game/horseCoat";
 import {
   HORSE_ANGLES,
+  cameraElevationDeg,
   gallopFrame,
+  headingView,
   IDLE_FRAME,
   glyphFontPx,
   glyphHeightPx,
   glyphOutlinePx,
-  pickHorseVisual,
+  pickHorseAngle,
   plateScreenOffset,
-  relativeYawDeg,
+  type PickedAngle,
 } from "@/game/horseVisual";
 import {
   assignHorseSheet,
@@ -102,6 +104,8 @@ type Actor = {
   progress: number;
   shown: number;
   animTime: number;
+  picked?: PickedAngle;
+  flipMismatch: boolean;
 };
 
 type RaceCameraDebug = {
@@ -197,6 +201,13 @@ function frameName(texture: Phaser.Textures.Texture, frame: number) {
 }
 
 type Heading = { x: number; y: number; tx: number; ty: number };
+
+declare global {
+  interface Window {
+    /** Dev-only count of horses whose sheet flip disagreed with screen travel (HEADING_RULE §2). */
+    __headingFlipMismatch?: number;
+  }
+}
 
 function blendLogical(from: Heading, to: Heading, blend: number): Heading {
   return {
@@ -335,7 +346,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       this.load.image("prop-distance", "/track/props/distance_post.webp");
       this.load.image("prop-finish", "/track/props/finish_post.webp");
       this.load.image("finish-checker", "/track/props/finish_line_checker.webp");
-      for (const set of ["straight", "corner"] as const) {
+      for (const set of ["straight", "corner", "wide"] as const) {
         for (const angle of HORSE_ANGLES[set]) {
           this.load.image(`horse-color-${set}-${angle.index}`, `/horses/${angle.colorFile}`);
           this.load.image(`horse-mask-${set}-${angle.index}`, `/horses/${angle.maskFile}`);
@@ -441,6 +452,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           progress: 0,
           shown: 0,
           animTime: 0,
+          flipMismatch: false,
         };
         actors.push(actor);
       }
@@ -785,30 +797,36 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           shouldScaleHorseInCorner(cameraState);
         const closeupScale = inCornerCloseup ? 1.15 : 1;
         const drawn = horseSpriteScale(pose.scale) * punch * closeupScale;
-        const yaw = relativeYawDeg(
-          heading.tx,
-          heading.ty,
-          currentCamera.groundX - heading.x,
-          currentCamera.groundY - heading.y,
-        );
-        const picked = pickHorseVisual(yaw, (currentCamera.pitch * 180) / Math.PI, pose.flipX);
+        const toCamX = currentCamera.groundX - heading.x;
+        const toCamY = currentCamera.groundY - heading.y;
+        const view = headingView(heading.tx, heading.ty, toCamX, toCamY);
+        const picked = pickHorseAngle(view, cameraElevationDeg(currentCamera.height, toCamX, toCamY), actor.picked);
+        actor.picked = picked;
+        if (process.env.NODE_ENV !== "production") {
+          const mismatch = picked.flip !== pose.flipX && view.side >= 0.05;
+          if (mismatch && !actor.flipMismatch) {
+            console.warn("heading flip mismatch", actor.horse.number);
+            window.__headingFlipMismatch = (window.__headingFlipMismatch ?? 0) + 1;
+          }
+          actor.flipMismatch = mismatch;
+        }
         const angle = HORSE_ANGLES[picked.set][picked.index] ?? HORSE_ANGLES.straight[2];
         if (!angle) continue;
         const frame = started ? gallopFrame(actor.horse.number, actor.animTime) : IDLE_FRAME;
         const baked = coats?.bakedKey(picked.set, picked.index, actor.horse.number) ?? `horse-color-${picked.set}-${picked.index}`;
         const horseKey = horseSheetKey(actor.mount, baked);
         const horseSheet = actor.mount.horse;
-        paintGallop(actor.sprite, horseKey, frame, horseSheet?.anchorX ?? angle.anchorX, horseSheet?.anchorY ?? angle.anchorY, horseSheet?.frameWidth ?? angle.frameW, horseSheet?.frameHeight ?? angle.frameH, drawn, picked.flipX);
+        paintGallop(actor.sprite, horseKey, frame, horseSheet?.anchorX ?? angle.anchorX, horseSheet?.anchorY ?? angle.anchorY, horseSheet?.frameWidth ?? angle.frameW, horseSheet?.frameHeight ?? angle.frameH, drawn, picked.flip);
         const marksBaked = actor.mount.horse ? null : coats?.marksKey(picked.set, picked.index, actor.horse.number) ?? null;
         const marksVisible = marksBaked != null && this.textures.exists(marksBaked);
         if (marksVisible && marksBaked) {
-          paintGallop(actor.marks, marksBaked, frame, horseSheet?.anchorX ?? angle.anchorX, horseSheet?.anchorY ?? angle.anchorY, horseSheet?.frameWidth ?? angle.frameW, horseSheet?.frameHeight ?? angle.frameH, drawn, picked.flipX);
+          paintGallop(actor.marks, marksBaked, frame, horseSheet?.anchorX ?? angle.anchorX, horseSheet?.anchorY ?? angle.anchorY, horseSheet?.frameWidth ?? angle.frameW, horseSheet?.frameHeight ?? angle.frameH, drawn, picked.flip);
         }
         const mounted = !onFoot || sucking;
         actor.sprite.setVisible(mounted);
         actor.marks.setVisible(mounted && marksVisible);
         const recoil = castingNow && kind === "shot" && payoffAge < 0.45 && payoffAge % 0.08 < 0.05;
-        const recoilX = recoil ? (picked.flipX ? 14 : -14) : 0;
+        const recoilX = recoil ? (picked.flip ? 14 : -14) : 0;
         const recoilY = sucking ? (-footAge / 0.4) * 420 : 0;
         actor.sprite.setPosition(recoilX, recoilY);
         actor.marks.setPosition(recoilX, recoilY);
@@ -818,12 +836,12 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         actor.rider.setVisible(rideVisible);
         if (rideVisible && customRide) {
           const rideFrame = frame % Math.max(1, customRide.frames);
-          paintGallop(actor.rider, customRide.key, rideFrame, customRide.anchorX, customRide.anchorY, customRide.frameWidth, customRide.frameHeight, drawn, picked.flipX);
+          paintGallop(actor.rider, customRide.key, rideFrame, customRide.anchorX, customRide.anchorY, customRide.frameWidth, customRide.frameHeight, drawn, picked.flip);
           actor.rider.setPosition(recoilX, recoilY);
         } else if (rideVisible && rideBaked) {
-          const seated = ridePose(picked.set, picked.index, frame, angle.anchorX, angle.anchorY, drawn, picked.flipX);
+          const seated = ridePose(picked.set, picked.index, frame, angle.anchorX, angle.anchorY, drawn, picked.flip);
           if (seated) {
-            paintGallop(actor.rider, rideBaked, frame, seated.originX * seated.frameW, seated.originY * seated.frameH, seated.frameW, seated.frameH, drawn, picked.flipX);
+            paintGallop(actor.rider, rideBaked, frame, seated.originX * seated.frameW, seated.originY * seated.frameH, seated.frameW, seated.frameH, drawn, picked.flip);
             actor.rider.setPosition(recoilX + seated.x, recoilY + seated.y);
           } else {
             actor.rider.setVisible(false);
@@ -849,7 +867,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         actor.marks.setAngle(wobble);
         actor.rider.setAngle(wobble);
         if (coats) {
-          const shadowKey = coats.shadowKey(picked.set, picked.index, frame, picked.flipX);
+          const shadowKey = coats.shadowKey(picked.set, picked.index, frame, picked.flip);
           const origin = coats.shadowOrigin(picked.set, picked.index);
           if (this.textures.exists(shadowKey)) {
             actor.shadow.setTexture(shadowKey).setOrigin(origin.x, origin.y).setScale(drawn).setFlipX(false);
@@ -861,7 +879,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         actor.body.clear();
         actor.lines.clear();
         actor.dust.clear();
-        const dir = picked.flipX ? 1 : -1;
+        const dir = picked.flip ? 1 : -1;
         const puff = (raceTime * 10 + actor.horse.number) % 1;
         actor.face.setVisible(onFoot && !sucking);
         // Phaser draws container Text after the gate's Mesh2D front regardless of depth, so the doors cannot hide it.
@@ -886,7 +904,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         }
         const plate = angle.plates[frame] ?? angle.plates[0];
         if (plate) {
-          const plateAt = plateScreenOffset(plate, angle.anchorX, angle.anchorY, drawn, picked.flipX);
+          const plateAt = plateScreenOffset(plate, angle.anchorX, angle.anchorY, drawn, picked.flip);
           const glyph = glyphHeightPx(plate.h, drawn);
           actor.number.setPosition(plateAt.x, plateAt.y);
           const ink = laneNumberInk(actor.horse.number);

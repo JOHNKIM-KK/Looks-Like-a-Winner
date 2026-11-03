@@ -1,4 +1,5 @@
 import sheet from "../public/jockey/jockey.json";
+import wideSheet from "../public/jockey/wide/ride_wide.json";
 import type { AngleSetName } from "./horseVisual";
 
 /**
@@ -26,29 +27,38 @@ type RawRide = {
   offset_in_horse_frame: number[];
 };
 
-function readRide(raw: RawRide): RideAngle {
+function readRide(raw: RawRide, dir = ""): RideAngle {
   return {
     index: raw.index,
     frameW: raw.frame_w,
     frameH: raw.frame_h,
     offsetX: raw.offset_in_horse_frame[0] ?? 0,
     offsetY: raw.offset_in_horse_frame[1] ?? 0,
-    colorFile: raw.color,
-    maskFile: raw.mask,
+    colorFile: `${dir}${raw.color}`,
+    maskFile: `${dir}${raw.mask}`,
   };
 }
 
 export const RIDE_ANGLES: Record<AngleSetName, RideAngle[]> = {
-  straight: sheet.actions.ride.sets.straight.angles.map(readRide),
-  corner: sheet.actions.ride.sets.corner.angles.map(readRide),
+  straight: sheet.actions.ride.sets.straight.angles.map((raw) => readRide(raw)),
+  corner: sheet.actions.ride.sets.corner.angles.map((raw) => readRide(raw)),
+  wide: wideSheet.angles.map((raw) => readRide(raw, "wide/")),
 };
 
 export const RIDE_PX_PER_M = 96.9697;
 
 type Pair = readonly [number, number];
 
-/** Hips inside the horse sheet, in frame pixels, for this angle and gallop frame. */
+/**
+ * Hips inside the horse sheet, in frame pixels, for this angle and gallop frame.
+ * Wide sheets ship without `horse_attach`. The hips cancel out of `ridePose`
+ * (origin and offset both shift by them), so the ride frame center stands in.
+ */
 export function horseAttach(set: AngleSetName, angleIndex: number, frame: number): Pair {
+  if (set === "wide") {
+    const ride = RIDE_ANGLES.wide[angleIndex];
+    return ride ? [ride.offsetX + ride.frameW / 2, ride.offsetY + ride.frameH / 2] : [0, 0];
+  }
   const rows = sheet.horse_attach.sets[set] as unknown as number[][][];
   const frames = rows[angleIndex] ?? [];
   const point = frames[frame] ?? frames[0] ?? [0, 0];

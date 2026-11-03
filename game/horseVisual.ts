@@ -1,4 +1,5 @@
 import sheet from "../public/horses/horses.json";
+import wideSheet from "../public/horses/wide/wide.json";
 import { HORSE_PX_PER_M, SHADOW_ALPHA, SHADOW_BLUR_PX, SHADOW_SHEAR, SHADOW_SQUASH } from "./artScale";
 import { REFERENCE } from "./stage";
 
@@ -6,11 +7,7 @@ export const HORSE_FPS = sheet.fps;
 export const HORSE_FRAMES = sheet.frames;
 export const START_FRAME_OFFSET = [0, 5, 9, 2, 7, 4, 11, 6] as const;
 
-export const STRAIGHT_ELEVATION_DEG = sheet.sets.straight.camera_elevation_deg;
-export const CORNER_ELEVATION_DEG = sheet.sets.corner.camera_elevation_deg;
-const ELEVATION_SPLIT_DEG = (STRAIGHT_ELEVATION_DEG + CORNER_ELEVATION_DEG) / 2;
-
-export type AngleSetName = "straight" | "corner";
+export type AngleSetName = "straight" | "corner" | "wide";
 
 export type PlateRect = { cx: number; cy: number; h: number };
 
@@ -26,9 +23,12 @@ export type HorseAngle = {
   maskFile: string;
 };
 
-type RawAngle = (typeof sheet.sets.straight.angles)[number];
+type RawAngle = Pick<
+  (typeof sheet.sets.straight.angles)[number],
+  "index" | "yaw_deg" | "frame_w" | "frame_h" | "anchor" | "plate_per_frame" | "color" | "mask"
+>;
 
-function readAngle(raw: RawAngle): HorseAngle {
+function readAngle(raw: RawAngle, dir = ""): HorseAngle {
   const anchor = raw.anchor;
   return {
     index: raw.index,
@@ -38,73 +38,95 @@ function readAngle(raw: RawAngle): HorseAngle {
     anchorX: anchor[0] ?? 0,
     anchorY: anchor[1] ?? 0,
     plates: raw.plate_per_frame.map((plate) => ({ cx: plate.cx, cy: plate.cy, h: plate.h })),
-    colorFile: raw.color,
-    maskFile: raw.mask,
+    colorFile: `${dir}${raw.color}`,
+    maskFile: `${dir}${raw.mask}`,
   };
 }
 
 export const HORSE_ANGLES: Record<AngleSetName, HorseAngle[]> = {
-  straight: sheet.sets.straight.angles.map(readAngle),
-  corner: sheet.sets.corner.angles.map(readAngle),
+  straight: sheet.sets.straight.angles.map((raw) => readAngle(raw)),
+  corner: sheet.sets.corner.angles.map((raw) => readAngle(raw)),
+  wide: wideSheet.angles.map((raw) => readAngle(raw, "wide/")),
 };
 
-export function angleSetForElevation(elevationDeg: number): AngleSetName {
-  return elevationDeg < ELEVATION_SPLIT_DEG ? "corner" : "straight";
-}
-
-/**
- * Camera-relative yaw in degrees.
- * yaw = atan2(dot(toCam, heading), dot(toCam, rightOfHeading)).
- * Positive means the camera is in front of the horse.
- */
-export function relativeYawDeg(headingX: number, headingY: number, toCamX: number, toCamY: number) {
-  const length = Math.hypot(headingX, headingY) || 1;
-  const hx = headingX / length;
-  const hy = headingY / length;
-  const rx = hy;
-  const ry = -hx;
-  const dotH = toCamX * hx + toCamY * hy;
-  const dotR = toCamX * rx + toCamY * ry;
-  return (Math.atan2(dotH, dotR) * 180) / Math.PI;
-}
-
-export type PickedAngle = {
-  set: AngleSetName;
-  index: number;
-  yawDeg: number;
+export type HeadingView = {
+  /** -90..90. Negative shows the front 3/4, positive the rear 3/4. */
+  sheetYaw: number;
+  /** Sheets face +screen x; true when the camera sees the horse's other flank. */
   flip: boolean;
+  /** |dot(toCam, right)| / |toCam|. Near 0 the camera is dead ahead or behind. */
+  side: number;
 };
 
-/** Nearest authored yaw. |yaw| > 90° mirrors the sheet (inside of the bend). */
-export function pickHorseAngle(yawDeg: number, elevationDeg: number): PickedAngle {
-  const set = angleSetForElevation(elevationDeg);
-  let yaw = yawDeg;
-  let flip = false;
-  if (Math.abs(yaw) > 90) {
-    flip = true;
-    yaw = yaw > 0 ? yaw - 180 : yaw + 180;
-  }
-  const angles = HORSE_ANGLES[set];
-  let best = 0;
-  let bestDist = Infinity;
-  for (let index = 0; index < angles.length; index += 1) {
-    const dist = Math.abs(yaw - (angles[index]?.yawDeg ?? 0));
-    if (dist < bestDist) {
-      bestDist = dist;
-      best = index;
-    }
-  }
-  return { set, index: best, yawDeg: angles[best]?.yawDeg ?? 0, flip };
+export function headingView(tx: number, ty: number, toCamX: number, toCamY: number): HeadingView {
+  const length = Math.hypot(tx, ty) || 1;
+  const hx = tx / length;
+  const hy = ty / length;
+  const dotH = toCamX * hx + toCamY * hy;
+  const dotR = toCamX * hy - toCamY * hx;
+  return {
+    sheetYaw: (Math.atan2(-dotH, Math.abs(dotR)) * 180) / Math.PI,
+    flip: dotR > 0,
+    side: Math.abs(dotR) / (Math.hypot(toCamX, toCamY) || 1),
+  };
 }
 
-export type PickedHorseVisual = Omit<PickedAngle, "flip"> & {
-  flipX: boolean;
-};
+export function cameraElevationDeg(cameraHeight: number, toCamX: number, toCamY: number) {
+  return (Math.atan2(cameraHeight, Math.hypot(toCamX, toCamY)) * 180) / Math.PI;
+}
 
-/** Selects the authored view while keeping screen-space travel authoritative for facing. */
-export function pickHorseVisual(yawDeg: number, elevationDeg: number, trackFlipX: boolean): PickedHorseVisual {
-  const { set, index, yawDeg: pickedYawDeg } = pickHorseAngle(yawDeg, elevationDeg);
-  return { set, index, yawDeg: pickedYawDeg, flipX: trackFlipX };
+type Bucket = { set: AngleSetName; index: number; yawDeg: number };
+
+export type PickedAngle = Bucket & { flip: boolean };
+
+function bucketsOf(set: AngleSetName, angles: HorseAngle[]): Bucket[] {
+  return angles.map((angle) => ({ set, index: angle.index, yawDeg: angle.yawDeg }));
+}
+
+/** Base (24°) views ordered by yaw: wide front, straight, wide rear. */
+const BASE_BUCKETS: Bucket[] = [
+  ...bucketsOf("wide", HORSE_ANGLES.wide.filter((angle) => angle.yawDeg < 0)),
+  ...bucketsOf("straight", HORSE_ANGLES.straight),
+  ...bucketsOf("wide", HORSE_ANGLES.wide.filter((angle) => angle.yawDeg > 0)),
+];
+const CORNER_BUCKETS = bucketsOf("corner", HORSE_ANGLES.corner);
+
+const YAW_HOLD_DEG = 7.5 + 3;
+const CORNER_ENTER_DEG = 15;
+const CORNER_EXIT_DEG = 18;
+const CORNER_REACH_DEG = 10;
+const CORNER_HOLD_DEG = CORNER_REACH_DEG + 3;
+const FLIP_HOLD_SIDE = 0.05;
+
+/** Half-open ranges split at midpoints between centers; the ends clamp. */
+function baseBucket(yaw: number): Bucket {
+  let picked = BASE_BUCKETS[0] as Bucket;
+  for (const bucket of BASE_BUCKETS.slice(1)) {
+    if (yaw < (picked.yawDeg + bucket.yawDeg) / 2) break;
+    picked = bucket;
+  }
+  return picked;
+}
+
+function cornerBucket(yaw: number, prev: PickedAngle | undefined): Bucket | null {
+  if (prev?.set === "corner" && Math.abs(yaw - prev.yawDeg) <= CORNER_HOLD_DEG) return prev;
+  let best: Bucket | null = null;
+  for (const bucket of CORNER_BUCKETS) {
+    const dist = Math.abs(yaw - bucket.yawDeg);
+    if (dist <= CORNER_REACH_DEG && (!best || dist < Math.abs(yaw - best.yawDeg))) best = bucket;
+  }
+  return best;
+}
+
+/** HEADING_RULE §4: per-horse hysteresis on yaw bucket, sheet set, and near-axis flip. */
+export function pickHorseAngle(view: HeadingView, elevationDeg: number, prev?: PickedAngle): PickedAngle {
+  const flip = view.side < FLIP_HOLD_SIDE && prev ? prev.flip : view.flip;
+  const yaw = view.sheetYaw;
+  const useCorner = elevationDeg < (prev?.set === "corner" ? CORNER_EXIT_DEG : CORNER_ENTER_DEG);
+  const corner = useCorner ? cornerBucket(yaw, prev) : null;
+  const held = prev && prev.set !== "corner" && Math.abs(yaw - prev.yawDeg) <= YAW_HOLD_DEG ? prev : null;
+  const bucket = corner ?? held ?? baseBucket(yaw);
+  return { set: bucket.set, index: bucket.index, yawDeg: bucket.yawDeg, flip };
 }
 
 /**
