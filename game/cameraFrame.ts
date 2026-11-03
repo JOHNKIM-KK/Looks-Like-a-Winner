@@ -8,6 +8,7 @@ import {
   type CameraLook,
   type CameraStateName,
 } from "./cameraState";
+import { PROJECTION_CENTER } from "./stage";
 import {
   LANE_COUNT,
   STRAIGHT,
@@ -36,8 +37,6 @@ export const CORNER_SAGITTA_MIN = cameraConfig.framing.cornerSagittaMin;
 const SPRITE_W = 213;
 const SPRITE_H = 211;
 const HORSE_H = 96;
-const CENTER_X = 270;
-const CENTER_Y = 555;
 const HALF = STRAIGHT / 2;
 
 export type FrameSubject = {
@@ -229,10 +228,10 @@ function radial(x: number, y: number) {
 /**
  * Screen y of the ground's vanishing line.
  * A horizontal ray sits `tan(pitch)` above the view axis, so
- * `sy = centerY - focal * tan(pitch)` (centerY is 555).
+ * `sy = centerY - focal * tan(pitch)`.
  */
 export function horizonScreenY(camera: Camera) {
-  return CENTER_Y - camera.focalLength * Math.tan(camera.pitch);
+  return PROJECTION_CENTER.y - camera.focalLength * Math.tan(camera.pitch);
 }
 
 /** The sky strip's bottom edge. 24px under the vanishing line, so the hills tuck into the ground. */
@@ -243,8 +242,8 @@ export function skyStripBottomY(camera: Camera) {
 }
 
 export function groundAt(camera: Camera, sx: number, sy: number) {
-  const fx = (CENTER_X - sx) / camera.focalLength;
-  const fy = (CENTER_Y - sy) / camera.focalLength;
+  const fx = (PROJECTION_CENTER.x - sx) / camera.focalLength;
+  const fy = (PROJECTION_CENTER.y - sy) / camera.focalLength;
   const cosP = Math.cos(camera.pitch);
   const sinP = Math.sin(camera.pitch);
   const denom = sinP - fy * cosP;

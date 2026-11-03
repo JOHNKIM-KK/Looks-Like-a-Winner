@@ -6,6 +6,7 @@ import { mockHorses } from "../lib/mockHorses";
 import { orderByPresentation } from "./rankOrder";
 import { LANE_COLORS, laneNumberInk } from "./laneColors";
 import { overlayLayout } from "./overlayLayout";
+import { PROJECTION_CENTER } from "./stage";
 import {
   advanceCameraPresentation,
   createCameraPresentation,
@@ -385,8 +386,8 @@ describe("horse framing", () => {
       const heights = [...(byState.get(name)?.heights ?? [])].sort((a, b) => a - b);
       return heights[Math.floor((heights.length - 1) / 2)] ?? 0;
     };
-    expect(medianOf("START")).toBeCloseTo(119.5, 0);
-    expect(medianOf("STRAIGHT-early")).toBeCloseTo(43.2, 0);
+    expect(medianOf("START")).toBeCloseTo(188.2, 0);
+    expect(medianOf("STRAIGHT-early")).toBeCloseTo(81.2, 0);
     expect(medianOf("CORNER_IN")).toBeGreaterThanOrEqual(60);
     expect(medianOf("CORNER_OUT")).toBeGreaterThanOrEqual(70);
     expect(medianOf("STRAIGHT-home")).toBeGreaterThanOrEqual(65);
@@ -462,7 +463,7 @@ describe("horse framing", () => {
     expect(horseFit(widened.look, [dummy]).ok).toBe(true);
     expect(horseFit(widened.look, leaders).ok).toBe(true);
     expect(widened.look.distance).toBeGreaterThan(parked.distance);
-    expect(widened.look.focalLength).toBeLessThan(parked.focalLength);
+    expect(widened.look.distance / widened.look.focalLength).toBeGreaterThan(parked.distance / parked.focalLength);
 
     const ids = (policy: "widen" | "cut") =>
       subjectsForFrameRule([...leaders, dummy], "topN", policy).map((subject) => subject.id);
@@ -490,9 +491,9 @@ describe("sky horizon", () => {
       focalLength: 1100,
     });
     const horizon = horizonScreenY(camera);
-    expect(horizon).toBeCloseTo(555 - camera.focalLength * Math.tan(camera.pitch), 6);
+    expect(horizon).toBeCloseTo(PROJECTION_CENTER.y - camera.focalLength * Math.tan(camera.pitch), 6);
     expect(skyStripBottomY(camera)).toBeCloseTo(horizon + 24, 6);
-    expect(groundAt(camera, 270, horizon - 4).ok).toBe(false);
-    expect(groundAt(camera, 270, horizon + 8).ok).toBe(true);
+    expect(groundAt(camera, PROJECTION_CENTER.x, horizon - 4).ok).toBe(false);
+    expect(groundAt(camera, PROJECTION_CENTER.x, horizon + 8).ok).toBe(true);
   });
 });

@@ -1,4 +1,5 @@
 import { cameraConfig } from "./cameraConfig";
+import { PROJECTION_CENTER } from "./stage";
 
 /**
  * One left-handed lap. The chute is a straight extension of the home straight
@@ -30,8 +31,6 @@ export const INNER_RADIUS = (REFERENCE_RADIUS_M - (TRACK_CENTER_Y_M - RAIL_SECTI
 export const COAST_END = 1.18;
 export const FAR_SCALE = 0.72;
 
-const CENTER_X = 270;
-const CENTER_Y = 555;
 
 const MINIMUM_SPRITE_SCALE = 0.45;
 
@@ -243,9 +242,9 @@ export function projectWithCamera(logical: Logical, camera: Camera): TrackPose {
   const visible = camDepth >= nearPlane;
   const safeDepth = Math.max(nearPlane, camDepth);
   
-  const screenX = CENTER_X - (camera.focalLength * localX) / safeDepth;
+  const screenX = PROJECTION_CENTER.x - (camera.focalLength * localX) / safeDepth;
   const camVertical = localY * sinPitch + (pointZ - camera.height) * cosPitch;
-  const screenY = CENTER_Y - (camera.focalLength * camVertical) / safeDepth;
+  const screenY = PROJECTION_CENTER.y - (camera.focalLength * camVertical) / safeDepth;
   
   const perspectiveScale = camera.focalLength / safeDepth;
   const scale = Math.max(MINIMUM_SPRITE_SCALE, Math.min(2.5, perspectiveScale));
@@ -262,9 +261,9 @@ export function projectWithCamera(logical: Logical, camera: Camera): TrackPose {
   const camDepthAhead = localYAhead * cosPitch - (-camera.height) * sinPitch;
   const safeDepthAhead = Math.max(nearPlane, camDepthAhead);
   
-  const screenXAhead = CENTER_X - (camera.focalLength * localXAhead) / safeDepthAhead;
+  const screenXAhead = PROJECTION_CENTER.x - (camera.focalLength * localXAhead) / safeDepthAhead;
   const camVerticalAhead = localYAhead * sinPitch + (-camera.height) * cosPitch;
-  const screenYAhead = CENTER_Y - (camera.focalLength * camVerticalAhead) / safeDepthAhead;
+  const screenYAhead = PROJECTION_CENTER.y - (camera.focalLength * camVerticalAhead) / safeDepthAhead;
   
   const tangentX = screenXAhead - screenX;
   const tangentY = screenYAhead - screenY;
@@ -307,8 +306,8 @@ function cutControl(from: TrackPose, to: TrackPose) {
   const midX = (from.x + to.x) / 2;
   const midY = (from.y + to.y) / 2;
   return {
-    x: midX + (CENTER_X - midX) * 0.72,
-    y: midY + (CENTER_Y - midY) * 0.72,
+    x: midX + (PROJECTION_CENTER.x - midX) * 0.72,
+    y: midY + (PROJECTION_CENTER.y - midY) * 0.72,
   };
 }
 

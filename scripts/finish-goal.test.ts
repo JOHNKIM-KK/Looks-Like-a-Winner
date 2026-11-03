@@ -2,10 +2,11 @@ import { describe, expect, test } from "vitest";
 import { simulateRace, progressAt } from "../lib/race";
 import { mockHorses } from "../lib/mockHorses";
 import { getCameraForState } from "../game/cameraState";
+import { REFERENCE } from "../game/stage";
 import { goalLineLogical, projectWithCamera, renderLane, trackPoint } from "../game/track";
 
-const GAME_W = 540;
-const GAME_H = 1170;
+const GAME_W = REFERENCE.width;
+const GAME_H = REFERENCE.height;
 const HORSE_H = 96;
 const SEEDS = [1, 7, 42, 99, 256, 512, 777, 2024];
 
@@ -14,7 +15,7 @@ function inside(point: { x: number; y: number; visible: boolean }) {
 }
 
 describe("finish goal", () => {
-  test("FINISH goal line at t=36 has an endpoint inside the 540x1170 view", () => {
+  test("FINISH goal line at t=36 has an endpoint inside the 1600x900 view", () => {
     for (const seed of SEEDS) {
       const race = simulateRace(mockHorses, seed);
       const points = race.horses.map((horse) => {

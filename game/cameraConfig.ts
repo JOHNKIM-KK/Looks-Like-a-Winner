@@ -6,6 +6,8 @@
  * `framing.maxZoom`.
  */
 
+import { REFERENCE } from "./stage";
+
 export type FrameFitRule = "all" | "topN";
 
 /**
@@ -17,9 +19,8 @@ export type FrameIncludePolicy = "widen" | "cut";
 
 export const cameraConfig = {
   view: {
-    width: 540,
-    height: 1170,
-    /** Horizontal inset of the safe rect, as a fraction of view width. 5% → x 27..513. */
+    ...REFERENCE,
+    /** Horizontal inset of the safe rect, as a fraction of view width. 5% → x 80..1520. */
     marginX: 0.05,
     /** Horses stay below this fraction of the screen (under the top HUD). */
     hudTop: 0.14,
