@@ -1,5 +1,5 @@
 import type Phaser from "phaser";
-import { GATE_LAYERS, GATE_PLATE_BOX, gatePlanePoint } from "./droneIntro";
+import { GATE_VIEWS, gatePlanePoint } from "./gateViews";
 import { projectHeight } from "./trackArt";
 import { clearSlot, makeMesh, pushTri, pushVert } from "./trackRenderer";
 import type { Camera } from "./track";
@@ -9,13 +9,15 @@ const COLUMNS = 24;
 const ROWS = 8;
 /** Above the horses (depth = screen y) and the track, below the near rail at 3500. */
 const DEPTH = 3000;
+const DRONE = GATE_VIEWS.drone;
+const GATE_LAYERS = [DRONE.back, ...DRONE.doors.closed, DRONE.front, DRONE.sign];
 
 export function preloadGatePlate(scene: Phaser.Scene) {
   for (const layer of GATE_LAYERS) scene.load.image(layer.key, `/gate/drone/${layer.file}`);
 }
 
 export function createGatePlate(scene: Phaser.Scene) {
-  const box = GATE_PLATE_BOX;
+  const box = DRONE.box;
   const canvas = scene.textures.createCanvas(PLATE_KEY, box.width, box.height);
   if (canvas) {
     const context = canvas.getContext();
@@ -34,7 +36,7 @@ export function createGatePlate(scene: Phaser.Scene) {
     for (let column = 0; column <= COLUMNS; column += 1) {
       const u = column / COLUMNS;
       const v = row / ROWS;
-      grid.push({ ...gatePlanePoint(box.x + u * box.width, box.y + v * box.height), u, v });
+      grid.push({ ...gatePlanePoint(DRONE.camera, box.x + u * box.width, box.y + v * box.height), u, v });
     }
   }
 

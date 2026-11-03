@@ -1,12 +1,8 @@
-import stalls from "../public/gate/drone/stalls.json";
 import { cameraFromLook, type CameraLook } from "./cameraState";
-import { PROJECTION_CENTER } from "./stage";
-import { CHUTE, ENGINE_PX_PER_M, STRAIGHT, laneRadius, type Camera } from "./track";
+import { GATE_CENTER_Y, GATE_VIEWS, GATE_X } from "./gateViews";
+import { ENGINE_PX_PER_M, type Camera } from "./track";
 
 const M = ENGINE_PX_PER_M;
-
-export const GATE_X = -STRAIGHT / 2 - CHUTE;
-export const GATE_CENTER_Y = (laneRadius(1) + laneRadius(12)) / 2;
 
 type Vec3 = { x: number; y: number; z: number };
 
@@ -41,24 +37,13 @@ const DRONE_02: CameraLook = {
   focalLength: 1050,
 };
 
-/** Fitted to public/gate/drone/stalls.json: the asset is a render from exactly this camera. */
-const GATE_LOOK: CameraLook = {
-  targetX: GATE_X + -27.188557222992074 * M,
-  targetY: GATE_CENTER_Y + 9.81952915991845 * M,
-  distance: 45.050957344330044 * M,
-  azimuth: -69.73335954488843,
-  elevation: 4.216963349484524,
-  focalLength: 1200,
-};
-
 export const INTRO_SHOTS: readonly IntroShot[] = [
   shot("01", [0, 0.7], DRONE_01, DRONE_01.distance, "오늘의 무대, RACE PARK! 12마리가 출전합니다."),
   shot("02", [2.2, 2.5], DRONE_02, DRONE_02.distance, "출발 게이트로 갑니다. 1번부터 12번까지 입장 완료."),
   // The fitted look target sits 45 m out on the ground; pivoting there swings the path wide of the gate.
-  shot("03", [3.8, 4.5], GATE_LOOK, 17.35 * M, "각 말 게이트 진입 완료… 긴장감이 흐릅니다!"),
+  shot("03", [3.8, 4.5], GATE_VIEWS.drone.look, 17.35 * M, "각 말 게이트 진입 완료… 긴장감이 흐릅니다!"),
 ];
 
-export const GATE_CAMERA = cameraFromLook(GATE_LOOK);
 export const INTRO_SKIP_TO = 4.5;
 export const INTRO_END = 5.0;
 
@@ -147,47 +132,4 @@ export function introLine(t: number) {
     if (t >= shot.hold[0]) line = shot.line;
   }
   return line;
-}
-
-export type GateLayer = { key: string; file: string; x: number; y: number; w: number; h: number };
-
-/** Draw order per stalls.json zorder, without horses: back, doors, front, sign. */
-export const GATE_LAYERS: readonly GateLayer[] = [
-  { key: "gate-drone-back", file: "back.png", ...stalls.layers["back.png"] },
-  ...stalls.stalls.map(({ lane, doors: { closed } }) => ({
-    key: `gate-drone-door-${lane}`,
-    file: closed.file,
-    x: closed.x,
-    y: closed.y,
-    w: closed.w,
-    h: closed.h,
-  })),
-  { key: "gate-drone-front", file: "front.png", ...stalls.layers["front.png"] },
-  { key: "gate-drone-sign", file: "sign.png", ...stalls.layers["sign.png"] },
-];
-
-export const GATE_PLATE_BOX = (() => {
-  const x0 = Math.min(...GATE_LAYERS.map((layer) => layer.x));
-  const y0 = Math.min(...GATE_LAYERS.map((layer) => layer.y));
-  const x1 = Math.max(...GATE_LAYERS.map((layer) => layer.x + layer.w));
-  const y1 = Math.max(...GATE_LAYERS.map((layer) => layer.y + layer.h));
-  return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
-})();
-
-/** Inverse of projectWithCamera under GATE_CAMERA, onto the vertical gate plane x = GATE_X. */
-export function gatePlanePoint(sx: number, sy: number): Vec3 {
-  const { groundX, groundY, height, yaw, pitch, focalLength } = GATE_CAMERA;
-  const a = (PROJECTION_CENTER.x - sx) / focalLength;
-  const b = (PROJECTION_CENTER.y - sy) / focalLength;
-  const cosYaw = Math.cos(yaw);
-  const sinYaw = Math.sin(yaw);
-  const cosPitch = Math.cos(pitch);
-  const sinPitch = Math.sin(pitch);
-  const forward = cosPitch + b * sinPitch;
-  const depth = (GATE_X - groundX) / (a * cosYaw - forward * sinYaw);
-  return {
-    x: GATE_X,
-    y: groundY + depth * (a * sinYaw + forward * cosYaw),
-    z: height + depth * (b * cosPitch - sinPitch),
-  };
 }

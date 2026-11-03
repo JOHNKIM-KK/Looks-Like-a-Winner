@@ -1,52 +1,12 @@
 import { describe, expect, test } from "vitest";
-import stalls from "../public/gate/drone/stalls.json";
-import {
-  GATE_CAMERA,
-  GATE_CENTER_Y,
-  GATE_PLATE_BOX,
-  GATE_X,
-  INTRO_END,
-  INTRO_SHOTS,
-  INTRO_SKIP_TO,
-  gatePlanePoint,
-  introCamera,
-  introShowsStands,
-} from "./droneIntro";
+import { INTRO_END, INTRO_SHOTS, INTRO_SKIP_TO, introCamera, introShowsStands } from "./droneIntro";
+import { GATE_CENTER_Y, GATE_X } from "./gateViews";
 import { REFERENCE } from "./stage";
-import { ENGINE_PX_PER_M, createDefaultCamera, laneRadius, projectWithCamera, type Camera } from "./track";
-
-const DOOR_TOP_M = 1.749;
+import { createDefaultCamera, projectWithCamera, type Camera } from "./track";
 
 function project(x: number, y: number, z: number, camera: Camera) {
   return projectWithCamera({ x, y, z, tx: 0, ty: 0 }, camera);
 }
-
-describe("drone gate camera", () => {
-  test("lands every stall door where the pre-rendered asset drew it", () => {
-    for (const stall of stalls.stalls) {
-      const y = laneRadius(stall.lane);
-      const bottom = project(GATE_X, y, 0, GATE_CAMERA);
-      const top = project(GATE_X, y, DOOR_TOP_M * ENGINE_PX_PER_M, GATE_CAMERA);
-      expect(Math.hypot(bottom.x - stall.doorBottom[0]!, bottom.y - stall.doorBottom[1]!)).toBeLessThan(1);
-      expect(Math.hypot(top.x - stall.doorTop[0]!, top.y - stall.doorTop[1]!)).toBeLessThan(1);
-    }
-  });
-
-  test("gate plane points project back onto the asset pixels they came from", () => {
-    const { x, y, width, height } = GATE_PLATE_BOX;
-    for (const [sx, sy] of [
-      [x, y],
-      [x + width, y],
-      [x, y + height],
-      [x + width, y + height],
-    ] as const) {
-      const point = gatePlanePoint(sx, sy);
-      const pose = project(point.x, point.y, point.z, GATE_CAMERA);
-      expect(pose.x).toBeCloseTo(sx, 2);
-      expect(pose.y).toBeCloseTo(sy, 2);
-    }
-  });
-});
 
 describe("drone intro timeline", () => {
   const countdown = createDefaultCamera();
