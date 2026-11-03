@@ -864,7 +864,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const dir = picked.flipX ? 1 : -1;
         const puff = (raceTime * 10 + actor.horse.number) % 1;
         actor.face.setVisible(onFoot && !sucking);
-        actor.number.setVisible(!onFoot);
+        // Phaser draws container Text after the gate's Mesh2D front regardless of depth, so the doors cannot hide it.
+        actor.number.setVisible(!onFoot && clearOfStall(heading.x));
         if (onFoot && !sucking) {
           const swing = Math.sin(raceTime * 16 + actor.horse.number) * 14;
           actor.body.lineStyle(5, 0x24180f, 1);
