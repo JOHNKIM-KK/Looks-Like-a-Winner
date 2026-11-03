@@ -40,7 +40,6 @@ const DEPTH = {
   nearRail: 3500,
 } as const;
 
-/** Fixed screen size so mesh subdivision quality does not depend on how wide the bleed is. */
 const GROUND_CELL = 48;
 const FOG_BANDS = 16;
 const FOG_START_M = 36;
@@ -101,7 +100,6 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   );
   const finishPost = scene.add.image(0, 0, "prop-finish").setOrigin(0.5, 1).setDepth(DEPTH.props).setVisible(false);
 
-  /** `area` is the visible rect in reference units (the stage bleed). Background fills all of it. */
   function paint(camera: Camera, view: TrackView, area: Rect) {
     const skyBottom = skyStripBottomY(camera);
     sky.setPosition(area.x, skyBottom).setSize(area.width, skyFrame.height);
@@ -246,7 +244,6 @@ function paintGround(camera: Camera, turf: MeshSlot, dirt: MeshSlot, area: Rect)
   }
 }
 
-/** Average of the sky strip's top row, so the band above the strip continues it without a seam. */
 function skyTopColor(scene: Phaser.Scene, width: number) {
   let r = 0;
   let g = 0;

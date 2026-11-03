@@ -17,7 +17,7 @@ export type FrameIncludePolicy = "widen" | "cut";
 
 export const cameraConfig = {
   view: {
-    /** Horizontal inset of the safe rect, as a fraction of view width. 5% → x 80..1520. */
+    /** Horizontal inset of the safe rect, as a fraction of view width. */
     marginX: 0.05,
     /** Horses stay below this fraction of the screen (under the top HUD). */
     hudTop: 0.14,

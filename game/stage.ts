@@ -1,8 +1,10 @@
-/** Race screen reference frame. The single source of the 16:9 geometry. */
+/** Race screen reference frame. */
 export const REFERENCE = { width: 1600, height: 900 } as const;
 
-/** Projection center in reference units. The y ratio 0.474 keeps the old portrait horizon placement. */
-export const PROJECTION_CENTER = { x: REFERENCE.width / 2, y: REFERENCE.height * 0.474 } as const;
+/** Projection center in reference units. */
+const HORIZON_CENTER_Y_RATIO = 0.474;
+
+export const PROJECTION_CENTER = { x: REFERENCE.width / 2, y: REFERENCE.height * HORIZON_CENTER_Y_RATIO } as const;
 
 export type Size = { width: number; height: number };
 export type Insets = { top: number; right: number; bottom: number; left: number };
@@ -53,8 +55,6 @@ export function stageFor({ viewport, insets, pixelRatio, touchPortrait }: StageI
   const bottom = Math.min(REFERENCE.height, (viewport.height - insets.bottom - frame.y) / scale);
   const hud = { x: left, y: top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
 
-  // Never draw the reference frame with more backing pixels than 1600x900: big desktop windows
-  // pay reference cost and CSS upscales, high-DPR phones stay sharp.
   const resolution = Math.min(pixelRatio, 1 / scale);
   const backing = {
     width: Math.round(viewport.width * resolution),

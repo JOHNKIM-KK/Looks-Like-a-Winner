@@ -1,12 +1,7 @@
 import { REFERENCE } from "./stage";
 
 /**
- * Race HUD geometry in the 1600×900 reference frame.
  * Every overlay position and size lives here.
- * HUD boxes pin to the edges of the stage's safe HUD rect, so a notch that
- * reaches into the frame pushes them inward.
- *
- * Ranking sits top left, the caption and progress bar along the bottom.
  * The skill banner is an empty slot.
  */
 export const overlayLayout = {

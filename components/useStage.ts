@@ -3,7 +3,6 @@
 import { useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
 import { stageFor, type Stage, type StageInput } from "@/game/stage";
 
-/** Shell padding. The only place env(safe-area-inset-*) lives; `readStageInput` reads it back as px. */
 export const SAFE_AREA_PADDING: CSSProperties = {
   paddingTop: "env(safe-area-inset-top)",
   paddingRight: "env(safe-area-inset-right)",

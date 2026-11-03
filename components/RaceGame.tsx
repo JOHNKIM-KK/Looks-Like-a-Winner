@@ -74,8 +74,6 @@ export function RaceGame({ race, onComplete, isRacing }: Props) {
 
   if (isRacing) {
     return (
-      // The shell's padding only exposes the safe-area insets to `useStage`. Absolute children
-      // fill the padding box, so the canvas still covers the whole viewport.
       <div ref={shellRef} className="fixed inset-0 z-50 overflow-hidden bg-[#3F4630]" style={SAFE_AREA_PADDING}>
         <div ref={hostRef} className="absolute inset-0" />
         {stage?.kind === "landscape" ? (

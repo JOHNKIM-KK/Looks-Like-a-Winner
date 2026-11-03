@@ -261,9 +261,7 @@ export type RaceGameHandle = {
 export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hooks): RaceGameHandle {
   const actors: Actor[] = [];
   let stage: LandscapeStage | null = null;
-  // Clocks, countdown and skill shows only advance in update(); holding there pauses all of them
-  // until the first landscape stage arrives and whenever the phone is upright.
-  let held = true;
+  let waitingForLandscape = true;
   let created = false;
   let grade: Phaser.GameObjects.Image[] = [];
   let raceTime = 0;
@@ -519,7 +517,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
 
     update(_time: number, delta: number) {
-      if (held) return;
+      if (waitingForLandscape) return;
       if (DEBUG_ENABLED && cameraDebugHost().__cameraFreeze) {
         if (cameraDebugHost().__raceDebugVisible === false) this.paintDebugOverlay();
         return;
@@ -1418,7 +1416,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   cameraDebugHost().__raceGame = game;
   return {
     setStage(next) {
-      held = next.kind === "portrait";
+      waitingForLandscape = next.kind === "portrait";
       if (next.kind === "portrait") return;
       stage = next;
       if (created) applyStage(game.scene.getScene("race"), next);
