@@ -53,7 +53,7 @@ import {
   glyphFontPx,
   glyphHeightPx,
   glyphOutlinePx,
-  pickHorseAngle,
+  pickHorseVisual,
   plateScreenOffset,
   relativeYawDeg,
 } from "@/game/horseVisual";
@@ -755,24 +755,24 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           currentCamera.groundX - heading.x,
           currentCamera.groundY - heading.y,
         );
-        const picked = pickHorseAngle(yaw, (currentCamera.pitch * 180) / Math.PI);
+        const picked = pickHorseVisual(yaw, (currentCamera.pitch * 180) / Math.PI, pose.flipX);
         const angle = HORSE_ANGLES[picked.set][picked.index] ?? HORSE_ANGLES.straight[2];
         if (!angle) continue;
         const frame = started ? gallopFrame(actor.horse.number, actor.animTime) : IDLE_FRAME;
         const baked = coats?.bakedKey(picked.set, picked.index, actor.horse.number) ?? `horse-color-${picked.set}-${picked.index}`;
         const horseKey = horseSheetKey(actor.mount, baked);
         const horseSheet = actor.mount.horse;
-        paintGallop(actor.sprite, horseKey, frame, horseSheet?.anchorX ?? angle.anchorX, horseSheet?.anchorY ?? angle.anchorY, horseSheet?.frameWidth ?? angle.frameW, horseSheet?.frameHeight ?? angle.frameH, drawn, picked.flip);
+        paintGallop(actor.sprite, horseKey, frame, horseSheet?.anchorX ?? angle.anchorX, horseSheet?.anchorY ?? angle.anchorY, horseSheet?.frameWidth ?? angle.frameW, horseSheet?.frameHeight ?? angle.frameH, drawn, picked.flipX);
         const marksBaked = actor.mount.horse ? null : coats?.marksKey(picked.set, picked.index, actor.horse.number) ?? null;
         const marksVisible = marksBaked != null && this.textures.exists(marksBaked);
         if (marksVisible && marksBaked) {
-          paintGallop(actor.marks, marksBaked, frame, horseSheet?.anchorX ?? angle.anchorX, horseSheet?.anchorY ?? angle.anchorY, horseSheet?.frameWidth ?? angle.frameW, horseSheet?.frameHeight ?? angle.frameH, drawn, picked.flip);
+          paintGallop(actor.marks, marksBaked, frame, horseSheet?.anchorX ?? angle.anchorX, horseSheet?.anchorY ?? angle.anchorY, horseSheet?.frameWidth ?? angle.frameW, horseSheet?.frameHeight ?? angle.frameH, drawn, picked.flipX);
         }
         const mounted = !onFoot || sucking;
         actor.sprite.setVisible(mounted);
         actor.marks.setVisible(mounted && marksVisible);
         const recoil = castingNow && kind === "shot" && payoffAge < 0.45 && payoffAge % 0.08 < 0.05;
-        const recoilX = recoil ? (picked.flip ? 14 : -14) : 0;
+        const recoilX = recoil ? (picked.flipX ? 14 : -14) : 0;
         const recoilY = sucking ? (-footAge / 0.4) * 420 : 0;
         actor.sprite.setPosition(recoilX, recoilY);
         actor.marks.setPosition(recoilX, recoilY);
@@ -782,12 +782,12 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         actor.rider.setVisible(rideVisible);
         if (rideVisible && customRide) {
           const rideFrame = frame % Math.max(1, customRide.frames);
-          paintGallop(actor.rider, customRide.key, rideFrame, customRide.anchorX, customRide.anchorY, customRide.frameWidth, customRide.frameHeight, drawn, picked.flip);
+          paintGallop(actor.rider, customRide.key, rideFrame, customRide.anchorX, customRide.anchorY, customRide.frameWidth, customRide.frameHeight, drawn, picked.flipX);
           actor.rider.setPosition(recoilX, recoilY);
         } else if (rideVisible && rideBaked) {
-          const seated = ridePose(picked.set, picked.index, frame, angle.anchorX, angle.anchorY, drawn, picked.flip);
+          const seated = ridePose(picked.set, picked.index, frame, angle.anchorX, angle.anchorY, drawn, picked.flipX);
           if (seated) {
-            paintGallop(actor.rider, rideBaked, frame, seated.originX * seated.frameW, seated.originY * seated.frameH, seated.frameW, seated.frameH, drawn, picked.flip);
+            paintGallop(actor.rider, rideBaked, frame, seated.originX * seated.frameW, seated.originY * seated.frameH, seated.frameW, seated.frameH, drawn, picked.flipX);
             actor.rider.setPosition(recoilX + seated.x, recoilY + seated.y);
           } else {
             actor.rider.setVisible(false);
@@ -813,7 +813,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         actor.marks.setAngle(wobble);
         actor.rider.setAngle(wobble);
         if (coats) {
-          const shadowKey = coats.shadowKey(picked.set, picked.index, frame, picked.flip);
+          const shadowKey = coats.shadowKey(picked.set, picked.index, frame, picked.flipX);
           const origin = coats.shadowOrigin(picked.set, picked.index);
           if (this.textures.exists(shadowKey)) {
             actor.shadow.setTexture(shadowKey).setOrigin(origin.x, origin.y).setScale(drawn).setFlipX(false);
@@ -825,7 +825,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         actor.body.clear();
         actor.lines.clear();
         actor.dust.clear();
-        const dir = picked.flip ? 1 : -1;
+        const dir = picked.flipX ? 1 : -1;
         const puff = (raceTime * 10 + actor.horse.number) % 1;
         actor.face.setVisible(onFoot && !sucking);
         actor.number.setVisible(!onFoot);
@@ -849,7 +849,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         }
         const plate = angle.plates[frame] ?? angle.plates[0];
         if (plate) {
-          const plateAt = plateScreenOffset(plate, angle.anchorX, angle.anchorY, drawn, picked.flip);
+          const plateAt = plateScreenOffset(plate, angle.anchorX, angle.anchorY, drawn, picked.flipX);
           const glyph = glyphHeightPx(plate.h, drawn, GAME_WIDTH);
           actor.number.setPosition(plateAt.x, plateAt.y);
           const ink = laneNumberInk(actor.horse.number);
