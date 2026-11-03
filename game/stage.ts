@@ -22,7 +22,7 @@ export type LandscapeStage = {
   scale: number;
   /** Reference units. The whole viewport mapped back to reference coordinates; contains the reference frame. */
   bleed: Rect;
-  /** Reference units. Reference frame intersected with the safe area. HUD lives only here. */
+  /** Reference units. The whole viewport inside the safe area, so the HUD hugs the screen edges. */
   hud: Rect;
   /** Canvas backing pixels and the camera zoom (backing px per reference unit). */
   backing: { width: number; height: number; zoom: number };
@@ -49,11 +49,12 @@ export function stageFor({ viewport, insets, pixelRatio, touchPortrait }: StageI
     height: viewport.height / scale,
   };
 
-  const left = Math.max(0, (insets.left - frame.x) / scale);
-  const top = Math.max(0, (insets.top - frame.y) / scale);
-  const right = Math.min(REFERENCE.width, (viewport.width - insets.right - frame.x) / scale);
-  const bottom = Math.min(REFERENCE.height, (viewport.height - insets.bottom - frame.y) / scale);
-  const hud = { x: left, y: top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
+  const hud = {
+    x: bleed.x + insets.left / scale,
+    y: bleed.y + insets.top / scale,
+    width: Math.max(0, (viewport.width - insets.left - insets.right) / scale),
+    height: Math.max(0, (viewport.height - insets.top - insets.bottom) / scale),
+  };
 
   const resolution = Math.min(pixelRatio, 1 / scale);
   const backing = {

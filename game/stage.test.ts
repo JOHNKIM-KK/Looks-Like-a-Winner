@@ -25,17 +25,12 @@ function toCss(stage: LandscapeStage, rect: Rect): Rect {
   };
 }
 
-function expectHudInsideSafeArea(stage: LandscapeStage, insets: Insets) {
+function expectHudOnSafeEdges(stage: LandscapeStage, insets: Insets) {
   const css = toCss(stage, stage.hud);
-  const eps = 1e-6;
-  expect(css.x).toBeGreaterThanOrEqual(insets.left - eps);
-  expect(css.y).toBeGreaterThanOrEqual(insets.top - eps);
-  expect(css.x + css.width).toBeLessThanOrEqual(stage.viewport.width - insets.right + eps);
-  expect(css.y + css.height).toBeLessThanOrEqual(stage.viewport.height - insets.bottom + eps);
-  expect(stage.hud.x).toBeGreaterThanOrEqual(0);
-  expect(stage.hud.y).toBeGreaterThanOrEqual(0);
-  expect(stage.hud.x + stage.hud.width).toBeLessThanOrEqual(REFERENCE.width + eps);
-  expect(stage.hud.y + stage.hud.height).toBeLessThanOrEqual(REFERENCE.height + eps);
+  expect(css.x).toBeCloseTo(insets.left, 6);
+  expect(css.y).toBeCloseTo(insets.top, 6);
+  expect(css.x + css.width).toBeCloseTo(stage.viewport.width - insets.right, 6);
+  expect(css.y + css.height).toBeCloseTo(stage.viewport.height - insets.bottom, 6);
 }
 
 describe("stageFor", () => {
@@ -63,7 +58,7 @@ describe("stageFor", () => {
     expect(stage.scale).toBeCloseTo(1.2, 9);
     expectRect(stage.frame, { x: 320, y: 0, width: 1920, height: 1080 });
     expectRect(stage.bleed, { x: -320 / 1.2, y: 0, width: 2560 / 1.2, height: 900 });
-    expectRect(stage.hud, { x: 0, y: 0, width: 1600, height: 900 });
+    expectRect(stage.hud, stage.bleed);
   });
 
   test("1280x800 (16:10) bleeds above and below", () => {
@@ -71,10 +66,10 @@ describe("stageFor", () => {
     expect(stage.scale).toBeCloseTo(0.8, 9);
     expectRect(stage.frame, { x: 0, y: 40, width: 1280, height: 720 });
     expectRect(stage.bleed, { x: 0, y: -50, width: 1600, height: 1000 });
-    expectRect(stage.hud, { x: 0, y: 0, width: 1600, height: 900 });
+    expectRect(stage.hud, stage.bleed);
   });
 
-  test("landscape phone with a notch keeps the HUD inside the safe area", () => {
+  test("landscape phone with a notch keeps the HUD on the safe-area edges", () => {
     const insets = { top: 0, right: 47, bottom: 21, left: 47 };
     const stage = landscape({ viewport: { width: 844, height: 390 }, insets, pixelRatio: 3 });
     const scale = 390 / 900;
@@ -84,7 +79,7 @@ describe("stageFor", () => {
     expect(stage.bleed.y).toBeCloseTo(0, 9);
     expect(stage.hud.y).toBeCloseTo(0, 9);
     expect(stage.hud.y + stage.hud.height).toBeCloseTo(900 - 21 / scale, 6);
-    expectHudInsideSafeArea(stage, insets);
+    expectHudOnSafeEdges(stage, insets);
     expect(stage.backing.zoom).toBeCloseTo(1, 9);
   });
 
@@ -92,7 +87,7 @@ describe("stageFor", () => {
     const insets = { top: 0, right: 0, bottom: 0, left: 60 };
     const stage = landscape({ viewport: { width: 800, height: 450 }, insets });
     expectRect(stage.hud, { x: 120, y: 0, width: 1480, height: 900 });
-    expectHudInsideSafeArea(stage, insets);
+    expectHudOnSafeEdges(stage, insets);
   });
 
   test("touch device held upright asks to rotate and carries no geometry", () => {
@@ -131,7 +126,7 @@ describe("stageFor", () => {
       expect(stage.bleed.y + stage.bleed.height).toBeGreaterThanOrEqual(REFERENCE.height - 1e-6);
       expect(Math.min(Math.abs(stage.bleed.x), Math.abs(stage.bleed.y))).toBeLessThan(1e-9);
       expect(stage.backing.width).toBeLessThanOrEqual(Math.ceil(stage.bleed.width));
-      expectHudInsideSafeArea(stage, insets);
+      expectHudOnSafeEdges(stage, insets);
     }
   });
 });
