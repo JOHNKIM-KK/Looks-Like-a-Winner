@@ -135,6 +135,12 @@ export function introFade(t: number) {
   return smoothstep((t - INTRO_SKIP_TO) / (INTRO_END - INTRO_SKIP_TO));
 }
 
+/** The stands strip stands opposite the camera; from the low 02/03 cameras it walls off the storyboard's sky. */
+export function introShowsStands(t: number) {
+  const hideFrom = (INTRO_SHOTS[0]!.hold[1] + INTRO_SHOTS[1]!.hold[0]) / 2;
+  return t < hideFrom || t >= INTRO_SKIP_TO;
+}
+
 export function introLine(t: number) {
   let line = INTRO_SHOTS[0]!.line;
   for (const shot of INTRO_SHOTS) {

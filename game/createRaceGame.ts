@@ -67,7 +67,7 @@ import {
 } from "@/game/mountedPair";
 import { RIDE_ANGLES, ridePose } from "@/game/jockeyRide";
 import { createTrackRenderer, trackViewFor } from "@/game/trackRenderer";
-import { INTRO_END, INTRO_SKIP_TO, introCamera, introFade, introLine } from "@/game/droneIntro";
+import { INTRO_END, INTRO_SKIP_TO, introCamera, introFade, introLine, introShowsStands } from "@/game/droneIntro";
 import { createGatePlate, preloadGatePlate } from "@/game/gatePlate";
 import type { RaceOverlaySnapshot } from "@/game/overlayLayout";
 import { orderByPresentation } from "@/game/rankOrder";
@@ -631,7 +631,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
 
     paintTrack() {
-      world?.paint(currentCamera, trackViewFor(cameraState.name, lastLeadProgress, segmentEnds().corner34Exit), visibleArea());
+      const view = trackViewFor(cameraState.name, lastLeadProgress, segmentEnds().corner34Exit);
+      if (!introShowsStands(introClock)) view.showStands = false;
+      world?.paint(currentCamera, view, visibleArea());
     }
 
     placeHorses() {

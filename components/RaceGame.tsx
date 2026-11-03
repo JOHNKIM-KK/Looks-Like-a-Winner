@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { RaceResult as RaceData } from "@/lib/race";
 import type { RaceGameHandle } from "@/game/createRaceGame";
+import { introLine } from "@/game/droneIntro";
 import type { RaceOverlaySnapshot } from "@/game/overlayLayout";
 import { rankSlotModeFromSearch, type RankSlotMode } from "@/game/rankDisplay";
 import { RaceOverlay } from "@/components/RaceOverlay";
@@ -31,7 +32,7 @@ export function RaceGame({ race, finished, onComplete, onRematch, onExit }: Prop
   const stage = useStage(shellRef);
   const stageRef = useRef(stage);
   const onCompleteRef = useRef(onComplete);
-  const [comment, setComment] = useState("게이트 앞에서 대기 중입니다.");
+  const [comment, setComment] = useState(() => introLine(0));
   const [overlay, setOverlay] = useState<RaceOverlaySnapshot>(EMPTY_OVERLAY);
   const [slotMode] = useState<RankSlotMode>(() => rankSlotModeFromSearch(window.location.search));
 

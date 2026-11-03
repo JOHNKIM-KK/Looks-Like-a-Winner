@@ -10,6 +10,7 @@ import {
   INTRO_SKIP_TO,
   gatePlanePoint,
   introCamera,
+  introShowsStands,
 } from "./droneIntro";
 import { REFERENCE } from "./stage";
 import { ENGINE_PX_PER_M, createDefaultCamera, laneRadius, projectWithCamera, type Camera } from "./track";
@@ -87,5 +88,16 @@ describe("drone intro timeline", () => {
       expect(Math.abs(camera.height - previous.height)).toBeLessThan(40);
       previous = camera;
     }
+  });
+});
+
+describe("intro stands", () => {
+  test("show over the park, step aside for the low gate shots, and return for the countdown", () => {
+    const mid = (shot: (typeof INTRO_SHOTS)[number]) => (shot.hold[0] + shot.hold[1]) / 2;
+    expect(introShowsStands(mid(INTRO_SHOTS[0]!))).toBe(true);
+    expect(introShowsStands(mid(INTRO_SHOTS[1]!))).toBe(false);
+    expect(introShowsStands(mid(INTRO_SHOTS[2]!))).toBe(false);
+    expect(introShowsStands(INTRO_SKIP_TO)).toBe(true);
+    expect(introShowsStands(INTRO_END + 1)).toBe(true);
   });
 });
