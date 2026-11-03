@@ -14,7 +14,7 @@ import {
   type ShowBeat,
 } from "@/game/skillShow";
 import { playBell } from "@/game/bang";
-import { renderLane, projectWithCamera, presentationLogical, finishPostLogical, finishOuterLogical, segmentEnds } from "@/game/track";
+import { renderLane, projectWithCamera, presentationLogical, finishPostLogical, finishOuterLogical, segmentAt, segmentEnds, LANE_GAP } from "@/game/track";
 import {
   createInitialState,
   nextCameraState,
@@ -92,6 +92,8 @@ type MountLayers = {
 };
 
 const ANGLE_FADE_S = 0.12;
+const CORNER_LEAN_DEG = 4;
+const CORNER_LEAN_TAU_S = 0.25;
 
 type Actor = {
   horse: RaceHorse;
@@ -118,6 +120,8 @@ type Actor = {
   /** Previous sheet drawn over the new one while it fades out. */
   fadeLayers: MountLayers;
   angleFade?: { from: PickedAngle; age: number };
+  /** 0 on straights, eases to 1 through a corner. */
+  leanAmount: number;
 };
 
 type RaceCameraDebug = {
@@ -520,6 +524,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           animTime: 0,
           flipMismatch: false,
           fadeLayers,
+          leanAmount: 0,
         };
         actors.push(actor);
       }
@@ -855,7 +860,17 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           actor.container.y += pose.tangentY * lunge;
         }
         const brakeLean = braking ? Math.sin((1 - pull) * Math.PI) * 20 : 0;
-        actor.container.setAngle(brakeLean * (pose.flipX ? 1 : -1));
+        const leanTarget = segmentAt(actor.progress) === "corner" ? 1 : 0;
+        actor.leanAmount += (leanTarget - actor.leanAmount) * (1 - Math.exp(-frameDt / CORNER_LEAN_TAU_S));
+        // (ty, -tx) points at the bend center on both corners of the loop.
+        const inward = projectWithCamera(
+          { ...heading, x: heading.x + heading.ty * LANE_GAP, y: heading.y - heading.tx * LANE_GAP },
+          currentCamera,
+        );
+        const inwardLength = Math.hypot(inward.x - pose.x, inward.y - pose.y);
+        const inwardScreenX = inwardLength > 1e-6 ? (inward.x - pose.x) / inwardLength : 0;
+        const cornerLean = CORNER_LEAN_DEG * actor.leanAmount * inwardScreenX;
+        actor.container.setAngle(brakeLean * (pose.flipX ? 1 : -1) + cornerLean);
         actor.container.setScale(1);
         actor.container.setDepth(clearOfStall(heading.x) ? 3001 + pose.y / 10 : pose.y);
         const punch = castingNow && kind === "start" && payoffAge < 0.08 ? 1.08 : 1;
