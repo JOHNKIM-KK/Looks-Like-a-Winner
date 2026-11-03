@@ -6,7 +6,8 @@ import {
   farRailRadius,
   nearRailRadius,
 } from "./artScale";
-import { GAME_HEIGHT, GAME_WIDTH, groundAt } from "./cameraFrame";
+import { groundAt } from "./cameraFrame";
+import { REFERENCE } from "./stage";
 import {
   CHUTE,
   STRAIGHT,
@@ -67,7 +68,7 @@ export const PROP_MAX_WIDTH_FRAC = 1;
 export const PROP_NEAR_PLANE = 10;
 
 export function propMaxScreenPx(frac = PROP_MAX_HEIGHT_FRAC) {
-  return frac * GAME_HEIGHT;
+  return frac * REFERENCE.height;
 }
 
 export function cameraSpaceDepth(camera: Camera, x: number, y: number, z = 0) {
@@ -151,7 +152,7 @@ export function propStripAccepted(
   const left = Math.min(...corners.map((corner) => corner.x));
   const right = Math.max(...corners.map((corner) => corner.x));
   if (bottom - top > propMaxScreenPx(face === "outward" ? TREE_MAX_HEIGHT_FRAC : PROP_MAX_HEIGHT_FRAC)) return false;
-  if (right - left > GAME_WIDTH * PROP_MAX_WIDTH_FRAC) return false;
+  if (right - left > REFERENCE.width * PROP_MAX_WIDTH_FRAC) return false;
   return true;
 }
 
