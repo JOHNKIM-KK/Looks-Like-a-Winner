@@ -370,6 +370,17 @@ function recenterPack(look: CameraLook, subjects: FrameSubject[], points: FrameA
   return best;
 }
 
+function offTrack(look: CameraLook) {
+  const camera = cameraFromLook(look);
+  return radial(camera.groundX, camera.groundY) > outerRailRadius();
+}
+
+/** Corner rigs stand outside the outer rail. One that drifted onto the track backs off along its view. */
+function keepOffTrack(look: CameraLook) {
+  if (offTrack(look)) return look;
+  return shiftLook(look, -tightest(0, 600, (back) => offTrack(shiftLook(look, -back))));
+}
+
 function withTarget(look: CameraLook, targetX: number, targetY: number): CameraLook {
   return { ...look, targetX, targetY };
 }
@@ -652,7 +663,8 @@ export function frameHorseLook(
   const bias = damp(memory.bias, solved.bias, dt);
   const shifted = shiftLook({ ...base, distance, focalLength }, bias);
   if (solved.rule !== "topN") {
-    const look = recenterPack(widenToFit(shifted, required), required);
+    const fitted = recenterPack(widenToFit(shifted, required), required);
+    const look = state === "CORNER_IN" || state === "CORNER_OUT" ? keepOffTrack(fitted) : fitted;
     return {
       look,
       memory: { distance: look.distance, focalLength: look.focalLength, bias, seeded: true },
