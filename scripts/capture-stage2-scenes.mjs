@@ -25,7 +25,7 @@ const scenes = [
   { name: "08_back_final_corner", lead: 259 / RACE_M, settled: true },
   { name: "A2_home_entry", lead: 303.5 / RACE_M, board: "09_home_sprint" },
   { name: "09_home_sprint", lead: 309 / RACE_M },
-  { name: "B4_home_spread", lead: 345 / RACE_M, board: "09_home_sprint" },
+  { name: "B4_home_spread", lead: 325 / RACE_M, board: "09_home_sprint" },
   { name: "A3_finish_line", lead: 0.999, board: "10_finish_results" },
   { name: "10_finish_results", result: true },
 ].filter((scene) => !only || only.some((prefix) => scene.name.startsWith(prefix)));
@@ -61,7 +61,7 @@ try {
     } else if (scene.wall !== undefined) {
       await page.waitForFunction((t) => (window.__raceCamera?.wallClock ?? 0) >= t, scene.wall, { timeout: 30000, polling: 16 });
     } else if (scene.lead !== undefined) {
-      await page.waitForFunction((t) => (window.__raceCamera?.leadProgress ?? 0) >= t, scene.lead, { timeout: 90000, polling: 16 });
+      await page.waitForFunction((t) => (window.__raceCamera?.leadProgress ?? 0) >= t, scene.lead, { timeout: 150000, polling: 16 });
       if (scene.settled) await page.waitForFunction(() => window.__raceCamera?.settled, null, { timeout: 30000, polling: 16 });
     } else {
       await page.getByRole("button", { name: "다시 하기" }).waitFor({ timeout: 90000 });
