@@ -67,6 +67,8 @@ export type Camera = {
   pitch: number;
   yaw: number;
   focalLength: number;
+  /** Largest sprite scale (focal / depth). Defaults to 2.5; finish close-ups lift it. */
+  maxScale?: number;
 };
 
 type Logical = {
@@ -247,7 +249,7 @@ export function projectWithCamera(logical: Logical, camera: Camera): TrackPose {
   const screenY = PROJECTION_CENTER.y - (camera.focalLength * camVertical) / safeDepth;
   
   const perspectiveScale = camera.focalLength / safeDepth;
-  const scale = Math.max(MINIMUM_SPRITE_SCALE, Math.min(2.5, perspectiveScale));
+  const scale = Math.max(MINIMUM_SPRITE_SCALE, Math.min(camera.maxScale ?? 2.5, perspectiveScale));
   
   const epsilon = 0.01;
   const logicalAhead = {
