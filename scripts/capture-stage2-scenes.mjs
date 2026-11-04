@@ -21,7 +21,7 @@ const scenes = [
   { name: "06_early_straight", lead: 68 / RACE_M },
   { name: "B2_corner_inside", lead: 160 / RACE_M, board: "07_corner" },
   { name: "07_corner", lead: 164 / RACE_M },
-  { name: "B3_back_outside_pass", lead: 229 / RACE_M, board: "08_back_final_corner" },
+  { name: "B3_back_outside_pass", lead: 235 / RACE_M, board: "08_back_final_corner" },
   { name: "08_back_final_corner", lead: 259 / RACE_M, settled: true },
   { name: "A2_home_entry", lead: 303.5 / RACE_M, board: "09_home_sprint" },
   { name: "09_home_sprint", lead: 309 / RACE_M },
