@@ -98,6 +98,9 @@ type Hooks = {
   onCutin: (cutin: SkillCutin | null) => void;
   onPresentation: (snapshot: RaceOverlaySnapshot) => void;
   onComplete: () => void;
+  onLoadProgress: (value: number) => void;
+  /** The scene has drawn its first frame and is holding on the title shot. */
+  onReady: () => void;
 };
 
 type MountLayers = {
@@ -297,6 +300,8 @@ const SKILL_LEAD = 0.1;
 
 export type RaceGameHandle = {
   setStage(stage: Stage): void;
+  /** Leaves the title shot and runs the drone intro into the race. */
+  start(): void;
   destroy(removeCanvas: boolean): void;
 };
 
@@ -308,6 +313,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   let grade: Phaser.GameObjects.Image[] = [];
   let raceTime = 0;
   let introClock = 0;
+  let armed = false;
   let wallClock = 0;
   let started = false;
   let gateOpen = 0;
@@ -438,6 +444,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
 
     preload() {
+      this.load.on("progress", hooks.onLoadProgress);
       this.load.image("ground-turf", "/track/v2/ground_turf.webp");
       this.load.image("ground-dirt", "/track/v2/ground_dirt.webp");
       this.load.image("rail-segment", "/track/v2/rail_segment.png");
@@ -473,7 +480,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         start: createGatePlate(this, "start"),
       };
       this.input.on("pointerdown", () => {
-        if (introClock < INTRO_SKIP_TO) introClock = INTRO_SKIP_TO;
+        if (armed && introClock < INTRO_SKIP_TO) introClock = INTRO_SKIP_TO;
       });
       grade = paintGoldenGrade(this);
 
@@ -645,7 +652,10 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       created = true;
       if (stage) applyStage(this, stage);
       this.publishField("intro", null);
-      this.events.once("render", () => fadeInCanvas(this.game.canvas));
+      this.events.once("render", () => {
+        fadeInCanvas(this.game.canvas);
+        hooks.onReady();
+      });
     }
 
     update(_time: number, delta: number) {
@@ -657,7 +667,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       const wall = Math.min(delta, 40) / 1000;
       frameDt = wall;
       if (introClock < INTRO_END) {
-        introClock = Math.min(INTRO_END, introClock + wall);
+        if (armed) introClock = Math.min(INTRO_END, introClock + wall);
         const intro = introClock < INTRO_END;
         raceTime = 0;
         this.placeHorses();
@@ -1616,6 +1626,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       if (next.kind === "portrait") return;
       stage = next;
       if (created) applyStage(game.scene.getScene("race"), next);
+    },
+    start() {
+      armed = true;
     },
     destroy: (removeCanvas) => game.destroy(removeCanvas),
   };
