@@ -1,6 +1,6 @@
 # Storyboard v1: 스테이지 3 전 경주 한 판 (16:9, 1600x900 + 캡션 줄)
 
-> **2026-11-04:** 장면 09·10의 카메라·구도는 결승 시안 v2(`docs/stage2/storyboard_finish/`, SPEC §3-2)로 대체됨(파일은 참고용으로 유지). HUD·결과 순위표 배치는 그대로 유효.
+> **2026-11-04:** 장면 09·10의 카메라·구도는 결승 시안 v3(`docs/stage2/storyboard_finish/`, SPEC §3-2)로 대체됨(파일은 참고용으로 유지). HUD·결과 순위표 배치는 그대로 유효.
 
 - 렌더: Blender 4.2 Cycles. 트랙, 게이트, 관중석은 stage_gate_v1 씬을 doc 06 기하로 고친 것(222m, 슈트 27m가 홈 직선과 일직선, 반시계 1바퀴, 결승은 홈 직선 2/3, 레인 12개 × 1.2m)
 - 말과 기수: `final/public/horses`, `final/public/jockey/ride_*` 실제 시트에 레인 색 틴트(안장천, 번호판, 실크). 지면: `final/public/track/v2/ground_*.webp`
