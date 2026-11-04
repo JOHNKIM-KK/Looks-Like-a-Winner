@@ -71,7 +71,7 @@ export function RaceGame({ race, finished, onComplete, onRematch, onExit }: Prop
   }, [race]);
 
   return (
-    <div ref={shellRef} className="fixed inset-0 z-50 overflow-hidden bg-[#3F4630]" style={SAFE_AREA_PADDING}>
+    <div ref={shellRef} className="fixed inset-0 z-50 overflow-hidden bg-[#C9A25E]" style={SAFE_AREA_PADDING}>
       <div ref={hostRef} className="absolute inset-0" />
       {stage?.kind === "landscape" ? (
         <RaceOverlay

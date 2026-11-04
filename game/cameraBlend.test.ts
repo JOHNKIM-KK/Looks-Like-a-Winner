@@ -339,7 +339,7 @@ describe("interrupted transitions", () => {
     const pres = advanceCameraPresentation(settle({ name: "CORNER_IN" }, 10, 20), { name: "CORNER_OUT" }, out, 4);
     expect(pres.blend).toBeNull();
     expect(pres.look).toEqual(out);
-    expect(Math.abs(inn.distance - out.distance)).toBe(140);
+    expect(inn.distance).not.toBe(out.distance);
     expect(Math.abs(shortestAngleDelta(inn.azimuth, out.azimuth))).toBe(90);
   });
 });

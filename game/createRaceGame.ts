@@ -44,7 +44,7 @@ import {
 } from "@/game/cameraFrame";
 import { cameraConfig } from "@/game/cameraConfig";
 import { laneNumberInk } from "@/game/laneColors";
-import { LOGICAL_PER_METER, horseSpriteScale } from "@/game/artScale";
+import { BACKDROP, LOGICAL_PER_METER, horseSpriteScale } from "@/game/artScale";
 import { createHorseCoatLibrary, type HorseCoatLibrary } from "@/game/horseCoat";
 import {
   HORSE_ANGLES,
@@ -429,7 +429,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
 
     create() {
-      this.cameras.main.setBackgroundColor("#3F4630");
+      this.cameras.main.setBackgroundColor(BACKDROP);
       coats = createHorseCoatLibrary(this);
       world = createTrackRenderer(this);
       gatePlates = {
@@ -1512,7 +1512,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     parent,
     width: REFERENCE.width,
     height: REFERENCE.height,
-    backgroundColor: "#3F4630",
+    backgroundColor: BACKDROP,
     callbacks: {
       postBoot: (booted) => {
         booted.canvas.style.opacity = "0";

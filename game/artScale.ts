@@ -30,7 +30,8 @@ export const RAIL_SEGMENT_M = 4;
 export const RAIL_POST_SPACING_M = 2;
 export const STRIP_PERIOD_M = 12;
 
-export const BACKDROP = "#3F4630";
+/** Golden-hour field, behind anything the ground and sky leave uncovered. */
+export const BACKDROP = "#C9A25E";
 export const SHADOW_COLOR = "#46200E";
 export const SHADOW_SHEAR = 2.5;
 export const SHADOW_SQUASH = 0.3;

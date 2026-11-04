@@ -1,9 +1,5 @@
 import { cameraConfig, type FrameFitRule, type FrameIncludePolicy } from "./cameraConfig";
 import {
-  CORNER_IN_ELEVATION,
-  CORNER_OUT_ELEVATION,
-  STRAIGHT_EARLY_ELEVATION,
-  STRAIGHT_HOME_ELEVATION,
   cameraFromLook,
   type CameraLook,
   type CameraStateName,
@@ -673,13 +669,4 @@ export function frameHorseLook(
     look,
     memory: { distance: look.distance, focalLength: look.focalLength, bias, seeded: true },
   };
-}
-
-export function cornerLowerThanStraights() {
-  return (
-    CORNER_IN_ELEVATION < STRAIGHT_EARLY_ELEVATION &&
-    CORNER_IN_ELEVATION < STRAIGHT_HOME_ELEVATION &&
-    CORNER_OUT_ELEVATION < STRAIGHT_EARLY_ELEVATION &&
-    CORNER_OUT_ELEVATION < STRAIGHT_HOME_ELEVATION
-  );
 }

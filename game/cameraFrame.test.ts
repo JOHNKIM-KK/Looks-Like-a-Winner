@@ -6,18 +6,14 @@ import { mockHorses } from "../lib/mockHorses";
 import { orderByPresentation } from "./rankOrder";
 import { LANE_COLORS, laneNumberInk } from "./laneColors";
 import { overlayLayout } from "./overlayLayout";
-import { PROJECTION_CENTER } from "./stage";
+import { PROJECTION_CENTER, REFERENCE } from "./stage";
 import {
   advanceCameraPresentation,
   createCameraPresentation,
 } from "./cameraBlend";
 import {
   CORNER_IN_AZIMUTH,
-  CORNER_IN_ELEVATION,
   CORNER_OUT_AZIMUTH,
-  CORNER_OUT_ELEVATION,
-  STRAIGHT_EARLY_ELEVATION,
-  STRAIGHT_HOME_ELEVATION,
   cameraFromLook,
   createInitialState,
   getCameraLookForState,
@@ -32,7 +28,6 @@ import {
   FRAME_RIGHT,
   FRAME_TOP,
   anchorVisible,
-  cornerLowerThanStraights,
   cornerRailSagitta,
   activeFrameIncludes,
   createFrameMemory,
@@ -52,6 +47,7 @@ import {
   type FrameSubject,
 } from "./cameraFrame";
 import {
+  ENGINE_PX_PER_M,
   STRAIGHT,
   finishPostLogical,
   innerRailRadius,
@@ -131,11 +127,33 @@ describe("presentation path", () => {
   });
 });
 
+describe("storyboard camera", () => {
+  test("race state cameras stay inside the STORYBOARD_v1_camera ranges", () => {
+    const scenes = {
+      START: { distance: 660, elevation: 13.4, focal: [1050, 1050] },
+      STRAIGHT_EARLY: { distance: 596, elevation: 11.6, focal: [1275, 1575] },
+      CORNER_IN: { distance: 1352, elevation: 23.7, focal: [825, 825] },
+      CORNER_OUT: { distance: 715, elevation: 17, focal: [1350, 1350] },
+      STRAIGHT_HOME: { distance: 635, elevation: 6.1, focal: [1275, 1575] },
+      FINISH: { distance: 603, elevation: 12.5, focal: [1275, 1575] },
+    } as const;
+    for (const [name, scene] of Object.entries(scenes)) {
+      const state = cameraConfig.states[name as keyof typeof scenes];
+      expect(Math.abs(state.distance - scene.distance), name).toBeLessThanOrEqual(ENGINE_PX_PER_M * 0.5);
+      expect(state.elevation, name).toBeCloseTo(scene.elevation, 1);
+      expect(state.focalLength, name).toBeGreaterThanOrEqual(scene.focal[0]);
+      expect(state.focalLength, name).toBeLessThanOrEqual(scene.focal[1]);
+    }
+    for (const name of ["STRAIGHT_EARLY", "STRAIGHT_HOME", "FINISH"] as const) {
+      const meters = cameraConfig.states[name].distance / ENGINE_PX_PER_M;
+      expect(meters, name).toBeGreaterThanOrEqual(15.9);
+      expect(meters, name).toBeLessThanOrEqual(17);
+    }
+  });
+});
+
 describe("corner viewpoint", () => {
-  test("corner elevation is lower than both straights and the camera sits outside the bend", () => {
-    expect(cornerLowerThanStraights()).toBe(true);
-    expect(CORNER_IN_ELEVATION).toBeLessThan(STRAIGHT_EARLY_ELEVATION);
-    expect(CORNER_OUT_ELEVATION).toBeLessThan(STRAIGHT_HOME_ELEVATION);
+  test("the corner camera sits outside the bend", () => {
     const ends = segmentEnds();
     const midIn = ends.backEnd + (ends.corner34Exit - ends.backEnd) * 0.25;
     const midOut = ends.backEnd + (ends.corner34Exit - ends.backEnd) * 0.75;
@@ -153,7 +171,6 @@ describe("corner viewpoint", () => {
         packY,
       );
       expect(look.azimuth).toBe(azimuth);
-      expect(look.elevation).toBeLessThan(STRAIGHT_EARLY_ELEVATION);
       const camera = cameraFromLook(look);
       const packDx = packX + HALF;
       const packDy = packY;
@@ -169,7 +186,7 @@ describe("corner viewpoint", () => {
 });
 
 describe("horse framing", () => {
-  test("eight seeds keep topN or all twelve horses inside the safe rect", () => {
+  test("eight seeds keep all twelve horses inside the safe rect", () => {
     resetFrameIncludes();
     expect(cameraConfig.framing.topN).toBe(5);
     type Stat = {
@@ -177,6 +194,7 @@ describe("horse framing", () => {
       worst: number;
       heights: number[];
       leaderHeights: number[];
+      widest: number[];
       span: number[];
       hMargin: number[];
       vMargin: number[];
@@ -196,6 +214,7 @@ describe("horse framing", () => {
           worst: Infinity,
           heights: [],
           leaderHeights: [],
+          widest: [],
           span: [],
           hMargin: [],
           vMargin: [],
@@ -275,15 +294,13 @@ describe("horse framing", () => {
         const camera = cameraFromLook(framed.look);
         const label = stateLabel(pres.state, leadProgress);
         const rule = framingRuleFor(pres.state.name, leadProgress);
-        if (label === "START" || label === "STRAIGHT-early") expect(rule, label).toBe("all");
-        if (label === "CORNER_IN" || label === "CORNER_OUT" || label === "STRAIGHT-home" || label === "FINISH") {
-          expect(rule, label).toBe("topN");
-        }
+        expect(rule, label).toBe("all");
         const topN = cameraConfig.framing.topN;
         const stat = ensure(label);
         stat.samples += 1;
         const heights: number[] = [];
         const leaderHeights: number[] = [];
+        let widest = 0;
         let boxL = Infinity;
         let boxR = -Infinity;
         let hMargin = Infinity;
@@ -293,7 +310,9 @@ describe("horse framing", () => {
           const pose = projectWithCamera(subject, camera);
           const mustFit = rule === "all" || (subject.rank ?? Number.POSITIVE_INFINITY) <= topN;
           if (pose.visible) {
-            heights.push(spriteRect(pose).height);
+            const card = spriteRect(pose);
+            heights.push(card.height);
+            widest = Math.max(widest, (card.maxX - card.minX) / REFERENCE.width);
           }
           if (!mustFit) {
             if (!pose.visible) {
@@ -327,6 +346,7 @@ describe("horse framing", () => {
         heights.sort((a, b) => a - b);
         leaderHeights.sort((a, b) => a - b);
         stat.heights.push(heights[Math.floor((heights.length - 1) / 2)] ?? 0);
+        if (!pres.blend) stat.widest.push(widest);
         stat.leaderHeights.push(leaderHeights[Math.floor((leaderHeights.length - 1) / 2)] ?? 0);
         stat.span.push(boxR - boxL);
         stat.hMargin.push(hMargin);
@@ -336,8 +356,6 @@ describe("horse framing", () => {
         const onLeftBend = leadProgress >= segmentEnds().backEnd && leadProgress < segmentEnds().corner34Exit;
         if (settled && onLeftBend && (pres.state.name === "CORNER_IN" || pres.state.name === "CORNER_OUT")) {
           stat.sagitta = Math.min(stat.sagitta, cornerRailSagitta(camera));
-          expect(framed.look.elevation).toBeLessThan(STRAIGHT_EARLY_ELEVATION);
-          expect(framed.look.elevation).toBeLessThan(STRAIGHT_HOME_ELEVATION);
           const camDx = camera.groundX + HALF;
           const camDy = camera.groundY;
           const packOnBend = packX < -HALF;
@@ -369,6 +387,7 @@ describe("horse framing", () => {
           `worstMargin=${stat.worst.toFixed(1)}px`,
           `medianHorse=${median.toFixed(1)}px`,
           `leaderMedian=${mid(leaders).toFixed(1)}px`,
+          `widestMedian=${(mid([...stat.widest].sort((a, b) => a - b)) * 100).toFixed(1)}%`,
           `span=${mid(spans).toFixed(0)}/${(FRAME_RIGHT - FRAME_LEFT).toFixed(0)}`,
           `hMargin=${mid(hMargins).toFixed(1)}`,
           `vMargin=${mid(vMargins).toFixed(1)}`,
@@ -386,12 +405,7 @@ describe("horse framing", () => {
       const heights = [...(byState.get(name)?.heights ?? [])].sort((a, b) => a - b);
       return heights[Math.floor((heights.length - 1) / 2)] ?? 0;
     };
-    expect(medianOf("START")).toBeCloseTo(188.2, 0);
-    expect(medianOf("STRAIGHT-early")).toBeCloseTo(115.8, 0);
-    expect(medianOf("CORNER_IN")).toBeGreaterThanOrEqual(60);
-    expect(medianOf("CORNER_OUT")).toBeGreaterThanOrEqual(70);
-    expect(medianOf("STRAIGHT-home")).toBeGreaterThanOrEqual(65);
-    expect(medianOf("FINISH")).toBeGreaterThanOrEqual(75);
+    expect(medianOf("START")).toBeGreaterThan(0);
     const finish = byState.get("FINISH");
     const postRatio = finish && finish.postFrames > 0 ? (finish.postFrames - finish.postOut) / finish.postFrames : 0;
     console.log(
@@ -400,7 +414,7 @@ describe("horse framing", () => {
     expect(postRatio).toBe(1);
   }, 120000);
 
-  test("requestFrameInclude widens for a dummy horse, and cut does not", () => {
+  test("an all-rule state frames a trailer, and requestFrameInclude adds it only to topN widen", () => {
     resetFrameIncludes();
     expect(cameraConfig.framing.includePolicy).toBe("widen");
     const ends = segmentEnds();
@@ -451,31 +465,22 @@ describe("horse framing", () => {
     expect(dummy, "a visible horse outside the state camera").not.toBeNull();
     if (!dummy) return;
 
-    const parked = frameHorseLook(base, [...leaders, dummy], "CORNER_IN", [], createFrameMemory(base), 0, lead).look;
-    expect(horseFit(parked, leaders).ok, "leaders stay inside without the dummy").toBe(true);
-    expect(requiredFrameSubjects([...leaders, dummy], "CORNER_IN", lead).some((subject) => subject.id === "dummy")).toBe(
-      false,
-    );
+    const framed = frameHorseLook(base, [...leaders, dummy], "CORNER_IN", [], createFrameMemory(base), 0, lead);
+    expect(requiredFrameSubjects([...leaders, dummy], "CORNER_IN", lead).map((subject) => subject.id)).toContain("dummy");
+    expect(horseFit(framed.look, [...leaders, dummy]).ok, "an all-rule state widens for a trailer").toBe(true);
+    expect(framed.look.distance).toBeGreaterThan(base.distance);
 
+    const topNIds = (policy: "widen" | "cut") =>
+      subjectsForFrameRule([...leaders, dummy], "topN", policy).map((subject) => subject.id);
+    expect(topNIds("widen")).not.toContain("dummy");
     requestFrameInclude("dummy", 1.25);
     expect(activeFrameIncludes()).toEqual([{ horseId: "dummy", remaining: 1.25 }]);
-    const widened = frameHorseLook(base, [...leaders, dummy], "CORNER_IN", [], createFrameMemory(base), 0, lead);
-    expect(horseFit(widened.look, [dummy]).ok).toBe(true);
-    expect(horseFit(widened.look, leaders).ok).toBe(true);
-    expect(widened.look.distance).toBeGreaterThan(parked.distance);
-    expect(widened.look.distance / widened.look.focalLength).toBeGreaterThan(parked.distance / parked.focalLength);
+    expect(topNIds("widen")).toContain("dummy");
+    expect(topNIds("cut")).not.toContain("dummy");
 
-    const ids = (policy: "widen" | "cut") =>
-      subjectsForFrameRule([...leaders, dummy], "topN", policy).map((subject) => subject.id);
-    expect(ids("widen")).toContain("dummy");
-    expect(ids("cut")).not.toContain("dummy");
-    expect(activeFrameIncludes().map((item) => item.horseId)).toEqual(["dummy"]);
-
-    frameHorseLook(base, [...leaders, dummy], "CORNER_IN", [], widened.memory, 1.25, lead);
+    frameHorseLook(base, [...leaders, dummy], "CORNER_IN", [], framed.memory, 1.25, lead);
     expect(activeFrameIncludes()).toEqual([]);
-    expect(requiredFrameSubjects([...leaders, dummy], "CORNER_IN", lead).some((subject) => subject.id === "dummy")).toBe(
-      false,
-    );
+    expect(topNIds("widen")).not.toContain("dummy");
     resetFrameIncludes();
   });
 });

@@ -9,6 +9,7 @@ import {
 } from "./artScale";
 import { groundAt, skyStripBottomY } from "./cameraFrame";
 import type { Rect } from "./stage";
+import { sceneryFaces } from "./scenery";
 import { finishGoalX, presentationOnRadius, type Camera } from "./track";
 import {
   chutePolyline,
@@ -21,7 +22,7 @@ import {
   projectHeight,
   propSpriteAccepted,
   propStripAccepted,
-  standLineOppositeCamera,
+  mainStandLine,
   startLineQuad,
   unprojectCell,
   type Vec2,
@@ -34,6 +35,7 @@ const DEPTH = {
   /** Distant ground fades toward the backdrop before the rails. */
   fog: 32,
   stands: 33,
+  scenery: 34,
   checker: 35,
   farRail: 40,
   props: 55,
@@ -47,6 +49,9 @@ const FOG_END_M = 170;
 
 const RAIL_IMAGE = { width: 400, height: 125, contact: 124, pxPerM: 100, periodM: RAIL_SEGMENT_M };
 const STANDS_IMAGE = { width: 1200, height: 1166, contact: 1165, pxPerM: 100, periodM: 12 };
+/** Scene 01 golden-hour field. The turf texture keeps its grain and takes this hue. */
+const FIELD_GOLD = "#c9a24e";
+const FIELD_LIFT = "rgba(255, 214, 140, 0.18)";
 
 export type TrackView = {
   showStands: boolean;
@@ -72,21 +77,24 @@ export type MeshSlot = {
 type StripImage = { height: number; contact: number; pxPerM: number; periodM: number };
 
 export function createTrackRenderer(scene: Phaser.Scene) {
-  const turfTexture = scene.textures.get("ground-turf");
-  turfTexture.setWrap(Phaser.Textures.WrapMode.REPEAT, Phaser.Textures.WrapMode.REPEAT);
-  enableTurfMipmaps(scene);
+  const fieldKey = goldenField(scene);
+  scene.textures.get(fieldKey).setWrap(Phaser.Textures.WrapMode.REPEAT, Phaser.Textures.WrapMode.REPEAT);
+  enableTurfMipmaps(scene, fieldKey);
   scene.textures.get("ground-dirt").setWrap(Phaser.Textures.WrapMode.REPEAT, Phaser.Textures.WrapMode.REPEAT);
   const skyFrame = scene.textures.get("sky").get();
   const sky = scene.add.tileSprite(0, 0, skyFrame.width, skyFrame.height, "sky").setOrigin(0, 1).setDepth(DEPTH.sky);
-  const skyCap = scene.add.rectangle(0, 0, 1, 1, skyTopColor(scene, skyFrame.width)).setOrigin(0, 0).setDepth(DEPTH.sky);
+  const skyCap = scene.add.rectangle(0, 0, 1, 1, skyRowColor(scene, skyFrame.width, 0)).setOrigin(0, 0).setDepth(DEPTH.sky);
+  const haze = skyRowColor(scene, skyFrame.width, skyFrame.height - 1);
 
-  const turf = makeMesh(scene, "ground-turf", DEPTH.turf);
+  const turf = makeMesh(scene, fieldKey, DEPTH.turf);
   const dirt = makeMesh(scene, "ground-dirt", DEPTH.dirt);
   const fog = scene.add.graphics().setDepth(DEPTH.fog);
   const farRail = makeMesh(scene, "rail-segment", DEPTH.farRail);
   const nearRail = makeMesh(scene, "rail-segment", DEPTH.nearRail);
   const stands = makeMesh(scene, "stands-strip", DEPTH.stands);
   stands.mesh.setAlpha(1).setBlendMode(Phaser.BlendModes.NORMAL);
+  const scenery = scene.add.graphics().setDepth(DEPTH.scenery);
+  const mainStand = mainStandLine();
   const checker = makeMesh(scene, "finish-checker", DEPTH.checker);
   const startLine = scene.add.graphics().setDepth(DEPTH.checker);
 
@@ -103,12 +111,13 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   function paint(camera: Camera, view: TrackView, area: Rect) {
     const skyBottom = skyStripBottomY(camera);
     sky.setPosition(area.x, skyBottom).setSize(area.width, skyFrame.height);
-    sky.tilePositionX = area.x;
+    sky.setTileScale(area.width / skyFrame.width, 1);
+    sky.tilePositionX = 0;
     const capBottom = skyBottom - skyFrame.height;
     skyCap.setVisible(capBottom > area.y);
     if (capBottom > area.y) skyCap.setPosition(area.x, area.y).setSize(area.width, capBottom - area.y);
     paintGround(camera, turf, dirt, area);
-    paintFog(fog, camera, area);
+    paintFog(fog, camera, area, haze);
     clearSlot(farRail);
     clearSlot(nearRail);
     paintVertical(farRail, farLoop, true, RAIL_IMAGE, 1, camera, null);
@@ -117,8 +126,10 @@ export function createTrackRenderer(scene: Phaser.Scene) {
     paintVertical(nearRail, nearChute, false, RAIL_IMAGE, 1, camera, null);
 
     clearSlot(stands);
+    scenery.clear();
     if (view.showStands) {
-      paintVertical(stands, standLineOppositeCamera(camera), false, STANDS_IMAGE, view.standHeightScale, camera, "inward");
+      paintVertical(stands, mainStand, false, STANDS_IMAGE, view.standHeightScale, camera, "inward");
+      paintScenery(scenery, camera, haze);
     }
     paintChecker(checker, camera, view.showFinish);
     paintStartLine(startLine, camera);
@@ -173,7 +184,7 @@ function crossesHorizon(camera: Camera, sx0: number, sy0: number, sx1: number, s
   return hits > 0 && hits < 4;
 }
 
-function paintFog(fog: Phaser.GameObjects.Graphics, camera: Camera, area: Rect) {
+function paintFog(fog: Phaser.GameObjects.Graphics, camera: Camera, area: Rect, haze: number) {
   fog.clear();
   const bandH = area.height / FOG_BANDS;
   for (let index = 0; index < FOG_BANDS; index += 1) {
@@ -182,9 +193,42 @@ function paintFog(fog: Phaser.GameObjects.Graphics, camera: Camera, area: Rect) 
     if (distance == null) continue;
     const amount = fogAmount(distance);
     if (amount < 0.02) continue;
-    fog.fillStyle(0x3f4630, amount);
+    fog.fillStyle(haze, amount);
     fog.fillRect(area.x, top, area.width, bandH + 0.5);
   }
+}
+
+function paintScenery(graphics: Phaser.GameObjects.Graphics, camera: Camera, haze: number) {
+  for (const face of sceneryFaces(camera)) {
+    const color = Phaser.Display.Color.Interpolate.ColorWithColor(
+      Phaser.Display.Color.IntegerToColor(face.color),
+      Phaser.Display.Color.IntegerToColor(haze),
+      100,
+      Math.round(fogAmount(face.distance) * 100),
+    );
+    graphics.fillStyle(Phaser.Display.Color.GetColor(color.r, color.g, color.b), 1);
+    graphics.fillPoints(face.points as Phaser.Math.Vector2[], true);
+  }
+}
+
+/** Recolor the turf texture once: same grain, golden-hour hue. Returns the new texture key. */
+function goldenField(scene: Phaser.Scene) {
+  const key = "ground-field";
+  if (scene.textures.exists(key)) return key;
+  const source = scene.textures.get("ground-turf").getSourceImage() as HTMLImageElement;
+  const canvas = scene.textures.createCanvas(key, source.width, source.height);
+  if (!canvas) return "ground-turf";
+  const context = canvas.getContext();
+  context.drawImage(source, 0, 0);
+  context.globalCompositeOperation = "color";
+  context.fillStyle = FIELD_GOLD;
+  context.fillRect(0, 0, source.width, source.height);
+  context.globalCompositeOperation = "screen";
+  context.fillStyle = FIELD_LIFT;
+  context.fillRect(0, 0, source.width, source.height);
+  context.globalCompositeOperation = "source-over";
+  canvas.refresh();
+  return key;
 }
 
 function rowDistance(camera: Camera, area: Rect, sy: number) {
@@ -209,8 +253,8 @@ function fogAmount(distanceLu: number) {
 }
 
 /** Turf is 512². Minification uses mipmaps so the far ground does not shimmer. */
-function enableTurfMipmaps(scene: Phaser.Scene) {
-  const source = scene.textures.get("ground-turf").source[0];
+function enableTurfMipmaps(scene: Phaser.Scene, key: string) {
+  const source = scene.textures.get(key).source[0];
   const glTexture = source?.glTexture;
   const renderer = scene.game.renderer;
   if (!glTexture || !("gl" in renderer) || !renderer.gl) return;
@@ -244,20 +288,20 @@ function paintGround(camera: Camera, turf: MeshSlot, dirt: MeshSlot, area: Rect)
   }
 }
 
-function skyTopColor(scene: Phaser.Scene, width: number) {
+function skyRowColor(scene: Phaser.Scene, width: number, row: number) {
   let r = 0;
   let g = 0;
   let b = 0;
   let count = 0;
   for (let x = 0; x < width; x += 20) {
-    const pixel = scene.textures.getPixel(x, 0, "sky");
+    const pixel = scene.textures.getPixel(x, row, "sky");
     if (!pixel) continue;
     r += pixel.red;
     g += pixel.green;
     b += pixel.blue;
     count += 1;
   }
-  if (count === 0) return 0x3f4630;
+  if (count === 0) return 0xd9b07a;
   return Phaser.Display.Color.GetColor(Math.round(r / count), Math.round(g / count), Math.round(b / count));
 }
 

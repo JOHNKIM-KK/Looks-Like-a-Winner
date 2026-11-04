@@ -55,10 +55,10 @@ export const cameraConfig = {
     rules: {
       START: "all",
       STRAIGHT_EARLY: "all",
-      STRAIGHT_HOME: "topN",
-      CORNER_IN: "topN",
-      CORNER_OUT: "topN",
-      FINISH: "topN",
+      STRAIGHT_HOME: "all",
+      CORNER_IN: "all",
+      CORNER_OUT: "all",
+      FINISH: "all",
       CLOSEUP: "all",
     } satisfies Record<string, FrameFitRule>,
     /** Slides the look target along the view direction. 0 keeps the pack centered. */
@@ -76,13 +76,21 @@ export const cameraConfig = {
     outerRailOutset: 28,
     finishPostInfieldGap: 22,
   },
+  /**
+   * Distance (engine px, 37.42 per m), elevation, and focal length (900h) follow
+   * docs/stage2/storyboard/STORYBOARD_v1_camera.md: START 05, STRAIGHT_EARLY 06,
+   * CORNER_OUT 07 (scene 07 falls in the 1-2 bend's second half), CORNER_IN 08
+   * (scene 08 enters the 3-4 bend), STRAIGHT_HOME 09, FINISH 10.
+   * Running scenes take the 1575 end of SPEC's 1275-1575 focal range: engine horses
+   * are real size, about half the storyboard sprites at the same camera.
+   */
   states: {
-    START: { distance: 520, azimuth: 32, elevation: 20, focalLength: 1100, targetXOffset: 0, targetYOffset: -100 },
-    STRAIGHT_EARLY: { distance: 360, azimuth: 0, elevation: 22, focalLength: 1100, targetXOffset: 0, targetYOffset: 0 },
-    STRAIGHT_HOME: { distance: 900, azimuth: 180, elevation: 24, focalLength: 1700, targetXOffset: 0, targetYOffset: 0 },
-    CORNER_IN: { distance: 520, azimuth: 45, elevation: 14, focalLength: 1200, targetXOffset: 0, targetYOffset: 0 },
-    CORNER_OUT: { distance: 660, azimuth: 135, elevation: 13, focalLength: 1300, targetXOffset: 0, targetYOffset: 0 },
-    FINISH: { distance: 1800, azimuth: 90, elevation: 18, focalLength: 2600, targetXOffset: 250, targetYOffset: 0 },
+    START: { distance: 660, azimuth: 32, elevation: 13.4, focalLength: 1050, targetXOffset: 0, targetYOffset: -100 },
+    STRAIGHT_EARLY: { distance: 600, azimuth: 0, elevation: 11.6, focalLength: 1575, targetXOffset: 0, targetYOffset: 0 },
+    STRAIGHT_HOME: { distance: 635, azimuth: 180, elevation: 6.1, focalLength: 1575, targetXOffset: 0, targetYOffset: 0 },
+    CORNER_IN: { distance: 1352, azimuth: 45, elevation: 23.7, focalLength: 825, targetXOffset: 0, targetYOffset: 0 },
+    CORNER_OUT: { distance: 715, azimuth: 135, elevation: 17, focalLength: 1350, targetXOffset: 0, targetYOffset: 0 },
+    FINISH: { distance: 603, azimuth: 90, elevation: 12.5, focalLength: 1575, targetXOffset: 250, targetYOffset: 0 },
     CLOSEUP: { distance: 180, azimuth: 0, elevation: 18, focalLength: 1400, targetXOffset: 0, targetYOffset: 0 },
   },
 } as const;
