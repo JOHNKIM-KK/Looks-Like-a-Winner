@@ -20,9 +20,9 @@ function shot(scene: IntroShot["scene"], hold: IntroShot["hold"], look: CameraLo
 }
 
 const DRONE_01: CameraLook = {
-  targetX: GATE_X + 39.46 * M,
+  targetX: GATE_X + 80 * M,
   targetY: GATE_CENTER_Y - 4.52 * M,
-  distance: 79.7 * M,
+  distance: 112 * M,
   azimuth: -2.2,
   elevation: 25.2,
   focalLength: 825,
