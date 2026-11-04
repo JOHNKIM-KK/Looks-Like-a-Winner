@@ -21,11 +21,11 @@ function shot(scene: IntroShot["scene"], hold: IntroShot["hold"], look: CameraLo
 
 const DRONE_01: CameraLook = {
   targetX: GATE_X + 80 * M,
-  targetY: GATE_CENTER_Y - 4.52 * M,
-  distance: 112 * M,
+  targetY: GATE_CENTER_Y + 6.5 * M,
+  distance: 106 * M,
   azimuth: -2.2,
-  elevation: 25.2,
-  focalLength: 825,
+  elevation: 18.9,
+  focalLength: 658,
 };
 
 const DRONE_02: CameraLook = {
