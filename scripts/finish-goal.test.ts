@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { simulateRace, progressAt } from "../lib/race";
+import { simulateRace, laneAt, progressAt } from "../lib/race";
 import { mockHorses } from "../lib/mockHorses";
 import { getCameraForState } from "../game/cameraState";
 import { REFERENCE } from "../game/stage";
-import { goalLineLogical, projectWithCamera, renderLane, trackPoint } from "../game/track";
+import { goalLineLogical, projectWithCamera, trackPoint } from "../game/track";
 
 const GAME_W = REFERENCE.width;
 const GAME_H = REFERENCE.height;
@@ -20,7 +20,7 @@ describe("finish goal", () => {
       const race = simulateRace(mockHorses, seed);
       const points = race.horses.map((horse) => {
         const progress = progressAt(horse.samples, 53);
-        return trackPoint(progress, renderLane(horse.number, progress, race.seed));
+        return trackPoint(progress, laneAt(horse.lanes, 53));
       });
       const packCenterX = points.reduce((sum, point) => sum + point.x, 0) / points.length;
       const packCenterY = points.reduce((sum, point) => sum + point.y, 0) / points.length;

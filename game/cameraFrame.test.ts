@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { cameraConfig } from "./cameraConfig";
-import { simulateRace, progressAt } from "../lib/race";
+import { simulateRace, laneAt, progressAt } from "../lib/race";
 import { fieldHorses } from "../lib/field";
 import { mockHorses } from "../lib/mockHorses";
 import { orderByPresentation } from "./rankOrder";
@@ -54,7 +54,6 @@ import {
   outerRailRadius,
   presentationLogical,
   projectWithCamera,
-  renderLane,
   segmentEnds,
 } from "./track";
 
@@ -248,7 +247,7 @@ describe("horse framing", () => {
         const subjects = race.horses.map((horse) => {
           const sample = started ? progressAt(horse.samples, raceTime) : 0;
           const progress = !started ? 0 : gateOpen < 1 ? sample * gateOpen : sample;
-          return { horse, progress, logical: presentationLogical(progress, renderLane(horse.number, progress, race.seed)) };
+          return { horse, progress, logical: presentationLogical(progress, laneAt(horse.lanes, raceTime)) };
         });
         const leadProgress = started && gateOpen >= 1 ? Math.max(...subjects.map((subject) => subject.progress)) : 0;
         const snapshot: RaceSnapshot = {

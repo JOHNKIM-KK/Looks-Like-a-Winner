@@ -14,7 +14,6 @@ import {
   presentationLogical,
   presentationOnRadius,
   referenceDistance,
-  renderLane,
   segmentAt,
   segmentEnds,
   laneRadius,
@@ -53,7 +52,7 @@ describe("closed lap", () => {
         const at = presentationLogical(mark, lane);
         expect(Math.hypot(before.x - at.x, before.y - at.y), `lane ${lane} join ${mark}`).toBeLessThan(2);
       }
-      expect(renderLane(lane, 0.4, lane * 17)).toBe(lane);
+      if (lane < LANE_COUNT) expect(laneRadius(lane + 0.5)).toBeCloseTo((radius + laneRadius(lane + 1)) / 2, 6);
     }
 
     const gateNear = presentationLogical(0, 1);

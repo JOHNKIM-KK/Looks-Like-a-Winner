@@ -1,5 +1,6 @@
 import { payoffWord } from "@/game/skillShow";
-import { COAST_END, cutLength, poseAt, segmentAt, segmentEnds, referenceDistance } from "@/game/track";
+import { COAST_END, ENGINE_PX_PER_M, cutLength, poseAt, segmentAt, segmentEnds, referenceDistance } from "@/game/track";
+import { laneRunner, stepLanes, type LaneRunner } from "./lanes";
 import { skillById, type SkillId, type SkillKind } from "./skills";
 
 export { segmentAt, COAST_END };
@@ -78,6 +79,8 @@ export type RaceHorse = HorseInput & {
   finishTime: number;
   rank: number;
   samples: number[];
+  /** Lane at each sample, continuous. 1 is the rail. */
+  lanes: number[];
   skillName: string;
   skillShout: string;
   skillTime: number;
@@ -116,6 +119,7 @@ const FINAL_SPURT = 1.12;
 const ENDS = segmentEnds();
 /** Start skills still land in the chute, not across the whole early section. */
 const START_SEGMENT = ENDS.chuteEnd;
+const RACE_LENGTH_M = referenceDistance() / ENGINE_PX_PER_M;
 
 type Runner = {
   input: HorseInput;
@@ -123,6 +127,8 @@ type Runner = {
   stats: HorseStats;
   progress: number;
   samples: number[];
+  laneState: LaneRunner;
+  laneSamples: number[];
   finishTime: number;
   arriveSpeed: number;
   brakeFor: number;
@@ -401,7 +407,9 @@ function simulate(runners: Runner[]) {
         applySkill(runners, runner);
       }
     }
+    const running: Runner[] = [];
     for (const runner of runners) {
+      runner.laneState.frozen = true;
       if (index === 0) {
         runner.progress = 0;
         runner.samples.push(runner.progress);
@@ -428,7 +436,17 @@ function simulate(runners: Runner[]) {
         runner.samples.push(runner.progress);
         continue;
       }
-      const delta = stepSpeed(runner, time) * SAMPLE_STEP;
+      Object.assign(runner.laneState, {
+        frozen: false,
+        meters: runner.progress * RACE_LENGTH_M,
+        speed: stepSpeed(runner, time) * RACE_LENGTH_M,
+      });
+      running.push(runner);
+    }
+    stepLanes(runners.map((runner) => runner.laneState), SAMPLE_STEP);
+    for (const runner of runners) runner.laneSamples.push(runner.laneState.lane);
+    for (const runner of running) {
+      const delta = (runner.laneState.speed / RACE_LENGTH_M) * SAMPLE_STEP;
       if (runner.progress + delta >= 1) {
         const fraction = delta > 0 ? (1 - runner.progress) / delta : 1;
         runner.finishTime = Number((time - SAMPLE_STEP + fraction * SAMPLE_STEP).toFixed(3));
@@ -523,6 +541,8 @@ export function simulateRace(horses: HorseInput[], seed: number): RaceResult {
       stats,
       progress: 0,
       samples: [],
+      laneState: laneRunner(index + 1),
+      laneSamples: [],
       finishTime: 0,
       arriveSpeed: 0,
       brakeFor: BRAKE_TIME,
@@ -559,6 +579,7 @@ export function simulateRace(horses: HorseInput[], seed: number): RaceResult {
       finishTime: runner.finishTime,
       rank: 0,
       samples: runner.samples,
+      lanes: runner.laneSamples,
       skillName: skill.name,
       skillShout: skill.shout,
       skillTime: runner.skillTime,
@@ -605,6 +626,11 @@ export function progressAt(samples: number[], time: number) {
   const left = samples[index] ?? 0;
   const right = samples[index + 1] ?? left;
   return left + (right - left) * fraction;
+}
+
+/** Same time base as `progressAt`. Before the start this is the gate number. */
+export function laneAt(lanes: number[], time: number) {
+  return progressAt(lanes, time);
 }
 
 export function commentAt(events: RaceEvent[], time: number) {

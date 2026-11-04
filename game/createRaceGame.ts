@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { skillById } from "@/lib/skills";
-import { SKILL_WINDOW, progressAt, type RaceHorse, type RaceResult, type SkillCutin } from "@/lib/race";
+import { SKILL_WINDOW, laneAt, progressAt, type RaceHorse, type RaceResult, type SkillCutin } from "@/lib/race";
 import {
   BANNER_HOLD,
   BEAT_FOCUS,
@@ -14,7 +14,7 @@ import {
   type ShowBeat,
 } from "@/game/skillShow";
 import { playBell } from "@/game/bang";
-import { renderLane, projectWithCamera, presentationLogical, finishPostLogical, finishOuterLogical, segmentAt, segmentEnds, LANE_GAP } from "@/game/track";
+import { projectWithCamera, presentationLogical, finishPostLogical, finishOuterLogical, segmentAt, segmentEnds, LANE_GAP } from "@/game/track";
 import {
   createInitialState,
   nextCameraState,
@@ -750,8 +750,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       const placed = actors.map((actor) => {
         const sample = progressAt(actor.horse.samples, raceTime);
         const progress = !started ? 0 : gateOpen < 1 ? sample * gateOpen : sample;
-        const displayLane = renderLane(actor.horse.number, progress, race.seed);
-        return { actor, progress, logical: getLogicalAt(progress, displayLane) };
+        return { actor, progress, logical: getLogicalAt(progress, laneAt(actor.horse.lanes, raceTime)) };
       });
       const rankClock = started ? raceTime : 0;
       const ranked = orderByPresentation(
@@ -824,14 +823,14 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           raceTime >= actor.horse.skillTime &&
           raceTime < actor.horse.cutUntil;
         const cutBlend = cutting ? (raceTime - actor.horse.skillTime) / (actor.horse.cutUntil - actor.horse.skillTime) : 0;
-        const displayLane = renderLane(actor.horse.number, actor.progress, race.seed);
+        const displayLane = laneAt(actor.horse.lanes, raceTime);
         const logical = getLogicalAt(actor.progress, displayLane);
         const path = cutting
           ? blendLogical(getLogicalAt(actor.horse.cutFrom, displayLane), getLogicalAt(actor.horse.cutTo, displayLane), cutBlend)
           : swapping
             ? blendLogical(getLogicalAt(actor.horse.swapFrom, displayLane), logical, swapBlend)
             : logical;
-        const offset = gateOffset(displayLane, actor.progress, wallClock, intro);
+        const offset = gateOffset(actor.horse.number, actor.progress, wallClock, intro);
         const heading = { ...path, x: path.x + offset.x, y: path.y + offset.y };
         const pose = projectWithCamera(heading, currentCamera);
         const ahead = !started ? 0 : actor.progress >= 1 ? progressAt(actor.horse.samples, raceTime + 0.2) - actor.progress : 1;
@@ -1032,7 +1031,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const span = horse.cutUntil - horse.skillTime;
         if (age < 0 || age > span + 0.8) continue;
         const fade = age <= span ? 1 : 1 - (age - span) / 0.8;
-        const lane = renderLane(horse.number, actor.progress, race.seed);
+        const lane = laneAt(horse.lanes, raceTime);
         const from = getLogicalAt(horse.cutFrom, lane);
         const to = getLogicalAt(horse.cutTo, lane);
         const dx = to.x - from.x;
@@ -1085,7 +1084,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const ahead = progressAt(actor.horse.samples, raceTime + 0.2) - actor.progress;
         const pull = Math.max(0, Math.min(1, ahead / 0.003));
         if (pull < 0.08) continue;
-        const logical = getLogicalAt(actor.progress, actor.horse.number);
+        const logical = getLogicalAt(actor.progress, laneAt(actor.horse.lanes, raceTime));
         const pose = projectWithCamera(logical, currentCamera);
         const backX = -pose.tangentX;
         const backY = -pose.tangentY;
@@ -1200,7 +1199,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       if (!caster) return;
       const kind = skillById(caster.horse.skillId).kind;
       const age = Math.max(0, wallClock - showStart - INTRO);
-      const logical = getLogicalAt(caster.progress, caster.horse.number);
+      const logical = getLogicalAt(caster.progress, laneAt(caster.horse.lanes, raceTime));
       const pose = projectWithCamera(logical, currentCamera);
       const backX = -pose.tangentX;
       const backY = -pose.tangentY;
@@ -1412,7 +1411,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       const horsePosSum = { x: 0, y: 0 };
       
       actors.forEach(actor => {
-        const logical = getLogicalAt(actor.progress, actor.horse.number);
+        const logical = getLogicalAt(actor.progress, laneAt(actor.horse.lanes, raceTime));
         packCenterX += logical.x;
         packCenterY += logical.y;
         horsePosSum.x += actor.container.x;
@@ -1437,7 +1436,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       
       // 각 말의 노란 점
       actors.forEach(actor => {
-        const logical = getLogicalAt(actor.progress, actor.horse.number);
+        const logical = getLogicalAt(actor.progress, laneAt(actor.horse.lanes, raceTime));
         const projected = projectWithCamera(logical, currentCamera);
         
         if (projected.visible && projected.x >= 0 && projected.x <= REFERENCE.width && projected.y >= 0 && projected.y <= REFERENCE.height) {

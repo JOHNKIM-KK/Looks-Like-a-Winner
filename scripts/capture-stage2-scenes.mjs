@@ -17,11 +17,15 @@ const scenes = [
   { name: "04_countdown", wall: 0.4 },
   { name: "05_gates_open", wall: 3.1 },
   { name: "A1_chute_run", lead: 40 / RACE_M, board: "06_early_straight" },
+  { name: "B1_chute_end_rail", lead: 55 / RACE_M, board: "06_early_straight" },
   { name: "06_early_straight", lead: 68 / RACE_M },
+  { name: "B2_corner_inside", lead: 160 / RACE_M, board: "07_corner" },
   { name: "07_corner", lead: 164 / RACE_M },
+  { name: "B3_back_outside_pass", lead: 235 / RACE_M, board: "08_back_final_corner" },
   { name: "08_back_final_corner", lead: 259 / RACE_M, settled: true },
   { name: "A2_home_entry", lead: 303.5 / RACE_M, board: "09_home_sprint" },
   { name: "09_home_sprint", lead: 309 / RACE_M },
+  { name: "B4_home_spread", lead: 325 / RACE_M, board: "09_home_sprint" },
   { name: "A3_finish_line", lead: 0.999, board: "10_finish_results" },
   { name: "10_finish_results", result: true },
 ].filter((scene) => !only || only.some((prefix) => scene.name.startsWith(prefix)));
@@ -57,7 +61,7 @@ try {
     } else if (scene.wall !== undefined) {
       await page.waitForFunction((t) => (window.__raceCamera?.wallClock ?? 0) >= t, scene.wall, { timeout: 30000, polling: 16 });
     } else if (scene.lead !== undefined) {
-      await page.waitForFunction((t) => (window.__raceCamera?.leadProgress ?? 0) >= t, scene.lead, { timeout: 90000, polling: 16 });
+      await page.waitForFunction((t) => (window.__raceCamera?.leadProgress ?? 0) >= t, scene.lead, { timeout: 150000, polling: 16 });
       if (scene.settled) await page.waitForFunction(() => window.__raceCamera?.settled, null, { timeout: 30000, polling: 16 });
     } else {
       await page.getByRole("button", { name: "다시 하기" }).waitFor({ timeout: 90000 });

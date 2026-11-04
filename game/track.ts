@@ -79,7 +79,7 @@ type Logical = {
 };
 
 export function laneRadius(lane: number) {
-  const index = Math.max(1, Math.floor(lane)) - 1;
+  const index = Math.max(1, lane) - 1;
   const artY = LANE1_Y_M + index * LANE_GAP_M;
   return INNER_RADIUS + (artY - RAIL_SECTION_ORIGIN_M) * ENGINE_PX_PER_M;
 }
@@ -383,10 +383,6 @@ export function viewBounds(lanes: number) {
   }
   const pad = 420;
   return { x: minX - pad, y: minY - pad, width: maxX - minX + pad * 2, height: maxY - minY + pad * 2 };
-}
-
-export function renderLane(lane: number, _progress: number, _seed: number): number {
-  return lane;
 }
 
 type LogicalPoint = {
