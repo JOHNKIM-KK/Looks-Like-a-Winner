@@ -12,17 +12,16 @@ import type { Rect } from "./stage";
 import { sceneryFaces } from "./scenery";
 import { finishGoalX, presentationOnRadius, type Camera } from "./track";
 import {
-  chutePolyline,
   farRailRadius,
   finishCheckerQuad,
   groundUv,
   isDirt,
-  nearRailRadius,
-  ovalPolyline,
   projectHeight,
   propSpriteAccepted,
   propStripAccepted,
   mainStandLine,
+  railLines,
+  railSegmentInFront,
   startLineQuad,
   unprojectCell,
   type Vec2,
@@ -37,9 +36,9 @@ const DEPTH = {
   stands: 33,
   scenery: 34,
   checker: 35,
-  farRail: 40,
+  backRail: 40,
   props: 55,
-  nearRail: 3500,
+  frontRail: 3500,
 } as const;
 
 const GROUND_CELL = 48;
@@ -89,8 +88,8 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   const turf = makeMesh(scene, fieldKey, DEPTH.turf);
   const dirt = makeMesh(scene, "ground-dirt", DEPTH.dirt);
   const fog = scene.add.graphics().setDepth(DEPTH.fog);
-  const farRail = makeMesh(scene, "rail-segment", DEPTH.farRail);
-  const nearRail = makeMesh(scene, "rail-segment", DEPTH.nearRail);
+  const backRail = makeMesh(scene, "rail-segment", DEPTH.backRail);
+  const frontRail = makeMesh(scene, "rail-segment", DEPTH.frontRail);
   const stands = makeMesh(scene, "stands-strip", DEPTH.stands);
   stands.mesh.setAlpha(1).setBlendMode(Phaser.BlendModes.NORMAL);
   const scenery = scene.add.graphics().setDepth(DEPTH.scenery);
@@ -98,10 +97,7 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   const checker = makeMesh(scene, "finish-checker", DEPTH.checker);
   const startLine = scene.add.graphics().setDepth(DEPTH.checker);
 
-  const farLoop = ovalPolyline(farRailRadius());
-  const nearLoop = ovalPolyline(nearRailRadius());
-  const farChute = chutePolyline(farRailRadius());
-  const nearChute = chutePolyline(nearRailRadius());
+  const rails = railLines();
   const postProgress = distancePostProgresses();
   const posts = postProgress.map(() =>
     scene.add.image(0, 0, "prop-distance").setOrigin(0.5, 1).setDepth(DEPTH.props).setVisible(false),
@@ -118,12 +114,12 @@ export function createTrackRenderer(scene: Phaser.Scene) {
     if (capBottom > area.y) skyCap.setPosition(area.x, area.y).setSize(area.width, capBottom - area.y);
     paintGround(camera, turf, dirt, area);
     paintFog(fog, camera, area, haze);
-    clearSlot(farRail);
-    clearSlot(nearRail);
-    paintVertical(farRail, farLoop, true, RAIL_IMAGE, 1, camera, null);
-    paintVertical(farRail, farChute, false, RAIL_IMAGE, 1, camera, null);
-    paintVertical(nearRail, nearLoop, true, RAIL_IMAGE, 1, camera, null);
-    paintVertical(nearRail, nearChute, false, RAIL_IMAGE, 1, camera, null);
+    clearSlot(backRail);
+    clearSlot(frontRail);
+    for (const rail of rails) {
+      paintVertical(backRail, rail.points, rail.closed, RAIL_IMAGE, 1, camera, null, (from, to) => !railSegmentInFront(rail.kind, from, to, camera));
+      paintVertical(frontRail, rail.points, rail.closed, RAIL_IMAGE, 1, camera, null, (from, to) => railSegmentInFront(rail.kind, from, to, camera));
+    }
 
     clearSlot(stands);
     scenery.clear();
@@ -353,6 +349,7 @@ function paintVertical(
   zScale: number,
   camera: Camera,
   face: "outward" | "inward" | null,
+  keep: (from: Vec2, to: Vec2) => boolean = () => true,
 ) {
   const above = (image.contact / image.pxPerM) * zScale * LOGICAL_PER_METER;
   const below = ((image.height - image.contact) / image.pxPerM) * zScale * LOGICAL_PER_METER;
@@ -364,7 +361,9 @@ function paintVertical(
     const to = points[(index + 1) % count];
     if (!from || !to) continue;
     const lengthM = Math.hypot(to.x - from.x, to.y - from.y) / LOGICAL_PER_METER;
-    emitVertical(slot, camera, from, to, traveled / image.periodM, (traveled + lengthM) / image.periodM, above, below, face);
+    if (keep(from, to)) {
+      emitVertical(slot, camera, from, to, traveled / image.periodM, (traveled + lengthM) / image.periodM, above, below, face);
+    }
     traveled += lengthM;
   }
 }

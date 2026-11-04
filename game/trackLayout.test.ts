@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { farRailRadius, nearRailRadius } from "./artScale";
+import { chuteMergeX, railLines, railSegmentInFront } from "./trackArt";
 import {
   CHUTE,
   CHUTE_M,
@@ -85,5 +86,74 @@ describe("closed lap", () => {
     expect(home.y).toBeGreaterThan(0);
     expect(home.x).toBeCloseTo(finishGoalX(), 3);
     expect(home.tx).toBeCloseTo(1, 5);
+  });
+});
+
+type Point = { x: number; y: number };
+
+function crosses(a: Point, b: Point, c: Point, d: Point) {
+  const side = (p: Point, q: Point, r: Point) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+  return side(a, b, c) * side(a, b, d) < 0 && side(c, d, a) * side(c, d, b) < 0;
+}
+
+function railSegments() {
+  return railLines().flatMap((rail) => {
+    const count = rail.closed ? rail.points.length : rail.points.length - 1;
+    return Array.from({ length: count }, (_, index) => ({
+      kind: rail.kind,
+      from: rail.points[index]!,
+      to: rail.points[(index + 1) % rail.points.length]!,
+    }));
+  });
+}
+
+describe("rails", () => {
+  test("no lane crosses a rail from the gate, through the chute junction, to the finish", () => {
+    const segments = railSegments();
+    for (const lane of [1, 6, LANE_COUNT]) {
+      let previous = presentationLogical(0, lane);
+      for (let step = 1; step <= 600; step += 1) {
+        const next = presentationLogical(step / 600, lane);
+        const hit = segments.find((segment) => crosses(previous, next, segment.from, segment.to));
+        expect(hit, `lane ${lane} at progress ${(step / 600).toFixed(3)}`).toBeUndefined();
+        previous = next;
+      }
+    }
+  });
+
+  test("the chute opens onto the course where the west bend's outer rail meets the chute's inner rail", () => {
+    const mergeX = chuteMergeX();
+    expect(Math.hypot(mergeX + HALF, farRailRadius())).toBeCloseTo(nearRailRadius(), 6);
+    for (const { from } of railSegments()) {
+      const insideChute = from.x < -HALF && from.y > farRailRadius() + 1 && from.y < nearRailRadius() - 1;
+      expect(insideChute, `rail point (${from.x.toFixed(0)}, ${from.y.toFixed(0)}) inside the chute`).toBe(false);
+    }
+  });
+
+  test("a rail draws over the horses only when it stands between them and the camera", () => {
+    const camera = (groundY: number) => ({ groundX: 0, groundY, height: 400, pitch: 0.2, yaw: 0, focalLength: 1000 });
+    const homeOuter = { from: { x: -10, y: nearRailRadius() }, to: { x: 10, y: nearRailRadius() } };
+    const homeInner = { from: { x: -10, y: farRailRadius() }, to: { x: 10, y: farRailRadius() } };
+    const backOuter = { from: { x: 10, y: -nearRailRadius() }, to: { x: -10, y: -nearRailRadius() } };
+    const chuteOuter = { from: { x: -HALF - 10, y: nearRailRadius() }, to: { x: -HALF - 30, y: nearRailRadius() } };
+    const chuteInner = { from: { x: -HALF - 10, y: farRailRadius() }, to: { x: -HALF - 30, y: farRailRadius() } };
+    const inFront = (kind: "inner" | "outer", rail: { from: Point; to: Point }, at: number) =>
+      railSegmentInFront(kind, rail.from, rail.to, camera(at));
+
+    const outsideHome = nearRailRadius() * 2;
+    expect(inFront("outer", homeOuter, outsideHome)).toBe(true);
+    expect(inFront("inner", homeInner, outsideHome)).toBe(false);
+    expect(inFront("outer", backOuter, outsideHome)).toBe(false);
+    expect(inFront("outer", chuteOuter, outsideHome)).toBe(true);
+
+    expect(inFront("outer", homeOuter, 0)).toBe(false);
+    expect(inFront("inner", homeInner, 0)).toBe(true);
+    expect(inFront("outer", chuteOuter, 0)).toBe(false);
+    expect(inFront("inner", chuteInner, 0)).toBe(true);
+
+    const behindBack = -nearRailRadius() * 2;
+    expect(inFront("outer", backOuter, behindBack)).toBe(true);
+    expect(inFront("inner", homeInner, behindBack)).toBe(false);
+    expect(inFront("inner", chuteInner, behindBack)).toBe(false);
   });
 });

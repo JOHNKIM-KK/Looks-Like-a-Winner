@@ -154,21 +154,62 @@ export function propStripAccepted(
 }
 
 /** Closed oval, about one sample per meter. The first point is not repeated. */
-export function ovalPolyline(radius: number): Vec2[] {
+function ovalPolyline(radius: number): Vec2[] {
   const loopLength = STRAIGHT * 2 + Math.PI * radius * 2;
   const steps = Math.max(24, Math.round(loopLength / LOGICAL_PER_METER));
   return sampleLoopLogical(radius, steps).map((point) => ({ x: point.x, y: point.y }));
 }
 
-/** Open chute extending the home straight to the left, out to the gate. */
-export function chutePolyline(radius: number): Vec2[] {
+/** Straight rail along the chute, from `fromX` out to the gate. */
+function chuteLine(fromX: number, y: number): Vec2[] {
   const gateX = -HALF - CHUTE;
-  const points: Vec2[] = [{ x: -HALF, y: radius }];
-  const extra = Math.max(1, Math.ceil(CHUTE / LOGICAL_PER_METER));
-  for (let index = 1; index <= extra; index += 1) {
-    points.push({ x: -HALF + ((gateX + HALF) * index) / extra, y: radius });
-  }
-  return points;
+  const steps = Math.max(1, Math.ceil((fromX - gateX) / LOGICAL_PER_METER));
+  return Array.from({ length: steps + 1 }, (_, index) => ({ x: fromX + ((gateX - fromX) * index) / steps, y }));
+}
+
+export type RailKind = "inner" | "outer";
+export type RailLine = { kind: RailKind; points: Vec2[]; closed: boolean };
+
+/** Where the west bend's outer rail meets the chute's inner rail. Between here and the bend, the chute opens onto the course. */
+export function chuteMergeX() {
+  const inner = farRailRadius();
+  const outer = nearRailRadius();
+  return -HALF - Math.sqrt(outer * outer - inner * inner);
+}
+
+/**
+ * Every rail on the course. The outer oval rail stops where it would cross the chute, and the
+ * chute's inner rail starts at that same point, so the chute joins the home straight with no rail across it.
+ */
+export function railLines(): RailLine[] {
+  const inner = farRailRadius();
+  const outer = nearRailRadius();
+  const mergeX = chuteMergeX();
+  const outerLoop = ovalPolyline(outer).filter((point) => !(point.x < -HALF && point.y > inner));
+  return [
+    { kind: "inner", points: ovalPolyline(inner), closed: true },
+    { kind: "outer", points: [...outerLoop, { x: mergeX, y: inner }], closed: false },
+    { kind: "inner", points: chuteLine(mergeX, inner), closed: false },
+    { kind: "outer", points: chuteLine(-HALF, outer), closed: false },
+  ];
+}
+
+function cameraInInfield(camera: Camera) {
+  const inner = farRailRadius();
+  const alongSpine = Math.max(-HALF, Math.min(HALF, camera.groundX));
+  if (Math.hypot(camera.groundX - alongSpine, camera.groundY) < inner) return true;
+  return camera.groundX < -HALF && Math.abs(camera.groundY) < inner;
+}
+
+/** True when this rail segment stands between the camera and the horses, so it draws over them. */
+export function railSegmentInFront(kind: RailKind, from: Vec2, to: Vec2, camera: Camera) {
+  const mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
+  const length = Math.hypot(to.x - from.x, to.y - from.y) || 1;
+  const spineX = Math.max(-HALF, Math.min(HALF, mid.x));
+  let normal = { x: (to.y - from.y) / length, y: -(to.x - from.x) / length };
+  if (normal.x * (mid.x - spineX) + normal.y * mid.y < 0) normal = { x: -normal.x, y: -normal.y };
+  const cameraOutside = (camera.groundX - mid.x) * normal.x + (camera.groundY - mid.y) * normal.y > 0;
+  return kind === "outer" ? cameraOutside : !cameraOutside && cameraInInfield(camera);
 }
 
 export function offsetAlong(points: readonly Vec2[], direction: Vec2, meters: number): Vec2[] {
