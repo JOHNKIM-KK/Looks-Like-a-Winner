@@ -2,16 +2,26 @@
 
 import { useState } from "react";
 import { RaceGame } from "@/components/RaceGame";
-import { RaceResult } from "@/components/RaceResult";
 import { mockHorses } from "@/lib/mockHorses";
 import { skillById } from "@/lib/skills";
 import { primeStartSound } from "@/game/bang";
-import { MAX_HORSES, simulateRace, type RaceResult as RaceData } from "@/lib/race";
+import { fieldHorses } from "@/lib/field";
+import { MAX_HORSES, RACE_FEATURES, simulateRace, type RaceResult as RaceData } from "@/lib/race";
 
 type Phase = "idle" | "racing" | "done";
 
 function nextSeed() {
   return Math.floor(Math.random() * 1_000_000_000) + 1;
+}
+
+function seedFromSearch() {
+  if (typeof window === "undefined") return null;
+  const raw = new URLSearchParams(window.location.search).get("seed");
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value)) return null;
+  const seed = Math.floor(value);
+  return seed > 0 ? seed : null;
 }
 
 export default function HomePage() {
@@ -20,7 +30,8 @@ export default function HomePage() {
 
   function start() {
     primeStartSound();
-    setRace(simulateRace(mockHorses, nextSeed()));
+    const seed = seedFromSearch() ?? nextSeed();
+    setRace(simulateRace(fieldHorses(mockHorses, seed), seed));
     setPhase("racing");
     window.scrollTo(0, 0);
   }
@@ -30,10 +41,10 @@ export default function HomePage() {
       <header className="flex flex-col gap-2 border-4 border-[#ff4fd8] bg-[#1b1030] px-4 py-4 shadow-[6px_6px_0_#5ce1ff] sm:px-6">
         <p className="text-xs font-black tracking-[0.35em] text-[#ff4fd8]">ARCADE SELECT</p>
         <h1 className="text-3xl font-black tracking-tight text-[#ffe14a] [text-shadow:3px_3px_0_#ff4fd8] sm:text-4xl">
-          어떤 관상이 1등일까
+          누가 1등일까
         </h1>
         <p className="max-w-2xl text-sm leading-6 text-[#fff6ea]/80">
-          출전은 최대 {MAX_HORSES}관상. 지금은 {mockHorses.length}장의 얼굴과 스킬이다. 한 바퀴가 끝나면 어떤 관상이 1등인지 남는다.
+          출전은 최대 {MAX_HORSES}마리. 빈 자리는 임시 말이 채우고, 칸은 시드로 섞인다.
         </p>
       </header>
 
@@ -49,7 +60,9 @@ export default function HomePage() {
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="bg-[#ffe14a] px-2 py-0.5 text-xs font-black text-[#1a1024]">{index + 1}번</span>
-                    <span className="truncate text-xs font-bold tracking-wide text-[#5ce1ff]">{skill.name}</span>
+                    {RACE_FEATURES.skills ? (
+                      <span className="truncate text-xs font-bold tracking-wide text-[#5ce1ff]">{skill.name}</span>
+                    ) : null}
                   </div>
                   {/* Portrait is a local mock illustration, not a user upload. */}
                   {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -80,10 +93,14 @@ export default function HomePage() {
       ) : null}
 
       {race && phase !== "idle" ? (
-        <div className="relative">
-          <RaceGame key={race.seed} race={race} onComplete={() => setPhase("done")} />
-          {phase === "done" ? <RaceResult race={race} onRematch={start} /> : null}
-        </div>
+        <RaceGame
+          key={race.seed}
+          race={race}
+          finished={phase === "done"}
+          onComplete={() => setPhase("done")}
+          onRematch={start}
+          onExit={() => setPhase("idle")}
+        />
       ) : null}
     </main>
   );

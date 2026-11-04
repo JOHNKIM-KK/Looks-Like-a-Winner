@@ -4,7 +4,7 @@ import type { SkillId } from "./skills";
 export const mockHorses: HorseInput[] = [
   {
     id: "sprinter",
-    name: "직선적인 관상",
+    name: "번개",
     title: "앞만 보는 눈",
     color: "#e23b3b",
     portrait: "/mock/sprinter.jpg",
@@ -17,7 +17,7 @@ export const mockHorses: HorseInput[] = [
   },
   {
     id: "corner",
-    name: "눈치 보는 관상",
+    name: "하늘새",
     title: "남을 읽는 눈",
     color: "#1f8a84",
     portrait: "/mock/corner.jpg",
@@ -30,7 +30,7 @@ export const mockHorses: HorseInput[] = [
   },
   {
     id: "stamina",
-    name: "잠잠한 관상",
+    name: "은빛바람",
     title: "끝까지 가는 얼굴",
     color: "#d4a017",
     portrait: "/mock/stamina.jpg",
@@ -43,7 +43,7 @@ export const mockHorses: HorseInput[] = [
   },
   {
     id: "luck",
-    name: "얍삽한 관상",
+    name: "붉은해",
     title: "지름길만 보는 눈",
     color: "#7c5cbf",
     portrait: "/mock/luck.jpg",
@@ -56,7 +56,7 @@ export const mockHorses: HorseInput[] = [
   },
   {
     id: "shot",
-    name: "범죄자상",
+    name: "천둥",
     title: "비뚤어진 입꼬리",
     color: "#8c3a3a",
     portrait: "/mock/shot.jpg",
@@ -69,7 +69,7 @@ export const mockHorses: HorseInput[] = [
   },
   {
     id: "glare",
-    name: "노려보는 관상",
+    name: "금빛별",
     title: "좁은 미간",
     color: "#2a6f9a",
     portrait: "/mock/glare.jpg",
@@ -82,7 +82,7 @@ export const mockHorses: HorseInput[] = [
   },
   {
     id: "crown",
-    name: "왕이 될 상",
+    name: "청룡",
     title: "자리를 맡은 얼굴",
     color: "#c9842a",
     portrait: "/mock/crown.jpg",
@@ -95,7 +95,7 @@ export const mockHorses: HorseInput[] = [
   },
   {
     id: "crack",
-    name: "깨뜨리는 관상",
+    name: "밤하늘",
     title: "금 가는 눈빛",
     color: "#d4537e",
     portrait: "/mock/crack.jpg",

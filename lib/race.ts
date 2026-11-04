@@ -1,10 +1,11 @@
 import { payoffWord } from "@/game/skillShow";
-import { COAST_END, cutLength, poseAt, segmentAt, segmentEnds } from "@/game/track";
+import { COAST_END, ENGINE_PX_PER_M, cutLength, poseAt, segmentAt, segmentEnds, referenceDistance } from "@/game/track";
+import { laneRunner, stepLanes, type LaneRunner } from "./lanes";
 import { skillById, type SkillId, type SkillKind } from "./skills";
 
 export { segmentAt, COAST_END };
 
-export const MAX_HORSES = 10;
+export const MAX_HORSES = 12;
 export const RACE_DURATION = 40;
 export const SAMPLE_STEP = 0.1;
 export const SKILL_WINDOW = 2.4;
@@ -16,6 +17,11 @@ const CRACK_WINDOW = 2.2;
 export const SKILL_SLOW = 1 / 1.35;
 export const MIN_SKILL_GAP = 1.2;
 export const BRAKE_TIME = 1.5;
+
+export const RACE_FEATURES: { readonly horseStats: boolean; readonly skills: boolean } = {
+  horseStats: false,
+  skills: false,
+};
 
 function brakeFor(arrive: number) {
   const span = 0.016;
@@ -73,6 +79,8 @@ export type RaceHorse = HorseInput & {
   finishTime: number;
   rank: number;
   samples: number[];
+  /** Lane at each sample, continuous. 1 is the rail. */
+  lanes: number[];
   skillName: string;
   skillShout: string;
   skillTime: number;
@@ -100,9 +108,18 @@ export type RaceResult = {
 };
 
 const STAT_KEYS = ["start", "accel", "stamina", "corner", "mental", "luck"] as const;
-const BASE_SPEED = 1 / 40.2;
-const ENDS = segmentEnds(1);
-const START_SEGMENT = ENDS.startStraight;
+const NEUTRAL_BIASES: HorseStats = { start: 0, accel: 0, stamina: 0, corner: 0, mental: 0, luck: 0 };
+/**
+ * Neutral progress per second. 357 m at the SPEC §8 pace (×1.99) finishes near 60 s.
+ * 59.0 rather than 60.0: stats and skills cost ~3% over neutral, the spurt wins back ~1.4%.
+ */
+const BASE_SPEED = 1 / 59.0;
+/** SPEC §8-3: +12% from the home straight entry (303.5 m) to the finish. */
+const FINAL_SPURT = 1.12;
+const ENDS = segmentEnds();
+/** Start skills still land in the chute, not across the whole early section. */
+const START_SEGMENT = ENDS.chuteEnd;
+const RACE_LENGTH_M = referenceDistance() / ENGINE_PX_PER_M;
 
 type Runner = {
   input: HorseInput;
@@ -110,6 +127,8 @@ type Runner = {
   stats: HorseStats;
   progress: number;
   samples: number[];
+  laneState: LaneRunner;
+  laneSamples: number[];
   finishTime: number;
   arriveSpeed: number;
   brakeFor: number;
@@ -160,8 +179,8 @@ function buildStats(biases: HorseStats, random: () => number): HorseStats {
   return stats;
 }
 
-function gateProgress(stats: HorseStats) {
-  return clamp(((stats.start - 48) / 100) * 0.1, 0, 0.05);
+export function gateProgress(stats: HorseStats) {
+  return 0;
 }
 
 function speedAt(stats: HorseStats, progress: number) {
@@ -169,11 +188,11 @@ function speedAt(stats: HorseStats, progress: number) {
   let phase = 1;
   if (kind === "straight") {
     phase = 1 + ((stats.accel - 60) / 100) * 0.95;
-    if (progress < START_SEGMENT) phase += ((stats.start - 60) / 100) * 1.4;
+    if (progress < START_SEGMENT) phase += ((stats.start - 60) / 100) * 2.4;
   } else if (kind === "corner") {
     phase = 1 + ((stats.corner - 60) / 100) * 0.55;
   } else {
-    phase = 1 + ((stats.stamina - 60) / 100) * 1.35 + ((stats.mental - 60) / 100) * 0.4;
+    phase = (1 + ((stats.stamina - 60) / 100) * 1.35 + ((stats.mental - 60) / 100) * 0.4) * FINAL_SPURT;
   }
   const luck = 1 + ((stats.luck - 60) / 100) * 0.1;
   return Math.max(0.012, BASE_SPEED * phase * luck);
@@ -188,11 +207,10 @@ function previewProgress(stats: HorseStats, time: number) {
 }
 
 function skillWindows(kind: SkillKind, stats: HorseStats) {
-  const offset = gateProgress(stats);
   if (kind === "start") {
     const early: number[] = [];
     for (let time = 0.5; time <= 2.4; time += 0.4) {
-      const progress = previewProgress(stats, time) + offset;
+      const progress = previewProgress(stats, time);
       if (progress < START_SEGMENT + 0.02) early.push(Number(time.toFixed(1)));
     }
     if (early.length > 0) return early;
@@ -200,15 +218,15 @@ function skillWindows(kind: SkillKind, stats: HorseStats) {
   if (kind === "jaywalk") {
     const cuts: number[] = [];
     for (let time = 2; time <= 34; time += 0.5) {
-      const progress = previewProgress(stats, time) + offset;
+      const progress = previewProgress(stats, time);
       if (cornerRoom(progress) >= 0.14) cuts.push(time);
     }
     if (cuts.length > 0) return cuts;
   }
   const matches: number[] = [];
   for (let time = 2; time <= 38; time += 0.5) {
-    const progress = previewProgress(stats, time) + offset;
-    const ahead = previewProgress(stats, time + 1) + offset;
+    const progress = previewProgress(stats, time);
+    const ahead = previewProgress(stats, time + 1);
     const segment = segmentAt(progress);
     const settled = segmentAt(ahead) === segment;
     const fits =
@@ -281,7 +299,7 @@ function applySkill(runners: Runner[], runner: Runner) {
     hit = onBend;
     if (hit) {
       const from = runner.progress;
-      const to = Math.max(from + 0.012, Math.min(0.97, ENDS.corner));
+      const to = Math.max(from + 0.012, Math.min(0.97, activeCornerEnd(from)));
       runner.cutFrom = from;
       runner.cutTo = to;
       runner.cutUntil = runner.skillTime + cutDuration(from, to, runner.number, speedAt(runner.stats, from));
@@ -351,16 +369,20 @@ function cutDuration(from: number, to: number, lane: number, progressSpeed: numb
   return Math.max(0.55, cutLength(from, to, lane) / screenSpeed);
 }
 
+function activeCornerEnd(progress: number) {
+  return progress < ENDS.corner12Exit ? ENDS.corner12Exit : ENDS.corner34Exit;
+}
+
 function cornerRoom(progress: number) {
   if (segmentAt(progress) !== "corner") return 0;
-  return Math.max(0, ENDS.corner - progress);
+  return Math.max(0, activeCornerEnd(progress) - progress);
 }
 
 function skillReady(runner: Runner) {
   const kind = skillById(runner.input.skillId).kind;
   const segment = segmentAt(runner.progress);
   if (kind === "final-burst") return segment === "final" || runner.progress >= 0.999;
-  if (kind === "jaywalk") return cornerRoom(runner.progress) >= 0.14 || runner.progress >= ENDS.corner - 0.14;
+  if (kind === "jaywalk") return cornerRoom(runner.progress) >= 0.14 || runner.progress >= ENDS.corner12Exit - 0.14;
   if (kind === "crown") return runner.progress >= 0.6;
   return true;
 }
@@ -385,9 +407,11 @@ function simulate(runners: Runner[]) {
         applySkill(runners, runner);
       }
     }
+    const running: Runner[] = [];
     for (const runner of runners) {
+      runner.laneState.frozen = true;
       if (index === 0) {
-        runner.progress = gateProgress(runner.stats);
+        runner.progress = 0;
         runner.samples.push(runner.progress);
         continue;
       }
@@ -412,7 +436,17 @@ function simulate(runners: Runner[]) {
         runner.samples.push(runner.progress);
         continue;
       }
-      const delta = stepSpeed(runner, time) * SAMPLE_STEP;
+      Object.assign(runner.laneState, {
+        frozen: false,
+        meters: runner.progress * RACE_LENGTH_M,
+        speed: stepSpeed(runner, time) * RACE_LENGTH_M,
+      });
+      running.push(runner);
+    }
+    stepLanes(runners.map((runner) => runner.laneState), SAMPLE_STEP);
+    for (const runner of runners) runner.laneSamples.push(runner.laneState.lane);
+    for (const runner of running) {
+      const delta = (runner.laneState.speed / RACE_LENGTH_M) * SAMPLE_STEP;
       if (runner.progress + delta >= 1) {
         const fraction = delta > 0 ? (1 - runner.progress) / delta : 1;
         runner.finishTime = Number((time - SAMPLE_STEP + fraction * SAMPLE_STEP).toFixed(3));
@@ -442,7 +476,7 @@ function buildEvents(horses: RaceHorse[]): RaceEvent[] {
     },
   ];
 
-  for (const horse of horses) {
+  for (const horse of RACE_FEATURES.skills ? horses : []) {
     const skill = skillById(horse.skillId);
     const effect = horse.skillHit ? skill.effect : skill.miss;
     const call = horse.skillHit ? "발동" : "빗나감";
@@ -499,19 +533,22 @@ export function simulateRace(horses: HorseInput[], seed: number): RaceResult {
     throw new Error(`출전마는 1마리에서 ${MAX_HORSES}마리까지입니다.`);
   }
   const runners: Runner[] = horses.map((input, index) => {
-    const stats = buildStats(input.biases, mulberry32(mixSeed(seed, index)));
+    const biases = RACE_FEATURES.horseStats ? input.biases : NEUTRAL_BIASES;
+    const stats = buildStats(biases, mulberry32(mixSeed(seed, index)));
     return {
       input,
       number: index + 1,
       stats,
-      progress: gateProgress(stats),
+      progress: 0,
       samples: [],
+      laneState: laneRunner(index + 1),
+      laneSamples: [],
       finishTime: 0,
       arriveSpeed: 0,
       brakeFor: BRAKE_TIME,
-      skillTime: 12,
+      skillTime: RACE_FEATURES.skills ? 12 : Number.POSITIVE_INFINITY,
       skillHit: false,
-      skillUsed: false,
+      skillUsed: !RACE_FEATURES.skills,
       buffUntil: 0,
       buffMul: 1,
       slowFrom: 0,
@@ -530,7 +567,7 @@ export function simulateRace(horses: HorseInput[], seed: number): RaceResult {
     };
   });
 
-  scheduleSkills(runners, seed);
+  if (RACE_FEATURES.skills) scheduleSkills(runners, seed);
   simulate(runners);
 
   const raced: RaceHorse[] = runners.map((runner) => {
@@ -542,6 +579,7 @@ export function simulateRace(horses: HorseInput[], seed: number): RaceResult {
       finishTime: runner.finishTime,
       rank: 0,
       samples: runner.samples,
+      lanes: runner.laneSamples,
       skillName: skill.name,
       skillShout: skill.shout,
       skillTime: runner.skillTime,
@@ -588,6 +626,11 @@ export function progressAt(samples: number[], time: number) {
   const left = samples[index] ?? 0;
   const right = samples[index + 1] ?? left;
   return left + (right - left) * fraction;
+}
+
+/** Same time base as `progressAt`. Before the start this is the gate number. */
+export function laneAt(lanes: number[], time: number) {
+  return progressAt(lanes, time);
 }
 
 export function commentAt(events: RaceEvent[], time: number) {

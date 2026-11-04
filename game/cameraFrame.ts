@@ -1,0 +1,657 @@
+import { cameraConfig, type FrameFitRule, type FrameIncludePolicy } from "./cameraConfig";
+import {
+  cameraFromLook,
+  type CameraLook,
+  type CameraStateName,
+} from "./cameraState";
+import { PROJECTION_CENTER, REFERENCE } from "./stage";
+import {
+  LANE_COUNT,
+  STRAIGHT,
+  outerRailRadius,
+  projectWithCamera,
+  type Camera,
+} from "./track";
+
+export const FRAME_LEFT = REFERENCE.width * cameraConfig.view.marginX;
+export const FRAME_RIGHT = REFERENCE.width * (1 - cameraConfig.view.marginX);
+export const HUD_TOP = cameraConfig.view.hudTop;
+export const BANNER_TOP = cameraConfig.view.bannerTop;
+export const FRAME_TOP = REFERENCE.height * HUD_TOP;
+export const FRAME_BOTTOM = REFERENCE.height * BANNER_TOP;
+export const FRAME_DAMP_SEC = cameraConfig.framing.dampSec;
+export const GRASS_TARGET = cameraConfig.framing.grassTarget;
+export const STRAIGHT_GRASS_MAX = cameraConfig.framing.straightGrassMax;
+export const CORNER_BACKGROUND_MAX = cameraConfig.framing.cornerBackgroundMax;
+export const LANE_AREA_TOP = cameraConfig.framing.laneAreaTop;
+export const LANE_AREA_BOTTOM = cameraConfig.framing.laneAreaBottom;
+export const CORNER_SAGITTA_MIN = cameraConfig.framing.cornerSagittaMin;
+
+const SPRITE_W = 213;
+const SPRITE_H = 211;
+const HORSE_H = 96;
+const HALF = STRAIGHT / 2;
+
+export type FrameSubject = {
+  x: number;
+  y: number;
+  tx: number;
+  ty: number;
+  /** Stable id for `requestFrameInclude`. Omitted subjects cannot be force-included. */
+  id?: string;
+  /** 1-based live rank. Missing rank is outside the top-N set. */
+  rank?: number;
+};
+
+/** State-camera key used by `cameraConfig.framing.rules`. */
+export type FramingStateKey =
+  | "START"
+  | "STRAIGHT_EARLY"
+  | "CORNER_IN"
+  | "CORNER_OUT"
+  | "CLOSEUP";
+
+export type FrameInclude = {
+  horseId: string;
+  remaining: number;
+};
+
+const frameIncludes: FrameInclude[] = [];
+
+export function framingStateKey(state: CameraStateName): FramingStateKey {
+  return state === "STRAIGHT" ? "STRAIGHT_EARLY" : state;
+}
+
+export function framingRuleFor(state: CameraStateName): FrameFitRule {
+  return cameraConfig.framing.rules[framingStateKey(state)];
+}
+
+export function resetFrameIncludes() {
+  frameIncludes.length = 0;
+}
+
+/**
+ * Force `horseId` into the safe rect for `durationSec` of framing time (the `dt` passed to `frameHorseLook`).
+ * `includePolicy` "widen" pulls the state camera out. "cut" only records the request so a short cut can show the horse.
+ * No skill calls this.
+ */
+export function requestFrameInclude(horseId: string, durationSec: number) {
+  if (!horseId || !Number.isFinite(durationSec) || durationSec <= 0) return;
+  const existing = frameIncludes.find((item) => item.horseId === horseId);
+  if (existing) existing.remaining = Math.max(existing.remaining, durationSec);
+  else frameIncludes.push({ horseId, remaining: durationSec });
+}
+
+export function activeFrameIncludes(): FrameInclude[] {
+  return frameIncludes.filter((item) => item.remaining > 0).map((item) => ({ ...item }));
+}
+
+function tickFrameIncludes(dt: number) {
+  if (dt <= 0) return;
+  for (let index = frameIncludes.length - 1; index >= 0; index -= 1) {
+    const item = frameIncludes[index];
+    if (!item) continue;
+    item.remaining -= dt;
+    if (item.remaining <= 0) frameIncludes.splice(index, 1);
+  }
+}
+
+/** Horses the widen step must keep inside the safe rect. */
+export function subjectsForFrameRule(
+  subjects: readonly FrameSubject[],
+  rule: FrameFitRule,
+  policy: FrameIncludePolicy,
+  includeIds: readonly string[] = activeFrameIncludes().map((item) => item.horseId),
+  topN: number = cameraConfig.framing.topN,
+): FrameSubject[] {
+  const ranked =
+    rule === "all"
+      ? [...subjects]
+      : subjects.filter((subject) => (subject.rank ?? Number.POSITIVE_INFINITY) <= topN);
+  if (policy !== "widen" || includeIds.length === 0) return ranked;
+  const chosen = new Set(ranked);
+  const wanted = new Set(includeIds);
+  const extra: FrameSubject[] = [];
+  for (const subject of subjects) {
+    if (subject.id && wanted.has(subject.id) && !chosen.has(subject)) extra.push(subject);
+  }
+  return extra.length === 0 ? ranked : ranked.concat(extra);
+}
+
+export function requiredFrameSubjects(
+  subjects: readonly FrameSubject[],
+  state: CameraStateName,
+): FrameSubject[] {
+  return subjectsForFrameRule(
+    subjects,
+    framingRuleFor(state),
+    cameraConfig.framing.includePolicy,
+  );
+}
+
+export type FrameAnchor = {
+  x: number;
+  y: number;
+};
+
+export type FrameMemory = {
+  distance: number;
+  focalLength: number;
+  bias: number;
+  seeded: boolean;
+};
+
+export type SpriteRect = {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  height: number;
+};
+
+export function createFrameMemory(look: CameraLook): FrameMemory {
+  return { distance: look.distance, focalLength: look.focalLength, bias: 0, seeded: false };
+}
+
+export function spriteRect(pose: { x: number; y: number; scale: number; lean: number }): SpriteRect {
+  const scale = (HORSE_H / SPRITE_H) * pose.scale;
+  const halfW = (SPRITE_W / 2) * scale;
+  const top = SPRITE_H * 0.9 * scale;
+  const bottom = SPRITE_H * 0.1 * scale;
+  const rad = (pose.lean * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const [lx, ly] of [
+    [-halfW, -top],
+    [halfW, -top],
+    [halfW, bottom],
+    [-halfW, bottom],
+  ]) {
+    const x = pose.x + lx * cos - ly * sin;
+    const y = pose.y + lx * sin + ly * cos;
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
+  return { minX, maxX, minY, maxY, height: HORSE_H * pose.scale };
+}
+
+export function horseFit(look: CameraLook, subjects: FrameSubject[]) {
+  const camera = cameraFromLook(look);
+  let worst = Infinity;
+  const heights: number[] = [];
+  for (const subject of subjects) {
+    const pose = projectWithCamera(subject, camera);
+    if (!pose.visible) return { ok: false, worst: -1e9, median: 0 };
+    const rect = spriteRect(pose);
+    heights.push(rect.height);
+    worst = Math.min(worst, rect.minX - FRAME_LEFT, FRAME_RIGHT - rect.maxX, rect.minY - FRAME_TOP, FRAME_BOTTOM - rect.maxY);
+  }
+  heights.sort((a, b) => a - b);
+  const median = heights.length === 0 ? 0 : heights[Math.floor((heights.length - 1) / 2)] ?? 0;
+  return { ok: worst >= -0.4, worst, median };
+}
+
+export function shiftLook(look: CameraLook, bias: number): CameraLook {
+  const az = (look.azimuth * Math.PI) / 180;
+  return {
+    ...look,
+    targetX: look.targetX + Math.sin(az) * bias,
+    targetY: look.targetY + Math.cos(az) * bias,
+  };
+}
+
+function radial(x: number, y: number) {
+  if (x > HALF) return Math.hypot(x - HALF, y);
+  if (x < -HALF) return Math.hypot(x + HALF, y);
+  return Math.abs(y);
+}
+
+/**
+ * Screen y of the ground's vanishing line.
+ * A horizontal ray sits `tan(pitch)` above the view axis, so
+ * `sy = centerY - focal * tan(pitch)`.
+ */
+export function horizonScreenY(camera: Camera) {
+  return PROJECTION_CENTER.y - camera.focalLength * Math.tan(camera.pitch);
+}
+
+/** The sky strip's bottom edge. 24px under the vanishing line, so the hills tuck into the ground. */
+export const SKY_HORIZON_NUDGE = 24;
+
+export function skyStripBottomY(camera: Camera) {
+  return horizonScreenY(camera) + SKY_HORIZON_NUDGE;
+}
+
+export function groundAt(camera: Camera, sx: number, sy: number) {
+  const fx = (PROJECTION_CENTER.x - sx) / camera.focalLength;
+  const fy = (PROJECTION_CENTER.y - sy) / camera.focalLength;
+  const cosP = Math.cos(camera.pitch);
+  const sinP = Math.sin(camera.pitch);
+  const denom = sinP - fy * cosP;
+  if (Math.abs(denom) < 1e-6) return { x: 0, y: 0, ok: false };
+  const localY = (camera.height * (fy * sinP + cosP)) / denom;
+  const depth = localY * cosP + camera.height * sinP;
+  if (depth < 10) return { x: 0, y: 0, ok: false };
+  const localX = fx * depth;
+  const cosY = Math.cos(camera.yaw);
+  const sinY = Math.sin(camera.yaw);
+  return {
+    x: camera.groundX + localX * cosY - localY * sinY,
+    y: camera.groundY + localX * sinY + localY * cosY,
+    ok: true,
+  };
+}
+
+/** Worst column of empty grass under the near outer rail, as a fraction of screen height. */
+export function grassBelowRailFraction(camera: Camera, lanes = LANE_COUNT) {
+  const outer = outerRailRadius(lanes);
+  let worst = 0;
+  const cols = 18;
+  for (let i = 1; i < cols; i += 1) {
+    const sx = (i / cols) * REFERENCE.width;
+    const bottom = groundAt(camera, sx, REFERENCE.height - 2);
+    if (!bottom.ok || radial(bottom.x, bottom.y) <= outer) continue;
+    let lo = 2;
+    let hi = REFERENCE.height - 2;
+    for (let step = 0; step < 10; step += 1) {
+      const mid = (lo + hi) / 2;
+      const sample = groundAt(camera, sx, mid);
+      if (sample.ok && radial(sample.x, sample.y) > outer) hi = mid;
+      else lo = mid;
+    }
+    worst = Math.max(worst, (REFERENCE.height - hi) / REFERENCE.height);
+  }
+  return worst;
+}
+
+const LANE_CENTER_Y = (REFERENCE.height * (LANE_AREA_TOP + LANE_AREA_BOTTOM)) / 2;
+
+/** Screen-space bow of the left-hand outer rail that actually falls inside the view. */
+export function cornerRailSagitta(camera: Camera, lanes = LANE_COUNT) {
+  const radius = outerRailRadius(lanes);
+  const points: Array<{ x: number; y: number }> = [];
+  const steps = 72;
+  for (let i = 0; i <= steps; i += 1) {
+    const angle = Math.PI / 2 + (i / steps) * Math.PI;
+    const pose = projectWithCamera(
+      { x: -HALF + Math.cos(angle) * radius, y: Math.sin(angle) * radius, tx: 0, ty: 0 },
+      camera,
+    );
+    if (pose.visible && pose.x >= 8 && pose.x <= REFERENCE.width - 8 && pose.y >= 8 && pose.y <= REFERENCE.height - 8) {
+      points.push(pose);
+    }
+  }
+  if (points.length < 8) return 0;
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (!first || !last) return 0;
+  const dx = last.x - first.x;
+  const dy = last.y - first.y;
+  const length = Math.hypot(dx, dy) || 1;
+  if (length < 80) return 0;
+  let max = 0;
+  for (const point of points) {
+    max = Math.max(max, Math.abs((point.x - first.x) * dy - (point.y - first.y) * dx) / length);
+  }
+  return max;
+}
+
+function widened(look: CameraLook, factor: number): CameraLook {
+  return {
+    ...look,
+    distance: look.distance * factor,
+    focalLength: look.focalLength / factor,
+  };
+}
+
+function packSpriteCenterY(look: CameraLook, subjects: FrameSubject[]) {
+  const camera = cameraFromLook(look);
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const subject of subjects) {
+    const pose = projectWithCamera(subject, camera);
+    if (!pose.visible) return null;
+    const rect = spriteRect(pose);
+    minY = Math.min(minY, rect.minY);
+    maxY = Math.max(maxY, rect.maxY);
+  }
+  if (!Number.isFinite(minY) || !Number.isFinite(maxY)) return null;
+  return (minY + maxY) / 2;
+}
+
+/**
+ * After the fit, slide the look target along the view until the pack's
+ * sprite box sits on the lane-band center. Stops if another step would clip.
+ */
+function recenterPack(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[] = []) {
+  if (subjects.length === 0) return look;
+  let lo = -480;
+  let hi = 480;
+  let best = look;
+  const initial = packSpriteCenterY(look, subjects);
+  if (initial === null) return look;
+  let bestError = Math.abs(initial - LANE_CENTER_Y);
+  for (let step = 0; step < 8; step += 1) {
+    const mid = (lo + hi) / 2;
+    const candidate = shiftLook(look, mid);
+    if (!layoutOk(candidate, subjects, points)) {
+      if (mid > 0) hi = mid;
+      else lo = mid;
+      continue;
+    }
+    const centerY = packSpriteCenterY(candidate, subjects);
+    if (centerY === null) return best;
+    const error = Math.abs(centerY - LANE_CENTER_Y);
+    if (error < bestError) {
+      best = candidate;
+      bestError = error;
+    }
+    if (centerY < LANE_CENTER_Y) lo = mid;
+    else hi = mid;
+  }
+  return best;
+}
+
+function offTrack(look: CameraLook) {
+  const camera = cameraFromLook(look);
+  return radial(camera.groundX, camera.groundY) > outerRailRadius();
+}
+
+/** Corner rigs stand outside the outer rail. One that drifted onto the track backs off along its view. */
+function keepOffTrack(look: CameraLook) {
+  if (offTrack(look)) return look;
+  return shiftLook(look, -tightest(0, 600, (back) => offTrack(shiftLook(look, -back))));
+}
+
+function withTarget(look: CameraLook, targetX: number, targetY: number): CameraLook {
+  return { ...look, targetX, targetY };
+}
+
+/** Move the target on the world axis that shifts screen X, until the box is centered in the safe width. */
+function centerScreenX(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[]) {
+  if (subjects.length === 0 && points.length === 0) return look;
+  const goal = (FRAME_LEFT + FRAME_RIGHT) / 2;
+  const centerOf = (box: ContentBox) => (box.minX + box.maxX) / 2;
+  const boxAt = (targetX: number, targetY: number) => contentBox(withTarget(look, targetX, targetY), subjects, points);
+  const origin = boxAt(look.targetX, look.targetY);
+  if (!origin) return look;
+  const nudge = 48;
+  const movedX = boxAt(look.targetX + nudge, look.targetY);
+  const movedY = boxAt(look.targetX, look.targetY + nudge);
+  const gainX = movedX ? centerOf(movedX) - centerOf(origin) : 0;
+  const gainY = movedY ? centerOf(movedY) - centerOf(origin) : 0;
+  const alongX = Math.abs(gainX) >= Math.abs(gainY);
+  const gain = (alongX ? gainX : gainY) / nudge;
+  if (Math.abs(gain) < 0.02) return look;
+  const errorAt = (offset: number) => {
+    const box = alongX
+      ? boxAt(look.targetX + offset, look.targetY)
+      : boxAt(look.targetX, look.targetY + offset);
+    if (!box) return 1e9;
+    return Math.abs(centerOf(box) - goal);
+  };
+  let lo = -900;
+  let hi = 900;
+  let best = 0;
+  let bestError = errorAt(0);
+  for (let step = 0; step < 12; step += 1) {
+    const left = lo + (hi - lo) / 3;
+    const right = hi - (hi - lo) / 3;
+    const leftError = errorAt(left);
+    const rightError = errorAt(right);
+    if (leftError < bestError) {
+      bestError = leftError;
+      best = left;
+    }
+    if (rightError < bestError) {
+      bestError = rightError;
+      best = right;
+    }
+    if (leftError < rightError) hi = right;
+    else lo = left;
+  }
+  return alongX ? withTarget(look, look.targetX + best, look.targetY) : withTarget(look, look.targetX, look.targetY + best);
+}
+
+function composeTopN(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[] = []) {
+  let current = look;
+  for (let pass = 0; pass < 2; pass += 1) {
+    current = recenterPack(current, subjects, points);
+    current = centerScreenX(current, subjects, points);
+  }
+  return current;
+}
+
+function tightest(lo: number, hi: number, fits: (value: number) => boolean) {
+  if (!fits(hi)) return hi;
+  if (fits(lo)) return lo;
+  let lower = lo;
+  let upper = hi;
+  for (let step = 0; step < 12; step += 1) {
+    const mid = (lower + upper) / 2;
+    if (fits(mid)) upper = mid;
+    else lower = mid;
+  }
+  return upper;
+}
+
+function fittedHeight(look: CameraLook, subjects: FrameSubject[]) {
+  const camera = cameraFromLook(look);
+  const heights: number[] = [];
+  for (const subject of subjects) {
+    const pose = projectWithCamera(subject, camera);
+    if (!pose.visible) return -1;
+    heights.push(spriteRect(pose).height);
+  }
+  if (heights.length === 0) return -1;
+  heights.sort((a, b) => a - b);
+  return heights[0] ?? -1;
+}
+
+/**
+ * Longest focal length at this distance that still keeps the box in the safe rect.
+ * Focal is clamped to `maxFocal` (the config max zoom).
+ */
+function focalFill(look: CameraLook, distance: number, maxFocal: number, subjects: FrameSubject[], points: FrameAnchor[]) {
+  const at = (focalLength: number) => composeTopN({ ...look, distance, focalLength }, subjects, points);
+  const fits = (focalLength: number) => layoutOk(at(focalLength), subjects, points);
+  let lo = Math.min(look.focalLength * 0.08, maxFocal);
+  if (!fits(lo)) {
+    while (!fits(lo) && lo > look.focalLength * 0.015) lo *= 0.5;
+    if (!fits(lo)) return null;
+  }
+  if (fits(maxFocal)) return at(maxFocal);
+  let hi = maxFocal;
+  for (let step = 0; step < 12; step += 1) {
+    const mid = (lo + hi) / 2;
+    if (fits(mid)) lo = mid;
+    else hi = mid;
+  }
+  return at(lo);
+}
+
+/**
+ * Choose distance and focal so the top-N box (and the finish post, when passed)
+ * fills the safe width. A tight pack zooms in; a wide pack zooms out. Among the
+ * framings that fit, keep the one with the largest horses. Never closer, and
+ * never a longer lens, than `maxZoom`.
+ */
+function zoomToFill(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[] = []) {
+  if (subjects.length === 0 && points.length === 0) return look;
+  const maxZoom = cameraConfig.framing.maxZoom;
+  const minFactor = 1 / maxZoom;
+  const widenedAt = (factor: number) => composeTopN(widened(look, factor), subjects, points);
+  const widenedFits = (factor: number) => layoutOk(widenedAt(factor), subjects, points);
+  let hi = Math.max(1, minFactor);
+  if (!widenedFits(hi)) {
+    while (!widenedFits(hi) && hi < 24) hi *= 1.6;
+  }
+  const candidates: CameraLook[] = [];
+  if (widenedFits(hi)) candidates.push(widenedAt(tightest(minFactor, hi, widenedFits)));
+  else candidates.push(widenedAt(Math.min(hi, 24)));
+
+  const maxFocal = look.focalLength * maxZoom;
+  const minDistance = look.distance / maxZoom;
+  // Closer dollies spread a side-on pack, so corners prefer the widened diagonal above.
+  // Farther dollies with a longer lens keep a head-on pack larger. Score picks per frame.
+  for (const distScale of [0.75, 1, 1.5, 2.2]) {
+    const filled = focalFill(look, Math.max(look.distance * distScale, minDistance), maxFocal, subjects, points);
+    if (filled) candidates.push(filled);
+  }
+
+  let best = candidates[0] ?? look;
+  let bestHeight = fittedHeight(best, subjects);
+  for (const candidate of candidates.slice(1)) {
+    const height = fittedHeight(candidate, subjects);
+    if (height > bestHeight) {
+      best = candidate;
+      bestHeight = height;
+    }
+  }
+  return best;
+}
+
+const FIT_SLACK = 0.4;
+
+type ContentBox = { minX: number; maxX: number; minY: number; maxY: number };
+
+function contentBox(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[]): ContentBox | null {
+  const camera = cameraFromLook(look);
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  let any = false;
+  for (const subject of subjects) {
+    const pose = projectWithCamera(subject, camera);
+    if (!pose.visible) return null;
+    const rect = spriteRect(pose);
+    minX = Math.min(minX, rect.minX);
+    maxX = Math.max(maxX, rect.maxX);
+    minY = Math.min(minY, rect.minY);
+    maxY = Math.max(maxY, rect.maxY);
+    any = true;
+  }
+  for (const point of points) {
+    const pose = projectWithCamera({ x: point.x, y: point.y, tx: 0, ty: 0 }, camera);
+    if (!pose.visible) return null;
+    minX = Math.min(minX, pose.x);
+    maxX = Math.max(maxX, pose.x);
+    minY = Math.min(minY, pose.y);
+    maxY = Math.max(maxY, pose.y);
+    any = true;
+  }
+  if (!any) return null;
+  return { minX, maxX, minY, maxY };
+}
+
+function layoutOk(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[] = []) {
+  if (subjects.length === 0 && points.length === 0) return true;
+  const box = contentBox(look, subjects, points);
+  if (!box) return false;
+  const worst = Math.min(box.minX - FRAME_LEFT, FRAME_RIGHT - box.maxX, box.minY - FRAME_TOP, FRAME_BOTTOM - box.maxY);
+  return worst >= -FIT_SLACK;
+}
+
+/** Smallest uniform widen that keeps the supplied sprites (and points) inside the safe rect. */
+function widenToFit(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[] = []) {
+  if (layoutOk(look, subjects, points)) return look;
+  let lo = 1;
+  let hi = 2;
+  while (!layoutOk(widened(look, hi), subjects, points) && hi < 24) hi *= 2;
+  for (let step = 0; step < 10; step += 1) {
+    const mid = (lo + hi) / 2;
+    if (layoutOk(widened(look, mid), subjects, points)) hi = mid;
+    else lo = mid;
+  }
+  return widened(look, hi);
+}
+
+function damp(current: number, target: number, dt: number) {
+  if (dt <= 0) return target;
+  const alpha = 1 - Math.exp(-dt / FRAME_DAMP_SEC);
+  return current + (target - current) * alpha;
+}
+
+function fitLook(
+  base: CameraLook,
+  subjects: FrameSubject[],
+  state: CameraStateName,
+) {
+  const bias = cameraConfig.framing.lookBias[state] ?? 0;
+  const shifted = shiftLook(base, bias);
+  const rule = framingRuleFor(state);
+  if (rule !== "topN") {
+    return { look: recenterPack(widenToFit(shifted, subjects), subjects), bias, rule };
+  }
+  return { look: zoomToFill(shifted, subjects), bias, rule };
+}
+
+/**
+ * Frame the horses selected by the state's rule.
+ * "all" only widens. "topN" zooms in or out so that box fills the safe width,
+ * damped over `dampSec`, and never closer than `maxZoom`.
+ */
+export function solveFramedLook(
+  base: CameraLook,
+  subjects: FrameSubject[],
+  state: CameraStateName,
+): { look: CameraLook; bias: number } {
+  const solved = fitLook(base, requiredFrameSubjects(subjects, state), state);
+  return { look: solved.look, bias: solved.bias };
+}
+
+export function frameHorseLook(
+  base: CameraLook,
+  subjects: FrameSubject[],
+  state: CameraStateName,
+  memory: FrameMemory,
+  dt: number,
+): { look: CameraLook; memory: FrameMemory } {
+  tickFrameIncludes(dt);
+  const required = requiredFrameSubjects(subjects, state);
+  const solved = fitLook(base, required, state);
+  if (!memory.seeded || dt <= 0) {
+    return {
+      look: solved.look,
+      memory: { distance: solved.look.distance, focalLength: solved.look.focalLength, bias: solved.bias, seeded: true },
+    };
+  }
+  const maxZoom = cameraConfig.framing.maxZoom;
+  const distanceTarget = damp(memory.distance, solved.look.distance, dt);
+  const focalTarget = damp(memory.focalLength, solved.look.focalLength, dt);
+  const distance =
+    solved.rule === "topN"
+      ? Math.max(base.distance / maxZoom, distanceTarget)
+      : Math.max(base.distance, distanceTarget);
+  const focalLength =
+    solved.rule === "topN"
+      ? Math.min(base.focalLength * maxZoom, focalTarget)
+      : Math.min(base.focalLength, focalTarget);
+  const bias = damp(memory.bias, solved.bias, dt);
+  const shifted = shiftLook({ ...base, distance, focalLength }, bias);
+  if (solved.rule !== "topN") {
+    const fitted = recenterPack(widenToFit(shifted, required), required);
+    const look = state === "CORNER_IN" || state === "CORNER_OUT" ? keepOffTrack(fitted) : fitted;
+    return {
+      look,
+      memory: { distance: look.distance, focalLength: look.focalLength, bias, seeded: true },
+    };
+  }
+  let look = composeTopN(shifted, required);
+  if (!layoutOk(look, required)) {
+    look = widenToFit(look, required);
+    look = composeTopN(look, required);
+    if (!layoutOk(look, required)) look = widenToFit(look, required);
+  }
+  return {
+    look,
+    memory: { distance: look.distance, focalLength: look.focalLength, bias, seeded: true },
+  };
+}

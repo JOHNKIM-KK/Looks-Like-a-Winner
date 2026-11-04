@@ -1,0 +1,190 @@
+{
+ "version": 2,
+ "note": "Engine-ready, perspective-free assets. The engine projects them with its own camera. v1 perspective plates are in deprecated/.",
+ "world": {
+  "axes": "x = running direction (m), y = across the track (m, + toward the camera side), z = up (m)",
+  "lane_colors": [
+   "#E5173F",
+   "#1F5BFF",
+   "#FFD000",
+   "#00A86B",
+   "#8E3BFF",
+   "#FF4FC8",
+   "#00C8E0",
+   "#14181F"
+  ],
+  "straight_layout_v3_m": {
+   "rail_far_y": -1.3,
+   "rail_near_y": 13.9,
+   "lane_y": "1.2 + 1.55*i",
+   "trees_line_y": -48.66,
+   "stands_line_y": -100.7,
+   "dirt_between": "rail_far_y-0.3 .. rail_near_y+0.3",
+   "turf": "everywhere else (infield and outside)"
+  }
+ },
+ "ground": {
+  "dirt": {
+   "file": "v2/ground_dirt.webp",
+   "px_per_m": 100,
+   "tile_px": [
+    512,
+    512
+   ],
+   "tile_m": [
+    5.12,
+    5.12
+   ],
+   "wrap": "repeat (no mirroring) on both axes",
+   "note": "harrow lines run along x"
+  },
+  "turf": {
+   "file": "v2/ground_turf.webp",
+   "px_per_m": 100,
+   "tile_px": [
+    512,
+    512
+   ],
+   "tile_m": [
+    5.12,
+    5.12
+   ],
+   "wrap": "repeat (no mirroring) on both axes",
+   "note": "mowing stripes every 2.56m along x"
+  },
+  "filtering": "use mipmaps / trilinear filtering (the test projection blends blurred copies at distance to avoid moiré)"
+ },
+ "rail": {
+  "file": "v2/rail_segment.png",
+  "px_per_m": 100,
+  "size_px": [
+   400,
+   125
+  ],
+  "segment_m": 4.0,
+  "post_spacing_m": 2.0,
+  "post_x_m": [
+   1.0,
+   3.0
+  ],
+  "rail_top_height_m": 1.1,
+  "ground_contact_px_from_top": 124,
+  "wrap": "repeat along x; draw as a vertical plane (billboard along the track line)",
+  "use": "far (inner) rail before horses, near (outer) rail after horses"
+ },
+ "strips": {
+  "stands": {
+   "file": "v2/stands_strip.png",
+   "px_per_m": 50,
+   "size_px": [
+    600,
+    520
+   ],
+   "period_m": 12.0,
+   "ground_contact_px_from_top": 519,
+   "height_m": 10.4,
+   "wrap": "repeat along x",
+   "view": "front, no perspective"
+  },
+  "trees": {
+   "file": "v2/trees_strip.png",
+   "px_per_m": 50,
+   "size_px": [
+    600,
+    460
+   ],
+   "period_m": 12.0,
+   "ground_contact_px_from_top": 459,
+   "height_m": 9.2,
+   "wrap": "repeat along x",
+   "view": "front, no perspective",
+   "corner": "same strip; place along a ring behind the infield"
+  }
+ },
+ "props": {
+  "distance_post": {
+   "file": "props/distance_post.webp",
+   "px_per_m": 100,
+   "anchor_px": [
+    10,
+    156
+   ],
+   "every_m": 200,
+   "place": "inner rail"
+  },
+  "finish_post": {
+   "file": "props/finish_post.webp",
+   "px_per_m": 100,
+   "anchor_px": [
+    46,
+    410
+   ],
+   "place": "1.6m inside the inner rail (infield side), finish scene only"
+  },
+  "finish_line_checker": {
+   "file": "props/finish_line_checker.webp",
+   "px_per_m": 100,
+   "tile_px": [
+    90,
+    90
+   ],
+   "cell_m": 0.45,
+   "place": "on the ground across all lanes, 0.9m deep"
+  },
+  "corner_tree": {
+   "file": "props/corner_tree.webp",
+   "px_per_m": 100,
+   "anchor_px": [
+    400,
+    950
+   ],
+   "place": "infield, corner only"
+  }
+ },
+ "draw_order": [
+  "backdrop color (#3F4630)",
+  "stands strip",
+  "trees strip",
+  "ground (turf, then dirt)",
+  "far rail",
+  "props",
+  "horse shadows",
+  "dust",
+  "horses (far to near)",
+  "numbers",
+  "near rail",
+  "speed lines",
+  "bloom + golden grade",
+  "HUD"
+ ],
+ "color": "all backgrounds desaturated (dirt 0.85, turf 0.6, stands 0.6, trees 0.7) with a warm cast; the golden grade is applied on the final frame",
+ "provisional_camera": {
+  "straight": {
+   "height_m": 8.0,
+   "pitch_deg": 18,
+   "focal_px_on_1400x2700": 2300,
+   "screen_tilt_deg_cw": 6,
+   "crop": [
+    84,
+    683,
+    1197,
+    3094
+   ],
+   "camera_y_m": 23.0
+  },
+  "corner": {
+   "Ri": 28,
+   "Ro": 41,
+   "lane_m": 1.3,
+   "cam_h_m": 6.5,
+   "off_outside_outer_rail_m": 5,
+   "ahead_m": -6,
+   "follow": 1.0,
+   "look": "pack centroid, z=-3m",
+   "vfov_deg": 68,
+   "panx": -0.049,
+   "pany": 0.111,
+   "lean_deg": 5
+  }
+ }
+}

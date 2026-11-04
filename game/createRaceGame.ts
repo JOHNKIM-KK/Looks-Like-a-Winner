@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { skillById } from "@/lib/skills";
-import { SKILL_WINDOW, progressAt, type RaceHorse, type RaceResult, type SkillCutin } from "@/lib/race";
+import { SKILL_WINDOW, laneAt, type RaceHorse, type RaceResult, type SkillCutin } from "@/lib/race";
 import {
   BANNER_HOLD,
   BEAT_FOCUS,
@@ -13,161 +13,307 @@ import {
   beatAt,
   type ShowBeat,
 } from "@/game/skillShow";
-import { playBang } from "@/game/bang";
-import { LANE_GAP, cutPose, laneRadius, poseAt, poseOnRadius, sampleChute, sampleRadius, viewBounds, type TrackPose } from "@/game/track";
-
-const FRAME_WIDTH = 213;
-const FRAME_HEIGHT = 211;
-const HORSE_HEIGHT = 96;
-const VIEW_HEIGHT = 560;
-const HELMETS = [
-  { x: 136, y: 43 },
-  { x: 137, y: 42 },
-  { x: 132, y: 41 },
-  { x: 129, y: 42 },
-  { x: 129, y: 45 },
-  { x: 126, y: 45 },
-];
-
-const SILKS = [
-  "/horses/silk-red.png",
-  "/horses/silk-teal.png",
-  "/horses/silk-gold.png",
-  "/horses/silk-violet.png",
-];
-
-export type RankRow = {
-  id: string;
-  name: string;
-  place: number;
-  color: string;
-  portrait: string;
-};
+import { playBell } from "@/game/bang";
+import { projectWithCamera, presentationLogical, finishGoalX, finishOuterLogical, segmentAt, segmentEnds, LANE_GAP, type Camera } from "@/game/track";
+import {
+  FINISH_START,
+  advanceFinish,
+  boardDue,
+  captionCue,
+  captionText,
+  finishCamera,
+  finishCourseForRace,
+  gallopOut,
+  showsOuterRail,
+  showsPhotoFinish,
+  timeScale,
+  toGoAt,
+  type CaptionCue,
+  type FinishState,
+} from "@/game/finishSequence";
+import {
+  createInitialState,
+  nextCameraState,
+  getCameraLookForState,
+  cameraFromLook,
+  shouldScaleHorseInCorner,
+  type CameraState,
+  type CameraStateName,
+  type RaceSnapshot,
+} from "@/game/cameraState";
+import {
+  advanceCameraPresentation,
+  cameraBlendProgress,
+  createCameraPresentation,
+  type CameraPresentation,
+} from "@/game/cameraBlend";
+import {
+  frameHorseLook,
+  createFrameMemory,
+  framingRuleFor,
+  grassBelowRailFraction,
+  horseFit,
+  requiredFrameSubjects,
+  resetFrameIncludes,
+  type FrameMemory,
+} from "@/game/cameraFrame";
+import { cameraConfig } from "@/game/cameraConfig";
+import { laneNumberInk } from "@/game/laneColors";
+import { BACKDROP, LOGICAL_PER_METER, horseSpriteScale } from "@/game/artScale";
+import { createHorseCoatLibrary, type HorseCoatLibrary } from "@/game/horseCoat";
+import {
+  HORSE_ANGLES,
+  cameraElevationDeg,
+  gallopFrame,
+  headingView,
+  IDLE_FRAME,
+  glyphFontPx,
+  glyphHeightPx,
+  glyphOutlinePx,
+  pickHorseAngle,
+  plateScreenOffset,
+  type HorseAngle,
+  type PickedAngle,
+} from "@/game/horseVisual";
+import {
+  assignHorseSheet,
+  assignRiderSheet,
+  createMountedSlots,
+  horseSheetKey,
+  type MountedSlots,
+  type SpriteSheetRef,
+} from "@/game/mountedPair";
+import { RIDE_ANGLES, ridePose } from "@/game/jockeyRide";
+import { createTrackRenderer, trackViewFor } from "@/game/trackRenderer";
+import { INTRO_END, INTRO_SKIP_TO, introCamera, introGateSwap, introLine, introShowsStands } from "@/game/droneIntro";
+import { createGatePlate, preloadGatePlates } from "@/game/gatePlate";
+import { BELL_AT, clearOfStall, countdownLabel, doorState, gateCamera, gateOffset, gatePlateAlpha } from "@/game/gateStart";
+import type { GateView } from "@/game/gateViews";
+import { overlayLayout, type RaceOverlaySnapshot } from "@/game/overlayLayout";
+import { orderByPresentation } from "@/game/rankOrder";
+import { PROJECTION_CENTER, REFERENCE, type LandscapeStage, type Rect, type Stage } from "@/game/stage";
 
 type Hooks = {
   onComment: (message: string) => void;
   onCutin: (cutin: SkillCutin | null) => void;
-  onRanks: (ranks: RankRow[]) => void;
+  onPresentation: (snapshot: RaceOverlaySnapshot) => void;
   onComplete: () => void;
 };
+
+type MountLayers = {
+  sprite: Phaser.GameObjects.Sprite;
+  marks: Phaser.GameObjects.Sprite;
+  rider: Phaser.GameObjects.Sprite;
+};
+
+const ANGLE_FADE_S = 0.12;
+const CORNER_LEAN_DEG = 4;
+const CORNER_LEAN_TAU_S = 0.25;
 
 type Actor = {
   horse: RaceHorse;
   container: Phaser.GameObjects.Container;
   sprite: Phaser.GameObjects.Sprite;
+  rider: Phaser.GameObjects.Sprite;
+  /** Saddle cloth and number plate, drawn above the shaded body. */
+  marks: Phaser.GameObjects.Sprite;
+  mount: MountedSlots;
+  setHorseSheet: (sheet: SpriteSheetRef) => void;
+  setRiderSheet: (sheet: SpriteSheetRef) => void;
   face: Phaser.GameObjects.Image;
   lines: Phaser.GameObjects.Graphics;
   dust: Phaser.GameObjects.Graphics;
   body: Phaser.GameObjects.Graphics;
-  shadow: Phaser.GameObjects.Ellipse;
+  shadow: Phaser.GameObjects.Image;
   number: Phaser.GameObjects.Text;
   stamp: Phaser.GameObjects.Text;
   progress: number;
   shown: number;
+  animTime: number;
+  picked?: PickedAngle;
+  flipMismatch: boolean;
+  /** Previous sheet drawn over the new one while it fades out. */
+  fadeLayers: MountLayers;
+  angleFade?: { from: PickedAngle; age: number };
+  /** 0 on straights, eases to 1 through a corner. */
+  leanAmount: number;
 };
 
-function sheetFor(horse: RaceHorse) {
-  return SILKS[(horse.number - 1) % SILKS.length] ?? SILKS[0];
+type RaceCameraDebug = {
+  state: string;
+  from: string | null;
+  to: string | null;
+  blend: number;
+  duration: number;
+  raceTime: number;
+  wallClock: number;
+  leadProgress: number;
+  settled: boolean;
+  finishPhase: string;
+  finishAge: number;
+  toGo: number;
+  winnerSheet: string | null;
+  /** Sprite frame widths on screen, reference px. */
+  horseWidths: number[];
+  winnerWidth: number;
+};
+
+type CameraDebugHost = Window & {
+  __raceCamera?: RaceCameraDebug;
+  /** Finish phase entries: `at` is performance.now() ms, `clock` the game's frame-capped wall clock. */
+  __finishLog?: Array<{ kind: string; at: number; clock: number; raceTime: number }>;
+  __raceCameraWant?: { from: CameraStateName; to: CameraStateName } | null;
+  __cameraFreeze?: boolean;
+  __raceCameraFrozen?: RaceCameraDebug;
+  __raceGame?: Phaser.Game;
+  /** When false, debug markers and the text overlay are cleared. The frame stays frozen. */
+  __raceDebugVisible?: boolean;
+};
+
+function cameraDebugHost(): CameraDebugHost {
+  return window as CameraDebugHost;
 }
 
-function drawOval(graphics: Phaser.GameObjects.Graphics, lanes: number) {
-  const outerLane = Math.max(1, lanes);
-  const outer = sampleRadius(laneRadius(outerLane) + 28, 140);
-  const inner = sampleRadius(Math.max(70, laneRadius(1) - 34), 140);
-  const railOut = sampleRadius(laneRadius(outerLane) + 28, 140);
-  const railIn = sampleRadius(Math.max(70, laneRadius(1) - 34), 140);
-
-  graphics.fillStyle(0xc4a06a, 1);
-  graphics.beginPath();
-  graphics.moveTo(outer[0]?.x ?? 0, outer[0]?.y ?? 0);
-  for (const point of outer) graphics.lineTo(point.x, point.y);
-  graphics.closePath();
-  graphics.fillPath();
-
-  graphics.fillStyle(0x176b3c, 1);
-  graphics.beginPath();
-  graphics.moveTo(inner[0]?.x ?? 0, inner[0]?.y ?? 0);
-  for (const point of inner) graphics.lineTo(point.x, point.y);
-  graphics.closePath();
-  graphics.fillPath();
-
-  graphics.lineStyle(5, 0xf7f4ee, 1);
-  graphics.beginPath();
-  graphics.moveTo(railOut[0]?.x ?? 0, railOut[0]?.y ?? 0);
-  for (const point of railOut) graphics.lineTo(point.x, point.y);
-  graphics.closePath();
-  graphics.strokePath();
-  graphics.beginPath();
-  graphics.moveTo(railIn[0]?.x ?? 0, railIn[0]?.y ?? 0);
-  for (const point of railIn) graphics.lineTo(point.x, point.y);
-  graphics.closePath();
-  graphics.strokePath();
-
-  const chuteOuter = sampleChute(laneRadius(outerLane) + 28, 24);
-  const chuteInner = sampleChute(Math.max(70, laneRadius(1) - 34), 24);
-  const chuteRailOut = chuteOuter;
-  const chuteRailIn = chuteInner;
-  if (chuteOuter.length > 1 && chuteInner.length > 1) {
-    graphics.fillStyle(0xc4a06a, 1);
-    graphics.beginPath();
-    graphics.moveTo(chuteOuter[0]?.x ?? 0, chuteOuter[0]?.y ?? 0);
-    for (const point of chuteOuter) graphics.lineTo(point.x, point.y);
-    for (let index = chuteInner.length - 1; index >= 0; index -= 1) {
-      const point = chuteInner[index];
-      if (point) graphics.lineTo(point.x, point.y);
-    }
-    graphics.closePath();
-    graphics.fillPath();
-    graphics.lineStyle(5, 0xf7f4ee, 1);
-    graphics.beginPath();
-    graphics.moveTo(chuteRailOut[0]?.x ?? 0, chuteRailOut[0]?.y ?? 0);
-    for (const point of chuteRailOut) graphics.lineTo(point.x, point.y);
-    graphics.strokePath();
-    graphics.beginPath();
-    graphics.moveTo(chuteRailIn[0]?.x ?? 0, chuteRailIn[0]?.y ?? 0);
-    for (const point of chuteRailIn) graphics.lineTo(point.x, point.y);
-    graphics.strokePath();
+function cameraStateLabel(state: CameraState, lead: number, finish: FinishState): string {
+  if (finish.phase.kind !== "before") return `FINISH-${finish.phase.kind}`;
+  if (state.name === "STRAIGHT") {
+    return lead >= segmentEnds().corner34Exit ? "STRAIGHT-home" : "STRAIGHT-early";
   }
-
-  const heads = [0xe23b3b, 0xf0c14d, 0x1f8a84, 0x7c5cbf, 0xf6f1e7, 0x2a6f9a, 0xc47a4a];
-  const crowd = sampleRadius(laneRadius(outerLane) + 78, 90);
-  crowd.forEach((point, index) => {
-    graphics.fillStyle(heads[index % heads.length] ?? 0xf6f1e7, 1);
-    graphics.fillCircle(point.x, point.y, 7);
-  });
-
-  const near = poseOnRadius(1, laneRadius(1) - 20);
-  const far = poseOnRadius(1, laneRadius(outerLane) + 24);
-  const steps = 12;
-  for (let index = 0; index < steps; index += 1) {
-    const from = index / steps;
-    const to = (index + 1) / steps;
-    graphics.lineStyle(12, index % 2 === 0 ? 0x161616 : 0xf7f7f7, 1);
-    graphics.lineBetween(
-      near.x + (far.x - near.x) * from,
-      near.y + (far.y - near.y) * from,
-      near.x + (far.x - near.x) * to,
-      near.y + (far.y - near.y) * to,
-    );
-  }
-  graphics.fillStyle(0xc62828, 1);
-  graphics.fillCircle(near.x, near.y, 11);
-  graphics.fillCircle(far.x, far.y, 11);
+  return state.name;
 }
 
-const COUNT_STEP = 0.8;
+/**
+ * Golden grade over the frame. The playfield stays near white in multiply so the
+ * pre-desaturated turf is not lifted toward beige. Warmth is the 1.07:0.93:0.78
+ * ratio (1 : 0.87 : 0.73) only toward the corners, plus a small upper-left sun.
+ */
+function paintGoldenGrade(scene: Phaser.Scene): Phaser.GameObjects.Image[] {
+  const { width, height } = REFERENCE;
+  const layers: Phaser.GameObjects.Image[] = [];
+  const vignette = scene.textures.createCanvas("grade-vignette", width, height);
+  if (vignette) {
+    const context = vignette.getContext();
+    const ink = context.createRadialGradient(width * 0.42, height * 0.28, height * 0.2, width / 2, height * 0.45, height * 0.85);
+    ink.addColorStop(0, "rgba(255,255,255,1)");
+    ink.addColorStop(0.72, "rgba(255,255,255,1)");
+    ink.addColorStop(1, "rgba(255,222,186,1)");
+    context.fillStyle = ink;
+    context.fillRect(0, 0, width, height);
+    vignette.refresh();
+    layers.push(scene.add.image(0, 0, "grade-vignette").setDepth(8000).setBlendMode(Phaser.BlendModes.MULTIPLY));
+  }
+  const sun = scene.textures.createCanvas("grade-sun", width, height);
+  if (sun) {
+    const context = sun.getContext();
+    context.clearRect(0, 0, width, height);
+    const glow = context.createRadialGradient(width * 0.12, height * 0.08, 0, width * 0.2, height * 0.16, height * 0.42);
+    glow.addColorStop(0, "rgba(255, 196, 120, 0.07)");
+    glow.addColorStop(1, "rgba(255, 196, 120, 0)");
+    context.fillStyle = glow;
+    context.fillRect(0, 0, width, height);
+    sun.refresh();
+    layers.push(scene.add.image(0, 0, "grade-sun").setDepth(8001).setBlendMode(Phaser.BlendModes.ADD));
+  }
+  return layers;
+}
+
+function farShade(scale: number) {
+  const depth = Math.max(0, Math.min(1, (1.05 - scale) / 0.7));
+  const channel = Math.round(255 - depth * 25);
+  return (channel << 16) | (channel << 8) | channel;
+}
+
+/** Hide the canvas until the first painted frame, then fade it in. */
+function fadeInCanvas(canvas: HTMLCanvasElement) {
+  canvas.style.opacity = "0";
+  const startedAt = performance.now();
+  const step = (now: number) => {
+    const t = Math.min(1, (now - startedAt) / 300);
+    canvas.style.opacity = String(t);
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function frameName(texture: Phaser.Textures.Texture, frame: number) {
+  const named = String(frame);
+  if (texture.has(named)) return named;
+  return "__BASE";
+}
+
+type Heading = { x: number; y: number; tx: number; ty: number };
+
+declare global {
+  interface Window {
+    /** Dev-only count of horses whose sheet flip disagreed with screen travel (HEADING_RULE §2). */
+    __headingFlipMismatch?: number;
+  }
+}
+
+function blendLogical(from: Heading, to: Heading, blend: number): Heading {
+  return {
+    x: from.x + (to.x - from.x) * blend,
+    y: from.y + (to.y - from.y) * blend,
+    tx: from.tx + (to.tx - from.tx) * blend,
+    ty: from.ty + (to.ty - from.ty) * blend,
+  };
+}
+
+function paintGallop(
+  sprite: Phaser.GameObjects.Sprite,
+  key: string,
+  frame: number,
+  anchorX: number,
+  anchorY: number,
+  frameW: number,
+  frameH: number,
+  scale: number,
+  flip: boolean,
+) {
+  const texture = sprite.scene.textures.get(key);
+  if (!texture || texture.key === "__MISSING") return;
+  sprite.setTexture(key, frameName(texture, frame));
+  const safeW = frameW || 1;
+  const safeH = frameH || 1;
+  // Phaser mirrors flipX about the frame center, not the origin. The mirrored origin keeps the anchor pixel on the sprite position.
+  sprite.setOrigin((flip ? safeW - anchorX : anchorX) / safeW, anchorY / safeH);
+  sprite.setScale(scale);
+  sprite.setFlipX(flip);
+}
+
+function getLogicalAt(progress: number, lane: number) {
+  return presentationLogical(progress, lane);
+}
+
+/** Same presentation progress the ranking HUD sorts by, including an in-progress position swap. */
+function liveShown(horse: RaceHorse, progress: number, time: number) {
+  const swapping = horse.swapUntil > 0 && time >= horse.swapUntil - 0.6 && time < horse.swapUntil;
+  if (!swapping) return progress;
+  const swapBlend = 1 - (horse.swapUntil - time) / 0.6;
+  return horse.swapFrom + (progress - horse.swapFrom) * swapBlend;
+}
+
 const SKILL_LEAD = 0.1;
 
-export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hooks) {
+export type RaceGameHandle = {
+  setStage(stage: Stage): void;
+  destroy(removeCanvas: boolean): void;
+};
+
+export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hooks): RaceGameHandle {
   const actors: Actor[] = [];
-  const bounds = viewBounds(race.horses.length);
+  let stage: LandscapeStage | null = null;
+  let waitingForLandscape = true;
+  let created = false;
+  let grade: Phaser.GameObjects.Image[] = [];
   let raceTime = 0;
+  let introClock = 0;
   let wallClock = 0;
   let started = false;
   let gateOpen = 0;
-  let restZoom = 0.45;
+  const restZoom = 0.45;
   let finished = false;
-  let zoom = 1;
+  const zoom = 1;
   let skillFocusNumber = 0;
   let showStart = -1;
   let showSkillTime = 0;
@@ -193,22 +339,97 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   let crownMark: Phaser.GameObjects.Image | null = null;
   let slash: Phaser.GameObjects.Image | null = null;
   let sparks: Phaser.GameObjects.Particles.ParticleEmitter | null = null;
-  let rankKey = "";
+  let lastPhaseSig = "";
+  let lastPresentationAt = -1;
   let lastComment = "";
-  let countdownText: Phaser.GameObjects.Text | null = null;
-  let gates: Phaser.GameObjects.Graphics | null = null;
+  let debugOverlay: Phaser.GameObjects.Graphics | null = null;
+  let debugText: Phaser.GameObjects.Text | null = null;
   const fired = new Set<number>();
   const releasedSkills = new Set<number>();
   const cutinQueue: SkillCutin[] = [];
+  const initialSnapshot: RaceSnapshot = {
+    raceTime: 0,
+    started: false,
+    gateOpen: 0,
+    leadProgress: 0,
+    horses: [],
+  };
+  let cameraState: CameraState = createInitialState();
+  let cameraPresentation: CameraPresentation = createCameraPresentation(
+    cameraState,
+    getCameraLookForState(cameraState, initialSnapshot, 0, 0),
+  );
+  resetFrameIncludes();
+  let frameMemory: FrameMemory = createFrameMemory(cameraPresentation.look);
+  let frameDt = 0;
+  let frameMargin = 0;
+  let currentCamera = cameraFromLook(cameraPresentation.look);
+  let lastLeadProgress = 0;
+  const finishCourse = finishCourseForRace(race.horses);
+  const shownAt = gallopOut(race.ranking);
+  const trackProgress = (horse: RaceHorse, time: number) => shownAt(horse.rank - 1, time);
+  let finishState = FINISH_START;
+  let finishCue: CaptionCue | null = null;
+  let finishEnteredFrom: Camera | null = null;
+  let playback = 1;
+  let photoLine: Phaser.GameObjects.Graphics | null = null;
+  let photoLabel: Phaser.GameObjects.Text | null = null;
+  let winnerSheet: string | null = null;
+  
+  const DEBUG_ENABLED = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
 
-  function skillCap() {
-    for (const event of race.events) {
-      if (!event.cutin || releasedSkills.has(event.time)) continue;
-      const releasing = activeCutin === event.cutin && beat === "payoff" && skillLive;
-      if (releasing) continue;
-      return event.time - SKILL_LEAD;
+  const goalOuterLogical = finishOuterLogical(Math.max(1, race.horses.length));
+  let world: ReturnType<typeof createTrackRenderer> | null = null;
+  let gatePlates: Record<GateView, ReturnType<typeof createGatePlate>> | null = null;
+  let coats: HorseCoatLibrary | null = null;
+
+  function paintMount(
+    actor: Actor,
+    layers: MountLayers,
+    angle: HorseAngle,
+    picked: PickedAngle,
+    frame: number,
+    drawn: number,
+    mounted: boolean,
+    offsetX: number,
+    offsetY: number,
+  ) {
+    const textures = layers.sprite.scene.textures;
+    const lane = actor.horse.number;
+    const baked = coats?.bakedKey(picked.set, picked.index, lane) ?? `horse-color-${picked.set}-${picked.index}`;
+    const horseKey = horseSheetKey(actor.mount, baked);
+    const horseSheet = actor.mount.horse;
+    const anchorX = horseSheet?.anchorX ?? angle.anchorX;
+    const anchorY = horseSheet?.anchorY ?? angle.anchorY;
+    const frameW = horseSheet?.frameWidth ?? angle.frameW;
+    const frameH = horseSheet?.frameHeight ?? angle.frameH;
+    paintGallop(layers.sprite, horseKey, frame, anchorX, anchorY, frameW, frameH, drawn, picked.flip);
+    const marksBaked = horseSheet ? null : coats?.marksKey(picked.set, picked.index, lane) ?? null;
+    const marksVisible = marksBaked != null && textures.exists(marksBaked);
+    if (marksVisible && marksBaked) {
+      paintGallop(layers.marks, marksBaked, frame, anchorX, anchorY, frameW, frameH, drawn, picked.flip);
     }
-    return null;
+    layers.sprite.setVisible(mounted);
+    layers.marks.setVisible(mounted && marksVisible);
+    layers.sprite.setPosition(offsetX, offsetY);
+    layers.marks.setPosition(offsetX, offsetY);
+    const customRide = actor.mount.rider;
+    const rideBaked = actor.mount.rideEnabled ? coats?.rideKey(picked.set, picked.index, lane) ?? null : null;
+    const rideVisible = mounted && actor.mount.rideEnabled && (customRide != null || (rideBaked != null && textures.exists(rideBaked)));
+    layers.rider.setVisible(rideVisible);
+    if (rideVisible && customRide) {
+      const rideFrame = frame % Math.max(1, customRide.frames);
+      paintGallop(layers.rider, customRide.key, rideFrame, customRide.anchorX, customRide.anchorY, customRide.frameWidth, customRide.frameHeight, drawn, picked.flip);
+      layers.rider.setPosition(offsetX, offsetY);
+    } else if (rideVisible && rideBaked) {
+      const seated = ridePose(picked.set, picked.index, frame, angle.anchorX, angle.anchorY, drawn, picked.flip);
+      if (seated) {
+        paintGallop(layers.rider, rideBaked, frame, seated.originX * seated.frameW, seated.originY * seated.frameH, seated.frameW, seated.frameH, drawn, picked.flip);
+        layers.rider.setPosition(offsetX + seated.x, offsetY + seated.y);
+      } else {
+        layers.rider.setVisible(false);
+      }
+    }
   }
 
   class RaceScene extends Phaser.Scene {
@@ -217,30 +438,46 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
 
     preload() {
+      this.load.image("ground-turf", "/track/v2/ground_turf.webp");
+      this.load.image("ground-dirt", "/track/v2/ground_dirt.webp");
+      this.load.image("rail-segment", "/track/v2/rail_segment.png");
+      this.load.image("sky", "/track/v2/sky_strip.webp");
+      this.load.image("stands-strip", "/track/v2/stands_strip_v4.webp");
+      this.load.image("prop-distance", "/track/props/distance_post.webp");
+      this.load.image("prop-finish", "/track/props/finish_post.webp");
+      this.load.image("finish-checker", "/track/props/finish_line_checker.webp");
+      for (const set of ["straight", "corner", "wide"] as const) {
+        for (const angle of HORSE_ANGLES[set]) {
+          this.load.image(`horse-color-${set}-${angle.index}`, `/horses/${angle.colorFile}`);
+          this.load.image(`horse-mask-${set}-${angle.index}`, `/horses/${angle.maskFile}`);
+        }
+        for (const angle of RIDE_ANGLES[set]) {
+          this.load.image(`ride-color-${set}-${angle.index}`, `/jockey/${angle.colorFile}`);
+          this.load.image(`ride-mask-${set}-${angle.index}`, `/jockey/${angle.maskFile}`);
+        }
+      }
       for (const horse of race.horses) {
-        this.load.spritesheet(horse.id, sheetFor(horse), {
-          frameWidth: FRAME_WIDTH,
-          frameHeight: FRAME_HEIGHT,
-        });
         this.load.image(`portrait-${horse.id}`, horse.portrait);
       }
       this.load.image("crack-plate", "/fx/screen-crack.jpg");
+      preloadGatePlates(this);
     }
 
     create() {
-      this.cameras.main.setBackgroundColor("#145c34");
-      const track = this.add.graphics().setDepth(1);
-      drawOval(track, race.horses.length);
+      this.cameras.main.setBackgroundColor(BACKDROP);
+      coats = createHorseCoatLibrary(this);
+      world = createTrackRenderer(this);
+      gatePlates = {
+        drone: createGatePlate(this, "drone"),
+        top: createGatePlate(this, "top"),
+        start: createGatePlate(this, "start"),
+      };
+      this.input.on("pointerdown", () => {
+        if (introClock < INTRO_SKIP_TO) introClock = INTRO_SKIP_TO;
+      });
+      grade = paintGoldenGrade(this);
 
       for (const horse of race.horses) {
-        const key = `gallop-${horse.id}`;
-        this.anims.create({
-          key,
-          frames: this.anims.generateFrameNumbers(horse.id, { start: 0, end: 5 }),
-          frameRate: 10,
-          repeat: -1,
-        });
-
         const canvas = this.textures.createCanvas(`face-${horse.id}`, 64, 64);
         if (canvas) {
           const context = canvas.getContext();
@@ -259,33 +496,31 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           canvas.refresh();
         }
 
-        const sprite = this.add.sprite(0, 0, horse.id, 0).setOrigin(0.5, 0.9);
-        sprite.play(key);
+        const sprite = this.add.sprite(0, 0, "horse-color-straight-2").setOrigin(0.5, 0.96);
+        const marks = this.add.sprite(0, 0, "horse-color-straight-2").setOrigin(0.5, 0.96).setVisible(false);
+        const rider = this.add.sprite(0, 0, "horse-color-straight-2").setOrigin(0.5, 0.96).setVisible(false);
+        const fadeLayers: MountLayers = {
+          sprite: this.add.sprite(0, 0, "horse-color-straight-2").setVisible(false),
+          marks: this.add.sprite(0, 0, "horse-color-straight-2").setVisible(false),
+          rider: this.add.sprite(0, 0, "horse-color-straight-2").setVisible(false),
+        };
         const faceKey = this.textures.exists(`face-${horse.id}`) ? `face-${horse.id}` : `portrait-${horse.id}`;
-        const face = this.add.image(0, 0, faceKey).setDisplaySize(52, 52);
+        const face = this.add.image(0, 0, faceKey).setDisplaySize(52, 52).setVisible(false);
         const lines = this.add.graphics();
         const dust = this.add.graphics();
         const body = this.add.graphics();
-        const shadow = this.add.ellipse(6, -2, 168, 28, 0x3a2414, 0.32);
+        const shadow = this.add.image(0, 0, "horse-color-straight-2").setDepth(80).setVisible(false);
+        const ink = laneNumberInk(horse.number);
         const number = this.add
-          .text(24, -78, String(horse.number), {
+          .text(0, 0, String(horse.number), {
             fontFamily: "sans-serif",
-            fontSize: "22px",
-            color: "#fffaf2",
+            fontSize: "24px",
+            color: ink.color,
             fontStyle: "bold",
-            stroke: "#24180f",
-            strokeThickness: 4,
+            stroke: ink.stroke,
+            strokeThickness: 3,
           })
           .setOrigin(0.5);
-        const name = this.add
-          .text(0, -FRAME_HEIGHT * 0.72, horse.name, {
-            fontFamily: "Apple SD Gothic Neo, sans-serif",
-            fontSize: "16px",
-            color: "#24180f",
-            stroke: "#fff8ea",
-            strokeThickness: 5,
-          })
-          .setOrigin(0.5, 1);
         const stamp = this.add
           .text(0, -168, "", {
             fontFamily: "sans-serif",
@@ -297,14 +532,41 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           })
           .setOrigin(0.5);
         const container = this.add.container(0, 0);
-        container.add([shadow, dust, lines, body, sprite, face, number, name, stamp]);
-        container.setScale(HORSE_HEIGHT / FRAME_HEIGHT);
-        actors.push({ horse, container, sprite, face, lines, dust, body, shadow, number, stamp, progress: 0, shown: 0 });
+        container.add([dust, lines, body, sprite, marks, rider, fadeLayers.sprite, fadeLayers.marks, fadeLayers.rider, face, number, stamp]);
+        const mount = createMountedSlots();
+        const actor: Actor = {
+          horse,
+          container,
+          sprite,
+          rider,
+          marks,
+          mount,
+          setHorseSheet: (sheet) => {
+            actor.mount = assignHorseSheet(actor.mount, sheet);
+          },
+          setRiderSheet: (sheet) => {
+            actor.mount = assignRiderSheet(actor.mount, sheet);
+          },
+          face,
+          lines,
+          dust,
+          body,
+          shadow,
+          number,
+          stamp,
+          progress: 0,
+          shown: 0,
+          animTime: 0,
+          flipMismatch: false,
+          fadeLayers,
+          leanAmount: 0,
+        };
+        actors.push(actor);
       }
       this.paintFxTextures();
 
       for (let index = 0; index < 6; index += 1) {
-        ghosts.push(this.add.image(0, 0, race.horses[0]?.id ?? "").setVisible(false).setDepth(3400));
+        ghosts.push(this.add.image(0, 0, "horse-color-straight-2").setVisible(false).setDepth(3400));
       }
       ribbon = this.add.image(0, 0, "fx-ribbon").setVisible(false).setDepth(3450).setBlendMode(Phaser.BlendModes.ADD);
       muzzle = this.add.image(0, 0, "fx-muzzle").setVisible(false).setDepth(3600).setBlendMode(Phaser.BlendModes.ADD);
@@ -322,10 +584,10 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       });
       sparks.setDepth(3650);
       marks = this.add.graphics().setDepth(3480);
-      cutPath = this.add.graphics().setDepth(4);
-      brakeSkid = this.add.graphics().setDepth(3);
-      brakeHaze = this.add.graphics().setDepth(30);
-      crack = this.add.graphics().setScrollFactor(0).setDepth(4200);
+      cutPath = this.add.graphics().setDepth(37);
+      brakeSkid = this.add.graphics().setDepth(36);
+      brakeHaze = this.add.graphics().setDepth(38);
+      crack = this.add.graphics().setDepth(4200);
       const plateSource = this.textures.get("crack-plate").getSourceImage() as CanvasImageSource & {
         width: number;
         height: number;
@@ -351,71 +613,98 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       }
       crackPlate = this.add
         .image(0, 0, plateCanvas ? "crack-glass" : "crack-plate")
-        .setScrollFactor(0)
         .setOrigin(0.5)
         .setDepth(4250)
         .setVisible(false);
 
-      gates = this.add.graphics().setDepth(2);
-      countdownText = this.add
-        .text(this.cameras.main.width / 2, this.cameras.main.height / 2, "3", {
-          fontFamily: "sans-serif",
-          fontSize: "112px",
-          color: "#fffaf2",
-          fontStyle: "bold",
-          stroke: "#24180f",
-          strokeThickness: 12,
+      debugOverlay = this.add.graphics().setDepth(10000);
+      debugText = this.add.text(10, 10, '', {
+        fontFamily: 'monospace',
+        fontSize: '20px',
+        color: '#ffff00',
+        backgroundColor: '#000000dd',
+        padding: { x: 10, y: 10 },
+      }).setDepth(10001).setVisible(DEBUG_ENABLED).setScrollFactor(0);
+      photoLine = this.add.graphics().setDepth(8500);
+      photoLabel = this.add
+        .text(0, 0, "PHOTO FINISH · 1/1000s", {
+          fontFamily: overlayLayout.style.fontFamily,
+          fontSize: "18px",
+          fontStyle: "600",
+          color: "#f4efe8",
+          backgroundColor: "#2a2124c8",
+          padding: { x: 16, y: 10 },
         })
-        .setScrollFactor(0)
-        .setOrigin(0.5)
-        .setDepth(5000);
-      lastComment = "게이트 앞에서 대기 중입니다.";
+        .setOrigin(1, 0)
+        .setDepth(8501)
+        .setVisible(false);
+      lastComment = introLine(introClock);
       hooks.onComment(lastComment);
-      this.paintGates();
       this.placeHorses();
-      this.frameCamera(true);
-      this.publishRanks();
+      this.paintGate();
+      created = true;
+      if (stage) applyStage(this, stage);
+      this.publishField("intro", null);
+      this.events.once("render", () => fadeInCanvas(this.game.canvas));
     }
 
     update(_time: number, delta: number) {
+      if (waitingForLandscape) return;
+      if (DEBUG_ENABLED && cameraDebugHost().__cameraFreeze) {
+        if (cameraDebugHost().__raceDebugVisible === false) this.paintDebugOverlay();
+        return;
+      }
       const wall = Math.min(delta, 40) / 1000;
+      frameDt = wall;
+      if (introClock < INTRO_END) {
+        introClock = Math.min(INTRO_END, introClock + wall);
+        const intro = introClock < INTRO_END;
+        raceTime = 0;
+        this.placeHorses();
+        this.paintTrack();
+        const line = intro ? introLine(introClock) : "게이트 앞에서 대기 중입니다.";
+        if (line !== lastComment) {
+          lastComment = line;
+          hooks.onComment(line);
+        }
+        this.publishField(intro ? "intro" : "countdown", intro ? null : countdownLabel(wallClock));
+        this.publishCameraDebug();
+        if (DEBUG_ENABLED) {
+          this.paintDebugOverlay();
+        }
+        return;
+      }
       wallClock += wall;
       if (!started) {
-        const step = Math.min(2, Math.floor(wallClock / COUNT_STEP));
-        const label = ["3", "2", "1"][step] ?? "1";
-        const camera = this.cameras.main;
-        countdownText?.setText(label).setPosition(camera.width / 2, camera.height * 0.42);
-        if (wallClock < COUNT_STEP * 3) {
+        if (wallClock < BELL_AT) {
           raceTime = 0;
-          this.paintGates();
           this.placeHorses();
-          this.publishRanks();
-          this.frameCamera(false);
+          this.paintTrack();
+          this.publishField("countdown", countdownLabel(wallClock));
+          this.publishCameraDebug();
+          if (DEBUG_ENABLED) {
+            this.paintDebugOverlay();
+          }
           return;
         }
         started = true;
-        playBang();
-        countdownText?.setVisible(false);
+        playBell();
         lastComment = "게이트가 열렸습니다.";
         hooks.onComment(lastComment);
       }
       if (gateOpen < 1) gateOpen = Math.min(1, gateOpen + wall / 0.28);
+      const before = finishState.phase.kind;
+      finishState = advanceFinish(finishState, wall, finishCourse);
+      raceTime = finishState.raceTime;
+      playback = timeScale(finishState, finishCourse);
+      if (finishState.phase.kind !== before) {
+        (cameraDebugHost().__finishLog ??= []).push({ kind: finishState.phase.kind, at: performance.now(), clock: wallClock, raceTime });
+      }
       const age = showStart >= 0 ? wallClock - showStart : -1;
       beat = beatAt(age);
       const payoffAge = age - INTRO;
       skillLive = beat === "payoff" && (zoom <= 1.08 || zoom <= restZoom + 0.16);
-      const shotStop =
-        skillLive && activeCutin?.skillName === "따발총" && activeCutin.hit && payoffAge > 0.16 && payoffAge < 0.22;
-      const holding = beat === "focus" || beat === "announce" || beat === "release" || (beat === "payoff" && !skillLive);
-      if (holding) {
-        raceTime = Math.max(0, showSkillTime - 0.1);
-      } else if (!shotStop) {
-        if (beat === "payoff" && raceTime < showSkillTime) raceTime = showSkillTime;
-        raceTime += wall;
-      }
       if (skillLive) releasedSkills.add(showSkillTime);
-      const cap = skillCap();
-      if (cap !== null && raceTime > cap) raceTime = Math.max(0, cap);
       if (beat === "announce" && !announced && activeCutin) {
         announced = true;
         hooks.onCutin(activeCutin);
@@ -432,7 +721,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
 
       for (const event of race.events) {
         if (!event.cutin || fired.has(event.time)) continue;
-        if (raceTime + 0.0001 < event.time - SKILL_LEAD) continue;
+        if (raceTime + 0.0001 < event.time - INTRO) continue;
         fired.add(event.time);
         cutinQueue.push(event.cutin);
         hooks.onComment(event.message);
@@ -448,11 +737,18 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           sparked = false;
           sparkWave = -1;
           beat = "focus";
-          raceTime = Math.max(0, showSkillTime - 0.1);
         }
       }
 
-      if (beat === "payoff" || beat === "idle") {
+      const cue = captionCue(finishState);
+      if (cue) {
+        if (cue !== finishCue) {
+          finishCue = cue;
+          const live = this.orderedField(raceTime).map((horse) => horse.name);
+          lastComment = captionText(cue, live, race.ranking.map((horse) => horse.name));
+          hooks.onComment(lastComment);
+        }
+      } else {
         let latest = "";
         for (const event of race.events) {
           if (event.time <= raceTime + 0.0001) latest = event.message;
@@ -463,21 +759,122 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         }
       }
 
-      this.paintGates();
       this.placeHorses();
-      this.publishRanks();
-      this.frameCamera(false);
+      this.paintTrack();
+      this.paintPhotoFinish();
+      this.publishField("racing", null);
+      this.publishCameraDebug();
 
-      if (!finished && raceTime >= race.duration) {
+      if (DEBUG_ENABLED) {
+        this.paintDebugOverlay();
+        this.holdDebugShot();
+      }
+
+      if (!finished && boardDue(finishState)) {
         finished = true;
         hooks.onCutin(null);
         hooks.onComplete();
       }
     }
 
+    paintTrack() {
+      const view = trackViewFor(cameraState.name, lastLeadProgress, segmentEnds().corner34Exit);
+      if (!introShowsStands(introClock)) view.showStands = false;
+      view.showOuterRail = showsOuterRail(finishState);
+      world?.paint(currentCamera, view, visibleArea());
+      this.paintGate();
+    }
+
+    paintGate() {
+      const alpha = gatePlateAlpha(wallClock, introGateSwap(introClock));
+      const door = doorState(wallClock);
+      for (const view of Object.keys(alpha) as GateView[]) gatePlates?.[view].paint(currentCamera, alpha[view], door);
+    }
+
+    paintPhotoFinish() {
+      photoLine?.clear();
+      const shown = showsPhotoFinish(finishState);
+      photoLabel?.setVisible(shown);
+      if (!shown) return;
+      const area = visibleArea();
+      const line = projectWithCamera({ x: finishGoalX(), y: goalOuterLogical.y, tx: 1, ty: 0 }, currentCamera);
+      photoLine?.fillStyle(0xffffff, 0.85);
+      photoLine?.fillRect(line.x - 1, area.y, 2, area.height);
+      photoLabel?.setPosition(area.x + area.width - 25, area.y + 187);
+    }
+
     placeHorses() {
+      const leadHorse = [...actors].sort((a, b) => {
+        const aProgress = trackProgress(a.horse, raceTime);
+        const bProgress = trackProgress(b.horse, raceTime);
+        return bProgress - aProgress;
+      })[0];
+      const leadProgress = leadHorse ? trackProgress(leadHorse.horse, raceTime) : 0;
+
+      const snapshot: RaceSnapshot = {
+        raceTime,
+        started,
+        gateOpen,
+        leadProgress: started && gateOpen >= 1 ? leadProgress : 0,
+        horses: actors.map((actor, index) => ({
+          index,
+          progress: trackProgress(actor.horse, raceTime),
+        })),
+      };
+
+      const nextState = nextCameraState(cameraPresentation.state, snapshot);
+
+      const placed = actors.map((actor) => {
+        const sample = trackProgress(actor.horse, raceTime);
+        const progress = !started ? 0 : gateOpen < 1 ? sample * gateOpen : sample;
+        return { actor, progress, logical: getLogicalAt(progress, laneAt(actor.horse.lanes, raceTime)) };
+      });
+      const rankClock = started ? raceTime : 0;
+      const ranked = orderByPresentation(
+        placed.map((item) => ({
+          id: item.actor.horse.id,
+          number: item.actor.horse.number,
+          shown: liveShown(item.actor.horse, item.progress, rankClock),
+          finishTime: item.actor.horse.finishTime,
+          rank: item.actor.horse.rank,
+        })),
+        rankClock,
+      );
+      const rankById = new Map(ranked.map((horse, index) => [horse.id, index + 1]));
+      const subjects = placed.map((item) => ({
+        ...item.logical,
+        id: item.actor.horse.id,
+        rank: rankById.get(item.actor.horse.id) ?? item.actor.horse.number,
+      }));
+      let packCenterX = 0;
+      let packCenterY = 0;
+      for (const logical of subjects) {
+        packCenterX += logical.x;
+        packCenterY += logical.y;
+      }
+      packCenterX /= Math.max(1, subjects.length);
+      packCenterY /= Math.max(1, subjects.length);
+
+      const desiredLook = getCameraLookForState(nextState, snapshot, packCenterX, packCenterY);
+      // Blends advance on the presentation clock (wallClock), never raceTime.
+      cameraPresentation = advanceCameraPresentation(cameraPresentation, nextState, desiredLook, wallClock);
+      cameraState = cameraPresentation.state;
+      lastLeadProgress = snapshot.leadProgress;
+      const framed = frameHorseLook(cameraPresentation.look, subjects, cameraState.name, frameMemory, frameDt);
+      frameMemory = framed.memory;
+      frameMargin = horseFit(framed.look, requiredFrameSubjects(subjects, cameraState.name)).worst;
+      const raceCamera = introCamera(introClock, gateCamera(wallClock, cameraFromLook(framed.look)));
+      if (finishState.phase.kind !== "before") finishEnteredFrom ??= currentCamera;
+      const winner = placed.find((item) => item.actor.horse.id === race.ranking[0]?.id);
+      currentCamera = finishCamera(finishState, {
+        course: finishCourse,
+        winner: winner?.logical ?? { x: finishGoalX(), y: goalOuterLogical.y },
+        enteredFrom: finishEnteredFrom ?? raceCamera,
+      }) ?? raceCamera;
+      const intro = introGateSwap(introClock);
+
       for (const actor of actors) {
-        const sample = progressAt(actor.horse.samples, raceTime);
+        const sample = trackProgress(actor.horse, raceTime);
         actor.progress = !started ? 0 : gateOpen < 1 ? sample * gateOpen : sample;
         const kind = skillById(actor.horse.skillId).kind;
         const since = raceTime - actor.horse.skillTime;
@@ -498,63 +895,127 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           raceTime >= actor.horse.skillTime &&
           raceTime < actor.horse.cutUntil;
         const cutBlend = cutting ? (raceTime - actor.horse.skillTime) / (actor.horse.cutUntil - actor.horse.skillTime) : 0;
-        let pose = poseAt(actor.progress, actor.horse.number);
-        if (cutting) {
-          pose = cutPose(actor.horse.cutFrom, actor.horse.cutTo, actor.horse.number, cutBlend);
-        } else if (swapping) {
-          const blend = swapBlend;
-          const previous = poseAt(actor.horse.swapFrom, actor.horse.number);
-          pose = {
-            ...pose,
-            x: previous.x + (pose.x - previous.x) * blend,
-            y: previous.y + (pose.y - previous.y) * blend,
-          };
-        }
+        const displayLane = laneAt(actor.horse.lanes, raceTime);
+        const logical = getLogicalAt(actor.progress, displayLane);
+        const path = cutting
+          ? blendLogical(getLogicalAt(actor.horse.cutFrom, displayLane), getLogicalAt(actor.horse.cutTo, displayLane), cutBlend)
+          : swapping
+            ? blendLogical(getLogicalAt(actor.horse.swapFrom, displayLane), logical, swapBlend)
+            : logical;
+        const offset = gateOffset(actor.horse.number, actor.progress, wallClock, intro);
+        const heading = { ...path, x: path.x + offset.x, y: path.y + offset.y };
+        const pose = projectWithCamera(heading, currentCamera);
+        const ahead = !started ? 0 : actor.progress >= 1 ? trackProgress(actor.horse, raceTime + 0.2) - actor.progress : 1;
+        const braking = actor.progress >= 1;
+        const pull = !started ? 0 : braking ? Math.max(0, Math.min(1, ahead / 0.003)) : 1;
+        const footAge = raceTime - actor.horse.footFrom;
+        const sucking = onFoot && footAge >= 0 && footAge < 0.4;
+        const gallopRate = !started
+          ? 0
+          : braking
+            ? pull
+            : onFoot && !sucking
+              ? 0
+              : casting && (kind === "start" || kind === "final-burst")
+                ? 1.9
+                : 1;
+        if (started) actor.animTime += frameDt * gallopRate * playback;
+
+        actor.container.setVisible(pose.visible);
+        actor.shadow.setVisible(false);
+        if (!pose.visible) continue;
+
         actor.container.setPosition(pose.x, pose.y);
         if (castingNow && kind === "final-burst" && payoffAge < 0.35) {
           const lunge = Math.sin((payoffAge / 0.35) * Math.PI) * 52;
           actor.container.x += pose.tangentX * lunge;
           actor.container.y += pose.tangentY * lunge;
         }
-        const ahead = !started ? 0 : actor.progress >= 1 ? progressAt(actor.horse.samples, raceTime + 0.2) - actor.progress : 1;
-        const braking = actor.progress >= 1;
-        const pull = !started ? 0 : braking ? Math.max(0, Math.min(1, ahead / 0.003)) : 1;
         const brakeLean = braking ? Math.sin((1 - pull) * Math.PI) * 20 : 0;
-        actor.container.setAngle(pose.lean + brakeLean * (pose.flipX ? 1 : -1));
+        const leanTarget = segmentAt(actor.progress) === "corner" ? 1 : 0;
+        actor.leanAmount += (leanTarget - actor.leanAmount) * (1 - Math.exp(-frameDt / CORNER_LEAN_TAU_S));
+        // (ty, -tx) points at the bend center on both corners of the loop.
+        const inward = projectWithCamera(
+          { ...heading, x: heading.x + heading.ty * LANE_GAP, y: heading.y - heading.tx * LANE_GAP },
+          currentCamera,
+        );
+        const inwardLength = Math.hypot(inward.x - pose.x, inward.y - pose.y);
+        const inwardScreenX = inwardLength > 1e-6 ? (inward.x - pose.x) / inwardLength : 0;
+        const cornerLean = CORNER_LEAN_DEG * actor.leanAmount * inwardScreenX;
+        actor.container.setAngle(brakeLean * (pose.flipX ? 1 : -1) + cornerLean);
+        actor.container.setScale(1);
+        actor.container.setDepth(clearOfStall(heading.x) ? 3001 + pose.y / 10 : pose.y);
         const punch = castingNow && kind === "start" && payoffAge < 0.08 ? 1.08 : 1;
-        actor.container.setScale((HORSE_HEIGHT / FRAME_HEIGHT) * pose.scale * punch);
-        actor.container.setDepth(pose.y);
-        const footAge = raceTime - actor.horse.footFrom;
-        const sucking = onFoot && footAge >= 0 && footAge < 0.4;
-        actor.sprite.setVisible(!onFoot || sucking);
-        actor.shadow.setVisible(!onFoot);
-        actor.sprite.setScale(pose.flipX ? -1 : 1, 1);
+        const inCornerCloseup = cameraState.name === "CLOSEUP" &&
+          cameraState.closeupHorseIndex === (actor.horse.number - 1) &&
+          shouldScaleHorseInCorner(cameraState);
+        const closeupScale = inCornerCloseup ? 1.15 : 1;
+        const drawn = horseSpriteScale(pose.scale) * punch * closeupScale;
+        const toCamX = currentCamera.groundX - heading.x;
+        const toCamY = currentCamera.groundY - heading.y;
+        const view = headingView(heading.tx, heading.ty, toCamX, toCamY);
+        const previous = actor.picked;
+        const picked = pickHorseAngle(view, cameraElevationDeg(currentCamera.height, toCamX, toCamY), previous);
+        actor.picked = picked;
+        if (actor.horse.id === race.ranking[0]?.id) winnerSheet = `${picked.set}_a${picked.index} flip=${picked.flip}`;
+        if (process.env.NODE_ENV !== "production") {
+          // pose.flipX is undefined when travel projects straight up or down the screen.
+          const mismatch = picked.flip !== pose.flipX && view.side >= 0.05 && Math.abs(pose.tangentX) >= 0.05;
+          if (mismatch && !actor.flipMismatch) {
+            console.warn("heading flip mismatch", actor.horse.number, JSON.stringify({ side: view.side, sheetYaw: view.sheetYaw, tangentX: pose.tangentX, tangentY: pose.tangentY, progress: actor.progress }));
+            window.__headingFlipMismatch = (window.__headingFlipMismatch ?? 0) + 1;
+          }
+          actor.flipMismatch = mismatch;
+        }
+        const angle = HORSE_ANGLES[picked.set][picked.index];
+        if (!angle) continue;
+        const customSheets = actor.mount.horse != null || actor.mount.rider != null;
+        if (previous && (previous.set !== picked.set || previous.index !== picked.index) && !customSheets) {
+          actor.angleFade = { from: previous, age: 0 };
+        }
+        const frame = started ? gallopFrame(actor.horse.number, actor.animTime) : IDLE_FRAME;
+        const mounted = !onFoot || sucking;
         const recoil = castingNow && kind === "shot" && payoffAge < 0.45 && payoffAge % 0.08 < 0.05;
-        actor.sprite.setX(recoil ? (pose.flipX ? 14 : -14) : 0);
-        actor.sprite.setY(sucking ? (-footAge / 0.4) * 420 : 0);
-        actor.sprite.setAlpha(sucking ? 1 - footAge / 0.4 : 1);
-        actor.face.setAlpha(sucking ? 1 - footAge / 0.4 : 1);
+        const recoilX = recoil ? (picked.flip ? 14 : -14) : 0;
+        const recoilY = sucking ? (-footAge / 0.4) * 420 : 0;
+        paintMount(actor, actor, angle, picked, frame, drawn, mounted, recoilX, recoilY);
+        const fade = sucking ? 1 - footAge / 0.4 : 1;
+        actor.sprite.setAlpha(fade);
+        actor.marks.setAlpha(fade);
+        actor.rider.setAlpha(fade);
+        actor.face.setAlpha(fade);
         const stumbling = raceTime >= actor.horse.slowFrom && raceTime < actor.horse.slowUntil;
         const flash =
           (stopped && raceTime - actor.horse.stopFrom < 0.15) ||
           (stumbling && raceTime - actor.horse.slowFrom < 0.15);
-        if (flash) actor.sprite.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
-        else actor.sprite.clearTint();
-        actor.sprite.setAngle(missed || stopped || stumbling ? Math.sin(raceTime * 26) * 8 : 0);
-        actor.sprite.anims.timeScale = !started
-          ? 0
-          : braking
-          ? pull
-          : onFoot
-            ? 0.55
-            : casting && (kind === "start" || kind === "final-burst")
-              ? 1.9
-              : 1;
+        const tint = flash ? 0xffffff : farShade(pose.scale);
+        const tintMode = flash ? Phaser.TintModes.FILL : Phaser.TintModes.MULTIPLY;
+        actor.sprite.setTint(tint).setTintMode(tintMode);
+        actor.rider.setTint(tint).setTintMode(tintMode);
+        actor.marks.setTint(0xffffff).setTintMode(Phaser.TintModes.MULTIPLY);
+        actor.number.setTint(0xffffff);
+        const wobble = missed || stopped || stumbling ? Math.sin(raceTime * 26) * 8 : 0;
+        actor.sprite.setAngle(wobble);
+        actor.marks.setAngle(wobble);
+        actor.rider.setAngle(wobble);
+        if (coats) {
+          const shadowKey = coats.shadowKey(picked.set, picked.index, frame, picked.flip);
+          const origin = coats.shadowOrigin(picked.set, picked.index);
+          if (this.textures.exists(shadowKey)) {
+            actor.shadow.setTexture(shadowKey).setOrigin(origin.x, origin.y).setScale(drawn).setFlipX(false);
+            actor.shadow.setPosition(actor.container.x - 0.12 * LOGICAL_PER_METER * pose.scale, actor.container.y);
+            actor.shadow.setVisible(!onFoot);
+            actor.shadow.setDepth(80);
+          }
+        }
         actor.body.clear();
         actor.lines.clear();
         actor.dust.clear();
-        const dir = pose.flipX ? 1 : -1;
+        const dir = picked.flip ? 1 : -1;
         const puff = (raceTime * 10 + actor.horse.number) % 1;
+        actor.face.setVisible(onFoot && !sucking);
+        // Phaser draws container Text after the gate's Mesh2D front regardless of depth, so the doors cannot hide it.
+        actor.number.setVisible(!onFoot && clearOfStall(heading.x));
         if (onFoot && !sucking) {
           const swing = Math.sin(raceTime * 16 + actor.horse.number) * 14;
           actor.body.lineStyle(5, 0x24180f, 1);
@@ -568,20 +1029,45 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           actor.face.setPosition(0, -86);
           actor.dust.fillStyle(0xc4a06a, 0.7);
           actor.dust.fillCircle(dir * 10, 2, 4);
-        } else {
-          const frame = actor.sprite.anims.currentFrame?.index ?? 0;
-          const helmet = HELMETS[frame] ?? HELMETS[0];
-          actor.face.setDisplaySize(52, 52);
-          actor.face.setPosition((pose.flipX ? -1 : 1) * (helmet.x - FRAME_WIDTH * 0.5), helmet.y - FRAME_HEIGHT * 0.9);
-          if (!braking && pull > 0.15) {
-            actor.dust.fillStyle(0xf6ead2, 0.7);
-            actor.dust.fillCircle(dir * (36 + puff * 34), -4, 7 - puff * 5);
-            actor.dust.fillCircle(dir * (58 + puff * 20), -1, 4);
-          }
+        } else if (!braking && pull > 0.15) {
+          actor.dust.fillStyle(0xf6ead2, 0.7);
+          actor.dust.fillCircle(dir * (36 + puff * 34), -4, 7 - puff * 5);
+          actor.dust.fillCircle(dir * (58 + puff * 20), -1, 4);
         }
-        actor.number.setX((pose.flipX ? -1 : 1) * 24);
+        const plate = angle.plates[frame] ?? angle.plates[0];
+        if (plate) {
+          const plateAt = plateScreenOffset(plate, angle.anchorX, angle.anchorY, drawn, picked.flip);
+          const glyph = glyphHeightPx(plate.h, drawn);
+          actor.number.setPosition(plateAt.x, plateAt.y);
+          const ink = laneNumberInk(actor.horse.number);
+          actor.number.setColor(ink.color);
+          actor.number.setFontSize(`${glyphFontPx(glyph)}px`);
+          actor.number.setStroke(ink.stroke, glyphOutlinePx(glyph));
+        }
         if (castingNow && kind === "jaywalk" && !actor.horse.skillHit) {
-          actor.sprite.setAngle(Math.sin(payoffAge * 30) * 18);
+          const fence = Math.sin(payoffAge * 30) * 18;
+          actor.sprite.setAngle(fence);
+          actor.marks.setAngle(fence);
+          actor.rider.setAngle(fence);
+        }
+        const fadeLayers = actor.fadeLayers;
+        const angleFade = actor.angleFade;
+        if (angleFade) angleFade.age += frameDt;
+        const fadeAge = angleFade ? angleFade.age / ANGLE_FADE_S : 1;
+        const fromAngle = angleFade ? HORSE_ANGLES[angleFade.from.set][angleFade.from.index] : undefined;
+        if (angleFade && fromAngle && fadeAge < 1 && !customSheets) {
+          paintMount(actor, fadeLayers, fromAngle, { ...angleFade.from, flip: picked.flip }, frame, drawn, mounted, recoilX, recoilY);
+          for (const layer of [fadeLayers.sprite, fadeLayers.marks, fadeLayers.rider]) {
+            layer.setAlpha((1 - fadeAge) * fade).setAngle(actor.sprite.angle);
+          }
+          fadeLayers.sprite.setTint(tint).setTintMode(tintMode);
+          fadeLayers.rider.setTint(tint).setTintMode(tintMode);
+          fadeLayers.marks.setTint(0xffffff).setTintMode(Phaser.TintModes.MULTIPLY);
+        } else {
+          actor.angleFade = undefined;
+          fadeLayers.sprite.setVisible(false);
+          fadeLayers.marks.setVisible(false);
+          fadeLayers.rider.setVisible(false);
         }
         const word =
           casting && (kind === "start" || kind === "final-burst")
@@ -618,27 +1104,49 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const span = horse.cutUntil - horse.skillTime;
         if (age < 0 || age > span + 0.8) continue;
         const fade = age <= span ? 1 : 1 - (age - span) / 0.8;
-        const points: TrackPose[] = [];
-        for (let step = 0; step <= 16; step += 1) {
-          points.push(cutPose(horse.cutFrom, horse.cutTo, horse.number, step / 16));
-        }
-        const stroke = (width: number, color: number, alpha: number) => {
-          cutPath?.lineStyle(width, color, alpha * fade);
-          const first = points[0];
-          if (!first) return;
+        const lane = laneAt(horse.lanes, raceTime);
+        const from = getLogicalAt(horse.cutFrom, lane);
+        const to = getLogicalAt(horse.cutTo, lane);
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const length = Math.hypot(dx, dy) || 1;
+        const nx = -dy / length;
+        const ny = dx / length;
+        const tNow = Math.min(1, Math.max(0, age / Math.max(span, 1e-6)));
+        const t0 = Math.max(0, tNow - 90 / length);
+        const t1 = Math.min(1, tNow + 24 / length);
+        const at = (t: number) => projectWithCamera({
+          x: from.x + dx * t,
+          y: from.y + dy * t,
+          tx: dx / length,
+          ty: dy / length,
+        }, currentCamera);
+        if (!at(tNow).visible) continue;
+        const steps = 8;
+        const fillStrip = (half: number, color: number, alpha: number) => {
+          const edge = (t: number, side: number) => projectWithCamera({
+            x: from.x + dx * t + nx * half * side,
+            y: from.y + dy * t + ny * half * side,
+            tx: dx / length,
+            ty: dy / length,
+          }, currentCamera);
+          cutPath?.fillStyle(color, alpha * fade);
           cutPath?.beginPath();
+          const first = edge(t0, 1);
           cutPath?.moveTo(first.x, first.y);
-          for (const point of points) cutPath?.lineTo(point.x, point.y);
-          cutPath?.strokePath();
+          for (let step = 1; step <= steps; step += 1) {
+            const point = edge(t0 + (t1 - t0) * (step / steps), 1);
+            cutPath?.lineTo(point.x, point.y);
+          }
+          for (let step = steps; step >= 0; step -= 1) {
+            const point = edge(t0 + (t1 - t0) * (step / steps), -1);
+            cutPath?.lineTo(point.x, point.y);
+          }
+          cutPath?.closePath();
+          cutPath?.fillPath();
         };
-        stroke(46, 0x2f6b3a, 0.95);
-        stroke(24, 0xe7d7a8, 1);
-        cutPath.lineStyle(8, 0xcbb98a, 0.9 * fade);
-        for (let index = 1; index < points.length - 1; index += 2) {
-          const point = points[index];
-          if (!point) continue;
-          cutPath.lineBetween(point.x - point.tangentY * 16, point.y + point.tangentX * 16, point.x + point.tangentY * 16, point.y - point.tangentX * 16);
-        }
+        fillStrip(16, 0x2f6b3a, 0.95);
+        fillStrip(8, 0xc4a06a, 1);
       }
     }
 
@@ -646,10 +1154,11 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       brakeHaze?.clear();
       for (const actor of actors) {
         if (actor.progress < 1) continue;
-        const ahead = progressAt(actor.horse.samples, raceTime + 0.2) - actor.progress;
+        const ahead = trackProgress(actor.horse, raceTime + 0.2) - actor.progress;
         const pull = Math.max(0, Math.min(1, ahead / 0.003));
         if (pull < 0.08) continue;
-        const pose = poseAt(actor.progress, actor.horse.number);
+        const logical = getLogicalAt(actor.progress, laneAt(actor.horse.lanes, raceTime));
+        const pose = projectWithCamera(logical, currentCamera);
         const backX = -pose.tangentX;
         const backY = -pose.tangentY;
         brakeHaze?.fillStyle(0xf7f4ee, 0.34 + pull * 0.4);
@@ -763,11 +1272,10 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       if (!caster) return;
       const kind = skillById(caster.horse.skillId).kind;
       const age = Math.max(0, wallClock - showStart - INTRO);
-      const pose = poseAt(caster.progress, caster.horse.number);
+      const logical = getLogicalAt(caster.progress, laneAt(caster.horse.lanes, raceTime));
+      const pose = projectWithCamera(logical, currentCamera);
       const backX = -pose.tangentX;
       const backY = -pose.tangentY;
-      const frame = caster.sprite.frame.name;
-      const horseScale = HORSE_HEIGHT / FRAME_HEIGHT;
       const burst = (x: number, y: number, count: number) => {
         if (sparked || age > 0.05) return;
         sparks?.explode(count, x, y);
@@ -778,10 +1286,13 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           const ghost = ghosts[index];
           if (!ghost) continue;
           const along = (index + 1) * gap;
+          const fadeScale = 1 - index * 0.05;
           ghost
-            .setTexture(caster.horse.id, frame)
+            .setTexture(caster.sprite.texture.key, caster.sprite.frame.name)
+            .setOrigin(caster.sprite.originX, caster.sprite.originY)
+            .setFlipX(caster.sprite.flipX)
             .setPosition(caster.container.x + backX * along, caster.container.y + backY * along)
-            .setScale(horseScale * (pose.flipX ? -1 : 1) * (1 - index * 0.05), horseScale)
+            .setScale(caster.sprite.scaleX * fadeScale, caster.sprite.scaleY * fadeScale)
             .setAlpha(0.5 - index * 0.06)
             .setBlendMode(Phaser.BlendModes.ADD)
             .setVisible(true)
@@ -895,150 +1406,217 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         showGhosts(3, 24);
         burst(caster.container.x, caster.container.y - 70, 18);
       } else if (kind === "crack" && crackPlate) {
-        const camera = this.cameras.main;
-        const zoomNow = camera.zoom || 1;
-        const screenX = (caster.container.x - camera.scrollX - camera.width / 2) * zoomNow + camera.width / 2;
-        const screenY = (caster.container.y - camera.scrollY - camera.height / 2) * zoomNow + camera.height / 2;
-        const cover = Math.max(camera.width / crackPlateWidth, camera.height / crackPlateHeight) * 1.35;
+        const area = visibleArea();
+        const cover = Math.max(area.width / crackPlateWidth, area.height / crackPlateHeight) * 1.35;
         const fade = age < 0.75 ? 1 : 1 - (age - 0.75) / 0.35;
-        crackPlate.setPosition(screenX, screenY).setScale(cover).setAlpha(Math.max(0, fade)).setVisible(true);
+        crackPlate.setPosition(caster.container.x, caster.container.y).setScale(cover).setAlpha(Math.max(0, fade)).setVisible(true);
         if (age < 0.08 && crack) {
           crack.fillStyle(0xffffff, 0.72);
-          crack.fillRect(0, 0, camera.width, camera.height);
+          crack.fillRect(area.x, area.y, area.width, area.height);
         }
       }
     }
 
-
-    paintGates() {
-      if (!gates) return;
-      gates.clear();
-      const lanes = race.horses.length;
-      const posts: TrackPose[] = [];
-      for (let lane = 0; lane <= lanes; lane += 1) {
-        posts.push(poseOnRadius(0, laneRadius(1) - LANE_GAP / 2 + lane * LANE_GAP));
-      }
-      for (let index = 0; index < posts.length - 1; index += 1) {
-        const left = posts[index];
-        const right = posts[index + 1];
-        if (!left || !right) continue;
-        const pose = poseAt(0, index + 1);
-        const back = 84;
-        const front = 34;
-        const lx = left.x - pose.tangentX * back;
-        const ly = left.y - pose.tangentY * back;
-        const rx = right.x - pose.tangentX * back;
-        const ry = right.y - pose.tangentY * back;
-        const lfx = left.x + pose.tangentX * front;
-        const lfy = left.y + pose.tangentY * front;
-        const rfx = right.x + pose.tangentX * front;
-        const rfy = right.y + pose.tangentY * front;
-        gates.setDepth(!started || gateOpen < 0.85 ? 4000 : 2);
-        gates.fillStyle(0x8a6239, 1);
-        gates.fillCircle(lx, ly, 7);
-        gates.fillCircle(rx, ry, 7);
-        gates.lineStyle(7, 0x5c3b22, 1);
-        gates.lineBetween(lx, ly, lfx, lfy);
-        gates.lineBetween(rx, ry, rfx, rfy);
-        gates.lineBetween(lx, ly, rx, ry);
-        const mx = (lfx + rfx) / 2;
-        const my = (lfy + rfy) / 2;
-        const swing = gateOpen * 1.35;
-        const turn = (dx: number, dy: number, angle: number) => ({
-          x: dx * Math.cos(angle) - dy * Math.sin(angle),
-          y: dx * Math.sin(angle) + dy * Math.cos(angle),
-        });
-        const leftDoor = turn(mx - lfx, my - lfy, -swing);
-        const rightDoor = turn(mx - rfx, my - rfy, swing);
-        gates.lineStyle(8, 0xf4f1ea, 1);
-        gates.lineBetween(lfx, lfy, lfx + leftDoor.x, lfy + leftDoor.y);
-        gates.lineBetween(rfx, rfy, rfx + rightDoor.x, rfy + rightDoor.y);
-      }
-    }
-
-    frameCamera(immediate: boolean) {
-      const camera = this.cameras.main;
-      const fitZoom = Math.min(camera.width / bounds.width, camera.height / bounds.height) * 0.92;
-      restZoom = Math.max(0.2, fitZoom);
-      const gateA = poseAt(0, 1);
-      const gateB = poseAt(0, race.horses.length);
-      const gateSpan = Math.hypot(gateB.x - gateA.x, gateB.y - gateA.y) + 280;
-      const gateZoom = Phaser.Math.Clamp((camera.height / gateSpan) * 1.2, restZoom + 0.45, 1.75);
-      let focusX = (gateA.x + gateB.x) / 2;
-      let focusY = (gateA.y + gateB.y) / 2;
-      let targetZoom = gateZoom;
-      const showing = beat === "focus" || beat === "announce";
-      const skillHorse = showing ? actors.find((actor) => actor.horse.number === skillFocusNumber) : undefined;
-      const nearFinish = started && actors.some((actor) => actor.progress >= 0.9);
-      if (!started) {
-        targetZoom = gateZoom;
-      } else if (skillHorse) {
-        targetZoom = Math.max(FOCUS_ZOOM, restZoom + 0.5);
-        focusX = skillHorse.container.x;
-        focusY = skillHorse.container.y;
-      } else if (nearFinish) {
-        const inner = poseAt(1, 1);
-        const outer = poseAt(1, race.horses.length);
-        focusX = (inner.x + outer.x) / 2;
-        focusY = (inner.y + outer.y) / 2;
-        targetZoom = Math.max(1.05, restZoom + 0.4);
-      } else {
-        focusX = bounds.x + bounds.width / 2;
-        focusY = bounds.y + bounds.height / 2;
-        targetZoom = restZoom;
-      }
-      const zoomStep = targetZoom > zoom ? ZOOM_IN : showing ? ZOOM_OUT : 0.08;
-      zoom += (targetZoom - zoom) * (immediate ? 1 : zoomStep);
-      const viewW = camera.width / zoom;
-      const viewH = camera.height / zoom;
-      const halfW = camera.width / 2;
-      const halfH = camera.height / 2;
-      const desiredX =
-        viewW >= bounds.width
-          ? bounds.x + bounds.width / 2 - halfW
-          : Phaser.Math.Clamp(focusX - halfW, bounds.x + viewW / 2 - halfW, bounds.x + bounds.width - viewW / 2 - halfW);
-      const desiredY =
-        viewH >= bounds.height
-          ? bounds.y + bounds.height / 2 - halfH
-          : Phaser.Math.Clamp(focusY - halfH, bounds.y + viewH / 2 - halfH, bounds.y + bounds.height - viewH / 2 - halfH);
-      const blend = immediate ? 1 : showing ? 0.45 : nearFinish ? 0.4 : 0.2;
-      camera.setZoom(zoom);
-      camera.scrollX += (desiredX - camera.scrollX) * blend;
-      camera.scrollY += (desiredY - camera.scrollY) * blend;
-    }
-
-    publishRanks() {
-      const finished = (actor: Actor) => raceTime + 0.0001 >= actor.horse.finishTime;
-      const ordered = [...actors].sort((a, b) => {
-        const aDone = finished(a);
-        const bDone = finished(b);
-        if (aDone && bDone) return a.horse.rank - b.horse.rank;
-        if (aDone !== bDone) return aDone ? -1 : 1;
-        return b.shown - a.shown || a.horse.number - b.horse.number;
-      });
-      const nextKey = ordered.map((actor) => actor.horse.id).join(">");
-      if (nextKey === rankKey) return;
-      rankKey = nextKey;
-      hooks.onRanks(
-        ordered.map((actor, index) => ({
+    orderedField(raceNow: number) {
+      return orderByPresentation(
+        actors.map((actor) => ({
           id: actor.horse.id,
           name: actor.horse.name,
-          place: index + 1,
-          color: actor.horse.color,
+          number: actor.horse.number,
           portrait: actor.horse.portrait,
+          color: actor.horse.color,
+          shown: actor.shown,
+          finishTime: actor.horse.finishTime,
+          rank: actor.horse.rank,
         })),
+        raceNow,
       );
+    }
+
+    publishField(phase: RaceOverlaySnapshot["phase"], countdown: string | null) {
+      const ordered = this.orderedField(phase === "racing" ? raceTime : 0);
+      const nextKey = ordered.map((horse) => horse.id).join(">");
+      const phaseSig = `${phase}|${countdown ?? ""}|${nextKey}`;
+      if (phaseSig === lastPhaseSig && wallClock - lastPresentationAt < 0.1) return;
+      lastPhaseSig = phaseSig;
+      lastPresentationAt = wallClock;
+      hooks.onPresentation({
+        phase,
+        countdown,
+        horses: ordered.map((horse, index) => ({
+          id: horse.id,
+          name: horse.name,
+          number: horse.number,
+          place: index + 1,
+          portrait: horse.portrait,
+          progress: horse.shown,
+        })),
+      });
+    }
+    
+    publishCameraDebug() {
+      const blend = cameraPresentation.blend;
+      const blend01 = cameraBlendProgress(blend, wallClock);
+      const stateLabel = cameraStateLabel(cameraState, lastLeadProgress, finishState);
+      cameraDebugHost().__raceCamera = {
+        state: stateLabel,
+        from: blend?.fromName ?? null,
+        to: blend?.toName ?? null,
+        blend: blend01,
+        duration: blend?.duration ?? 0,
+        raceTime,
+        wallClock,
+        leadProgress: lastLeadProgress,
+        settled: !blend,
+        finishPhase: finishState.phase.kind,
+        finishAge: "age" in finishState.phase ? finishState.phase.age : 0,
+        toGo: toGoAt(finishCourse, raceTime),
+        winnerSheet,
+        horseWidths: actors.filter((actor) => actor.container.visible).map((actor) => actor.sprite.displayWidth),
+        winnerWidth: actors.find((actor) => actor.horse.id === race.ranking[0]?.id)?.sprite.displayWidth ?? 0,
+      };
+    }
+
+    paintDebugOverlay() {
+      if (!debugOverlay) return;
+      debugOverlay.clear();
+      if (cameraDebugHost().__raceDebugVisible === false) {
+        debugText?.setVisible(false);
+        return;
+      }
+      debugText?.setVisible(true);
+      
+      // 무리 중심 계산
+      let packCenterX = 0;
+      let packCenterY = 0;
+      let visibleCount = 0;
+      const horsePosSum = { x: 0, y: 0 };
+      
+      actors.forEach(actor => {
+        const logical = getLogicalAt(actor.progress, laneAt(actor.horse.lanes, raceTime));
+        packCenterX += logical.x;
+        packCenterY += logical.y;
+        horsePosSum.x += actor.container.x;
+        horsePosSum.y += actor.container.y;
+      });
+      
+      packCenterX /= actors.length;
+      packCenterY /= actors.length;
+      horsePosSum.x /= actors.length;
+      horsePosSum.y /= actors.length;
+      
+      // 화면 중심 (파란 선 - 가로/세로 전체)
+      const { x: centerX, y: centerY } = PROJECTION_CENTER;
+      debugOverlay.lineStyle(2, 0x0000ff, 0.6);
+      debugOverlay.lineBetween(0, centerY, REFERENCE.width, centerY);
+      debugOverlay.lineBetween(centerX, 0, centerX, REFERENCE.height);
+      
+      // 실제 말 평균 위치 (초록 십자선)
+      debugOverlay.lineStyle(4, 0x00ff00, 1);
+      debugOverlay.lineBetween(horsePosSum.x - 40, horsePosSum.y, horsePosSum.x + 40, horsePosSum.y);
+      debugOverlay.lineBetween(horsePosSum.x, horsePosSum.y - 40, horsePosSum.x, horsePosSum.y + 40);
+      
+      // 각 말의 노란 점
+      actors.forEach(actor => {
+        const logical = getLogicalAt(actor.progress, laneAt(actor.horse.lanes, raceTime));
+        const projected = projectWithCamera(logical, currentCamera);
+        
+        if (projected.visible && projected.x >= 0 && projected.x <= REFERENCE.width && projected.y >= 0 && projected.y <= REFERENCE.height) {
+          visibleCount++;
+        }
+        
+        debugOverlay?.fillStyle(0xffff00, 1);
+        debugOverlay?.fillCircle(actor.container.x, actor.container.y, 10);
+      });
+      
+      // 텍스트 정보
+      const offsetX = horsePosSum.x - centerX;
+      const offsetY = horsePosSum.y - centerY;
+      const blend = cameraPresentation.blend;
+      const blend01 = cameraBlendProgress(blend, wallClock);
+      const blendLine = blend
+        ? `${blend.fromName}→${blend.toName} ${Math.round(blend01 * 100)}% (${Math.max(0, wallClock - blend.startedAt).toFixed(2)}/${blend.duration.toFixed(2)}s)`
+        : "settled";
+      const stateLabel = cameraStateLabel(cameraState, lastLeadProgress, finishState);
+      const infoText = [
+        `State: ${stateLabel}`,
+        `Blend: ${blendLine}`,
+        `Race: ${raceTime.toFixed(3)}s`,
+        `Wall: ${wallClock.toFixed(3)}s`,
+        `Pack: (${horsePosSum.x.toFixed(0)}, ${horsePosSum.y.toFixed(0)})`,
+        `Offset: (${offsetX.toFixed(0)}, ${offsetY.toFixed(0)})`,
+        `Logic: (${packCenterX.toFixed(0)}, ${packCenterY.toFixed(0)})`,
+        `Center: (${centerX}, ${centerY.toFixed(0)})`,
+        `Visible: ${visibleCount}/8`,
+        `Frame: ${framingRuleFor(cameraState.name) === "all" ? "all" : `top${cameraConfig.framing.topN}`}`,
+        `Grass: ${(grassBelowRailFraction(currentCamera, actors.length) * 100).toFixed(1)}%`,
+        `Margin: ${frameMargin.toFixed(1)}px`,
+      ].join("\n");
+      
+      debugText?.setText(infoText);
+      this.publishCameraDebug();
+    }
+
+    holdDebugShot() {
+      const host = cameraDebugHost();
+      const info = host.__raceCamera;
+      const want = host.__raceCameraWant;
+      if (!info || !want || host.__cameraFreeze) return;
+      if (info.from === want.from && info.to === want.to && info.duration > 0 && info.blend >= 0.5) {
+        host.__cameraFreeze = true;
+        host.__raceCameraFrozen = { ...info };
+      }
     }
   }
 
-  return new Phaser.Game({
-    type: Phaser.AUTO,
+  function visibleArea(): Rect {
+    return stage?.bleed ?? { x: 0, y: 0, ...REFERENCE };
+  }
+
+  function applyStage(scene: Phaser.Scene, next: LandscapeStage) {
+    const { backing, bleed, viewport } = next;
+    game.scale.resize(backing.width, backing.height);
+    // NONE mode only rewrites the canvas CSS size when its own zoom differs, so set it here.
+    game.canvas.style.width = `${viewport.width}px`;
+    game.canvas.style.height = `${viewport.height}px`;
+    const camera = scene.cameras.main;
+    camera.setSize(backing.width, backing.height);
+    camera.setOrigin(0, 0);
+    camera.setZoom(backing.zoom);
+    camera.setScroll(bleed.x, bleed.y);
+    for (const layer of grade) {
+      layer.setPosition(bleed.x + bleed.width / 2, bleed.y + bleed.height / 2).setDisplaySize(bleed.width, bleed.height);
+    }
+  }
+
+  const game = new Phaser.Game({
+    type: Phaser.WEBGL,
     parent,
-    width: Math.max(320, parent.clientWidth),
-    height: VIEW_HEIGHT,
-    backgroundColor: "#145c34",
+    width: REFERENCE.width,
+    height: REFERENCE.height,
+    backgroundColor: BACKDROP,
+    callbacks: {
+      postBoot: (booted) => {
+        booted.canvas.style.opacity = "0";
+      },
+    },
     scene: RaceScene,
-    scale: { mode: Phaser.Scale.RESIZE },
+    render: {
+      mipmapFilter: "LINEAR_MIPMAP_LINEAR",
+    },
+    scale: {
+      mode: Phaser.Scale.NONE,
+    },
     banner: false,
   });
+  cameraDebugHost().__raceGame = game;
+  return {
+    setStage(next) {
+      waitingForLandscape = next.kind === "portrait";
+      if (next.kind === "portrait") return;
+      stage = next;
+      if (created) applyStage(game.scene.getScene("race"), next);
+    },
+    destroy: (removeCanvas) => game.destroy(removeCanvas),
+  };
 }

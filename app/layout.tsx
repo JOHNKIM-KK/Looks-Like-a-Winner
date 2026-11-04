@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -13,11 +13,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "어떤 관상이 1등일까",
-  description: "관상 여덟이 한 바퀴를 달리고, 어떤 얼굴이 1등인지 보는 경주",
+  title: "누가 1등일까",
+  description: "열두 마리가 한 바퀴를 달리고, 누가 1등인지 보는 경주",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+// Without cover, iOS reports env(safe-area-inset-*) as 0 and the race HUD cannot avoid the notch.
+export const viewport: Viewport = {
+  viewportFit: "cover",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="ko"
