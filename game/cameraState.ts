@@ -7,7 +7,6 @@ export type CameraStateName =
   | "STRAIGHT"
   | "CORNER_IN"
   | "CORNER_OUT"
-  | "FINISH"
   | "CLOSEUP";
 
 export type CameraState = {
@@ -53,10 +52,6 @@ export function nextCameraState(
 
   const ends = segmentEnds();
   const lead = snapshot.leadProgress;
-
-  if (lead >= 0.9) {
-    return { name: "FINISH" };
-  }
 
   if (lead >= ends.corner34Exit) {
     return { name: "STRAIGHT" };
@@ -170,16 +165,12 @@ export function getCameraLookForState(
   packCenterX: number,
   packCenterY: number,
 ): CameraLook {
-  const ends = segmentEnds();
-
   switch (state.name) {
     case "START":
       return lookAtPack("START", packCenterX, packCenterY);
 
-    case "STRAIGHT": {
-      const isHomeStretch = snapshot.leadProgress >= ends.corner34Exit;
-      return lookAtPack(isHomeStretch ? "STRAIGHT_HOME" : "STRAIGHT_EARLY", packCenterX, packCenterY);
-    }
+    case "STRAIGHT":
+      return lookAtPack("STRAIGHT_EARLY", packCenterX, packCenterY);
 
     case "CORNER_IN":
       // Outside the left-hand bend, lower than either straight.
@@ -187,10 +178,6 @@ export function getCameraLookForState(
 
     case "CORNER_OUT":
       return lookAtPack("CORNER_OUT", packCenterX, packCenterY);
-
-    case "FINISH":
-      // Aim ahead of the pack, toward +x, where the home-straight goal sits.
-      return lookAtPack("FINISH", packCenterX, packCenterY);
 
     case "CLOSEUP": {
       const horseIndex = state.closeupHorseIndex ?? 0;
@@ -217,10 +204,4 @@ export function getCameraForState(
 
 export function shouldScaleHorseInCorner(state: CameraState): boolean {
   return state.name === "CORNER_IN" || state.name === "CORNER_OUT";
-}
-
-/** Finish post and the checkered line belong on the home straight and at the finish. */
-export function shouldShowFinishMark(stateName: CameraStateName, leadProgress: number) {
-  if (stateName === "FINISH") return true;
-  return stateName === "STRAIGHT" && leadProgress >= segmentEnds().corner34Exit;
 }

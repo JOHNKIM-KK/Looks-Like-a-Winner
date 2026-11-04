@@ -10,7 +10,6 @@ import {
   STRAIGHT,
   outerRailRadius,
   projectWithCamera,
-  segmentEnds,
   type Camera,
 } from "./track";
 
@@ -44,14 +43,12 @@ export type FrameSubject = {
   rank?: number;
 };
 
-/** State-camera key used by `cameraConfig.framing.rules`. STRAIGHT splits on the home straight. */
+/** State-camera key used by `cameraConfig.framing.rules`. */
 export type FramingStateKey =
   | "START"
   | "STRAIGHT_EARLY"
-  | "STRAIGHT_HOME"
   | "CORNER_IN"
   | "CORNER_OUT"
-  | "FINISH"
   | "CLOSEUP";
 
 export type FrameInclude = {
@@ -61,15 +58,12 @@ export type FrameInclude = {
 
 const frameIncludes: FrameInclude[] = [];
 
-export function framingStateKey(state: CameraStateName, leadProgress: number): FramingStateKey {
-  if (state === "STRAIGHT") {
-    return leadProgress >= segmentEnds().corner34Exit ? "STRAIGHT_HOME" : "STRAIGHT_EARLY";
-  }
-  return state;
+export function framingStateKey(state: CameraStateName): FramingStateKey {
+  return state === "STRAIGHT" ? "STRAIGHT_EARLY" : state;
 }
 
-export function framingRuleFor(state: CameraStateName, leadProgress: number): FrameFitRule {
-  return cameraConfig.framing.rules[framingStateKey(state, leadProgress)];
+export function framingRuleFor(state: CameraStateName): FrameFitRule {
+  return cameraConfig.framing.rules[framingStateKey(state)];
 }
 
 export function resetFrameIncludes() {
@@ -127,11 +121,10 @@ export function subjectsForFrameRule(
 export function requiredFrameSubjects(
   subjects: readonly FrameSubject[],
   state: CameraStateName,
-  leadProgress: number,
 ): FrameSubject[] {
   return subjectsForFrameRule(
     subjects,
-    framingRuleFor(state, leadProgress),
+    framingRuleFor(state),
     cameraConfig.framing.includePolicy,
   );
 }
@@ -309,11 +302,6 @@ export function cornerRailSagitta(camera: Camera, lanes = LANE_COUNT) {
   return max;
 }
 
-export function anchorVisible(look: CameraLook, anchor: FrameAnchor) {
-  const pose = projectWithCamera({ x: anchor.x, y: anchor.y, tx: 0, ty: 0 }, cameraFromLook(look));
-  return pose.visible && pose.x >= 0 && pose.x <= REFERENCE.width && pose.y >= 0 && pose.y <= REFERENCE.height;
-}
-
 function widened(look: CameraLook, factor: number): CameraLook {
   return {
     ...look,
@@ -431,7 +419,7 @@ function centerScreenX(look: CameraLook, subjects: FrameSubject[], points: Frame
   return alongX ? withTarget(look, look.targetX + best, look.targetY) : withTarget(look, look.targetX, look.targetY + best);
 }
 
-function composeTopN(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[]) {
+function composeTopN(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[] = []) {
   let current = look;
   for (let pass = 0; pass < 2; pass += 1) {
     current = recenterPack(current, subjects, points);
@@ -494,7 +482,7 @@ function focalFill(look: CameraLook, distance: number, maxFocal: number, subject
  * framings that fit, keep the one with the largest horses. Never closer, and
  * never a longer lens, than `maxZoom`.
  */
-function zoomToFill(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[]) {
+function zoomToFill(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[] = []) {
   if (subjects.length === 0 && points.length === 0) return look;
   const maxZoom = cameraConfig.framing.maxZoom;
   const minFactor = 1 / maxZoom;
@@ -563,19 +551,12 @@ function contentBox(look: CameraLook, subjects: FrameSubject[], points: FrameAnc
   return { minX, maxX, minY, maxY };
 }
 
-function layoutOk(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[]) {
+function layoutOk(look: CameraLook, subjects: FrameSubject[], points: FrameAnchor[] = []) {
   if (subjects.length === 0 && points.length === 0) return true;
   const box = contentBox(look, subjects, points);
   if (!box) return false;
   const worst = Math.min(box.minX - FRAME_LEFT, FRAME_RIGHT - box.maxX, box.minY - FRAME_TOP, FRAME_BOTTOM - box.maxY);
   return worst >= -FIT_SLACK;
-}
-
-/** Finish keeps the post inside the same fit once the lead has reached the finish camera. */
-function finishPostPoints(state: CameraStateName, anchors: FrameAnchor[], leadProgress: number): FrameAnchor[] {
-  if (state !== "FINISH" || leadProgress < 0.9) return [];
-  const post = anchors[0];
-  return post ? [post] : [];
 }
 
 /** Smallest uniform widen that keeps the supplied sprites (and points) inside the safe rect. */
@@ -602,17 +583,14 @@ function fitLook(
   base: CameraLook,
   subjects: FrameSubject[],
   state: CameraStateName,
-  anchors: FrameAnchor[],
-  leadProgress: number,
 ) {
   const bias = cameraConfig.framing.lookBias[state] ?? 0;
   const shifted = shiftLook(base, bias);
-  const rule = framingRuleFor(state, leadProgress);
+  const rule = framingRuleFor(state);
   if (rule !== "topN") {
     return { look: recenterPack(widenToFit(shifted, subjects), subjects), bias, rule };
   }
-  const points = finishPostPoints(state, anchors, leadProgress);
-  return { look: zoomToFill(shifted, subjects, points), bias, rule, points };
+  return { look: zoomToFill(shifted, subjects), bias, rule };
 }
 
 /**
@@ -624,10 +602,8 @@ export function solveFramedLook(
   base: CameraLook,
   subjects: FrameSubject[],
   state: CameraStateName,
-  anchors: FrameAnchor[],
-  leadProgress = 0,
 ): { look: CameraLook; bias: number } {
-  const solved = fitLook(base, requiredFrameSubjects(subjects, state, leadProgress), state, anchors, leadProgress);
+  const solved = fitLook(base, requiredFrameSubjects(subjects, state), state);
   return { look: solved.look, bias: solved.bias };
 }
 
@@ -635,14 +611,12 @@ export function frameHorseLook(
   base: CameraLook,
   subjects: FrameSubject[],
   state: CameraStateName,
-  anchors: FrameAnchor[],
   memory: FrameMemory,
   dt: number,
-  leadProgress = 0,
 ): { look: CameraLook; memory: FrameMemory } {
   tickFrameIncludes(dt);
-  const required = requiredFrameSubjects(subjects, state, leadProgress);
-  const solved = fitLook(base, required, state, anchors, leadProgress);
+  const required = requiredFrameSubjects(subjects, state);
+  const solved = fitLook(base, required, state);
   if (!memory.seeded || dt <= 0) {
     return {
       look: solved.look,
@@ -670,12 +644,11 @@ export function frameHorseLook(
       memory: { distance: look.distance, focalLength: look.focalLength, bias, seeded: true },
     };
   }
-  const points = finishPostPoints(state, anchors, leadProgress);
-  let look = composeTopN(shifted, required, points);
-  if (!layoutOk(look, required, points)) {
-    look = widenToFit(look, required, points);
-    look = composeTopN(look, required, points);
-    if (!layoutOk(look, required, points)) look = widenToFit(look, required, points);
+  let look = composeTopN(shifted, required);
+  if (!layoutOk(look, required)) {
+    look = widenToFit(look, required);
+    look = composeTopN(look, required);
+    if (!layoutOk(look, required)) look = widenToFit(look, required);
   }
   return {
     look,

@@ -14,7 +14,7 @@ import {
   type ShowBeat,
 } from "@/game/skillShow";
 import { playBell } from "@/game/bang";
-import { projectWithCamera, presentationLogical, finishGoalX, finishPostLogical, finishOuterLogical, segmentAt, segmentEnds, LANE_GAP, type Camera } from "@/game/track";
+import { projectWithCamera, presentationLogical, finishGoalX, finishOuterLogical, segmentAt, segmentEnds, LANE_GAP, type Camera } from "@/game/track";
 import {
   FINISH_START,
   advanceFinish,
@@ -29,6 +29,7 @@ import {
   timeScale,
   toGoAt,
   type CaptionCue,
+  type FinishState,
 } from "@/game/finishSequence";
 import {
   createInitialState,
@@ -36,7 +37,6 @@ import {
   getCameraLookForState,
   cameraFromLook,
   shouldScaleHorseInCorner,
-  shouldShowFinishMark,
   type CameraState,
   type CameraStateName,
   type RaceSnapshot,
@@ -174,7 +174,8 @@ function cameraDebugHost(): CameraDebugHost {
   return window as CameraDebugHost;
 }
 
-function cameraStateLabel(state: CameraState, lead: number): string {
+function cameraStateLabel(state: CameraState, lead: number, finish: FinishState): string {
+  if (finish.phase.kind !== "before") return `FINISH-${finish.phase.kind}`;
   if (state.name === "STRAIGHT") {
     return lead >= segmentEnds().corner34Exit ? "STRAIGHT-home" : "STRAIGHT-early";
   }
@@ -377,7 +378,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   
   const DEBUG_ENABLED = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
 
-  const goalInnerLogical = finishPostLogical();
   const goalOuterLogical = finishOuterLogical(Math.max(1, race.horses.length));
   let world: ReturnType<typeof createTrackRenderer> | null = null;
   let gatePlates: Record<GateView, ReturnType<typeof createGatePlate>> | null = null;
@@ -860,21 +860,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       cameraPresentation = advanceCameraPresentation(cameraPresentation, nextState, desiredLook, wallClock);
       cameraState = cameraPresentation.state;
       lastLeadProgress = snapshot.leadProgress;
-      const anchors = cameraState.name === "FINISH" ? [goalInnerLogical, goalOuterLogical] : [];
-      const framed = frameHorseLook(
-        cameraPresentation.look,
-        subjects,
-        cameraState.name,
-        anchors,
-        frameMemory,
-        frameDt,
-        snapshot.leadProgress,
-      );
+      const framed = frameHorseLook(cameraPresentation.look, subjects, cameraState.name, frameMemory, frameDt);
       frameMemory = framed.memory;
-      frameMargin = horseFit(
-        framed.look,
-        requiredFrameSubjects(subjects, cameraState.name, snapshot.leadProgress),
-      ).worst;
+      frameMargin = horseFit(framed.look, requiredFrameSubjects(subjects, cameraState.name)).worst;
       const raceCamera = introCamera(introClock, gateCamera(wallClock, cameraFromLook(framed.look)));
       if (finishState.phase.kind !== "before") finishEnteredFrom ??= currentCamera;
       const winner = placed.find((item) => item.actor.horse.id === race.ranking[0]?.id);
@@ -1469,7 +1457,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     publishCameraDebug() {
       const blend = cameraPresentation.blend;
       const blend01 = cameraBlendProgress(blend, wallClock);
-      const stateLabel = cameraStateLabel(cameraState, lastLeadProgress);
+      const stateLabel = cameraStateLabel(cameraState, lastLeadProgress, finishState);
       cameraDebugHost().__raceCamera = {
         state: stateLabel,
         from: blend?.fromName ?? null,
@@ -1549,7 +1537,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       const blendLine = blend
         ? `${blend.fromName}→${blend.toName} ${Math.round(blend01 * 100)}% (${Math.max(0, wallClock - blend.startedAt).toFixed(2)}/${blend.duration.toFixed(2)}s)`
         : "settled";
-      const stateLabel = cameraStateLabel(cameraState, lastLeadProgress);
+      const stateLabel = cameraStateLabel(cameraState, lastLeadProgress, finishState);
       const infoText = [
         `State: ${stateLabel}`,
         `Blend: ${blendLine}`,
@@ -1560,7 +1548,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         `Logic: (${packCenterX.toFixed(0)}, ${packCenterY.toFixed(0)})`,
         `Center: (${centerX}, ${centerY.toFixed(0)})`,
         `Visible: ${visibleCount}/8`,
-        `Frame: ${framingRuleFor(cameraState.name, lastLeadProgress) === "all" ? "all" : `top${cameraConfig.framing.topN}`}`,
+        `Frame: ${framingRuleFor(cameraState.name) === "all" ? "all" : `top${cameraConfig.framing.topN}`}`,
         `Grass: ${(grassBelowRailFraction(currentCamera, actors.length) * 100).toFixed(1)}%`,
         `Margin: ${frameMargin.toFixed(1)}px`,
       ].join("\n");

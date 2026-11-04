@@ -60,11 +60,10 @@ export type TrackView = {
 };
 
 export function trackViewFor(stateName: string, leadProgress: number, cornerEnd: number): TrackView {
-  const home = stateName === "FINISH" || (stateName === "STRAIGHT" && leadProgress >= cornerEnd);
   return {
-    showStands: stateName === "START" || stateName === "STRAIGHT" || stateName === "FINISH",
+    showStands: stateName === "START" || stateName === "STRAIGHT",
     standHeightScale: STRIP_HEIGHT_SCALE,
-    showFinish: stateName === "FINISH" || home,
+    showFinish: stateName === "STRAIGHT" && leadProgress >= cornerEnd,
     showOuterRail: true,
   };
 }

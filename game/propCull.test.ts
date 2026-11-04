@@ -38,7 +38,7 @@ function framedCamera(state: CameraStateName, progress: number): Camera {
     horses: subjects.map((subject, index) => ({ index, progress })),
   };
   const base = getCameraLookForState({ name: state }, snapshot, packX, packY);
-  const framed = frameHorseLook(base, subjects, state, [], createFrameMemory(base), 0, progress);
+  const framed = frameHorseLook(base, subjects, state, createFrameMemory(base), 0);
   return cameraFromLook(framed.look);
 }
 
@@ -58,8 +58,6 @@ describe("prop near-plane and size cull", () => {
     { name: "START", camera: framedCamera("START", 0) },
     { name: "STRAIGHT_EARLY", camera: framedCamera("STRAIGHT", ends.corner12Exit + 0.04) },
     { name: "CORNER", camera: framedCamera("CORNER_IN", ends.backEnd + 0.02) },
-    { name: "HOME", camera: framedCamera("STRAIGHT", ends.corner34Exit + 0.02) },
-    { name: "FINISH", camera: framedCamera("FINISH", 0.98) },
   ];
 
   it("drops the tree in front of the START lens and keeps the far stands", () => {

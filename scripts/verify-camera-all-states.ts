@@ -180,17 +180,4 @@ const straightHomeSnapshot: RaceSnapshot = {
 };
 testCameraState("STRAIGHT-home", { name: "STRAIGHT" }, straightHomeSnapshot);
 
-// FINISH
-const finishSnapshot: RaceSnapshot = {
-  raceTime: 25,
-  started: true,
-  gateOpen: 1,
-  leadProgress: 0.95,
-  horses: Array.from({ length: 8 }, (_, i) => ({
-    index: i,
-    progress: 0.93 + i * 0.003,
-  })),
-};
-testCameraState("FINISH", { name: "FINISH" }, finishSnapshot);
-
 console.log("\n=== 검증 완료 ===");

@@ -47,20 +47,17 @@ describe("transition durations", () => {
     expect(cameraTransitionSeconds({ name: "START" }, { name: "STRAIGHT" })).toBe(START_TO_STRAIGHT_SEC);
     expect(cameraTransitionSeconds({ name: "STRAIGHT" }, { name: "CORNER_IN" })).toBe(0.6);
     expect(cameraTransitionSeconds({ name: "CORNER_OUT" }, { name: "STRAIGHT" })).toBe(0.6);
-    expect(cameraTransitionSeconds({ name: "STRAIGHT" }, { name: "FINISH" })).toBe(0.6);
     expect(cameraTransitionSeconds({ name: "CORNER_IN" }, { name: "CORNER_OUT" })).toBe(0);
 
     const closeup: CameraState = { name: "CLOSEUP", closeupHorseIndex: 2, closeupReturnTo: "STRAIGHT" };
     expect(cameraTransitionSeconds({ name: "STRAIGHT" }, closeup)).toBe(0.25);
-    expect(cameraTransitionSeconds({ name: "FINISH" }, closeup)).toBe(0.25);
     expect(cameraTransitionSeconds(closeup, { name: "STRAIGHT" })).toBe(0.4);
-    expect(cameraTransitionSeconds(closeup, { name: "FINISH" })).toBe(0.4);
     expect(cameraTransitionSeconds(closeup, { name: "CLOSEUP", closeupHorseIndex: 3, closeupReturnTo: "STRAIGHT" })).toBe(0.25);
   });
 });
 
 describe("lead-horse thresholds", () => {
-  test("each bend cuts to corner out at 50%, and the goal camera starts at lead 90%", () => {
+  test("each bend cuts to corner out at 50%, and the home stretch stays STRAIGHT", () => {
     const ends = segmentEnds();
     const mid12 = ends.corner12Entry + (ends.corner12Exit - ends.corner12Entry) * 0.5;
     const mid34 = ends.backEnd + (ends.corner34Exit - ends.backEnd) * 0.5;
@@ -81,8 +78,7 @@ describe("lead-horse thresholds", () => {
     expect(leadState(ends.corner34Exit, { name: "CORNER_OUT" }).name).toBe("STRAIGHT");
     expect(cameraTransitionSeconds({ name: "CORNER_IN" }, { name: "CORNER_OUT" })).toBe(0);
 
-    expect(leadState(0.9 - 1e-6, { name: "STRAIGHT" }).name).toBe("STRAIGHT");
-    expect(leadState(0.9, { name: "STRAIGHT" }).name).toBe("FINISH");
+    expect(leadState(0.99, { name: "STRAIGHT" }).name).toBe("STRAIGHT");
   });
 });
 
@@ -147,15 +143,6 @@ describe("shortest azimuth", () => {
     expect(lerpCameraLook(from, to, 0.5).azimuth).toBeCloseTo(360);
     expect(lerpCameraLook(from, to, 1).azimuth).toBeCloseTo(370);
     expect(Math.abs(shortestAngleDelta(lerpCameraLook(from, to, 0.5).azimuth, 180))).toBeGreaterThan(90);
-  });
-
-  test("corner-out to home straight turns the short way, not the long way", () => {
-    const ends = segmentEnds();
-    const out = look({ name: "CORNER_OUT" }, 0, 0, ends.corner34Exit);
-    const home = look({ name: "STRAIGHT" }, 0, 0, ends.corner34Exit);
-    expect(out.azimuth).toBe(135);
-    expect(home.azimuth).toBe(180);
-    expect(lerpCameraLook(out, home, 0.5).azimuth).toBeCloseTo(157.5);
   });
 });
 
@@ -225,7 +212,6 @@ describe("continuity", () => {
       { from: "STRAIGHT", to: "CORNER_IN", duration: 0.6 },
       { from: "CORNER_IN", to: "CORNER_OUT", duration: 0 },
       { from: "CORNER_OUT", to: "STRAIGHT", duration: 0.6 },
-      { from: "STRAIGHT", to: "FINISH", duration: 0.6 },
     ]);
     expect(transitions[0]?.lead).toBe(0);
     expect(transitions[1]?.lead).toBeGreaterThanOrEqual(ends.corner12Entry);
@@ -239,9 +225,6 @@ describe("continuity", () => {
     expect(transitions[5]?.lead).toBeGreaterThanOrEqual(mid34);
     expect(transitions[5]?.lead).toBeLessThan(ends.corner34Exit);
     expect(transitions[6]?.lead).toBeGreaterThanOrEqual(ends.corner34Exit);
-    expect(transitions[6]?.lead).toBeLessThan(0.9);
-    expect(transitions[7]?.lead).toBeGreaterThanOrEqual(0.9);
-
     const cuts = frames.filter((frame) => frame.cut);
     expect(cuts).toHaveLength(2);
 
@@ -392,7 +375,6 @@ describe("look projection", () => {
       { name: "STRAIGHT" },
       { name: "CORNER_IN" },
       { name: "CORNER_OUT" },
-      { name: "FINISH" },
       { name: "CLOSEUP", closeupHorseIndex: 0 },
     ];
     for (const state of states) {
