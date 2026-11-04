@@ -250,7 +250,8 @@ function paintGallop(
   sprite.setTexture(key, frameName(texture, frame));
   const safeW = frameW || 1;
   const safeH = frameH || 1;
-  sprite.setOrigin(anchorX / safeW, anchorY / safeH);
+  // Phaser mirrors flipX about the frame center, not the origin. The mirrored origin keeps the anchor pixel on the sprite position.
+  sprite.setOrigin((flip ? safeW - anchorX : anchorX) / safeW, anchorY / safeH);
   sprite.setScale(scale);
   sprite.setFlipX(flip);
 }
