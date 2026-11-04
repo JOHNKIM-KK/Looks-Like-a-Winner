@@ -1,4 +1,4 @@
-import { projectWithCamera, laneRadius, goalLineLogical, renderLane, type Camera } from "@/game/track";
+import { projectWithCamera, laneRadius, goalLineLogical, type Camera } from "@/game/track";
 
 const GAME_WIDTH = 540;
 const GAME_HEIGHT = 1170;

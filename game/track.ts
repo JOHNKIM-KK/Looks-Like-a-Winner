@@ -385,10 +385,6 @@ export function viewBounds(lanes: number) {
   return { x: minX - pad, y: minY - pad, width: maxX - minX + pad * 2, height: maxY - minY + pad * 2 };
 }
 
-export function renderLane(lane: number, _progress: number, _seed: number): number {
-  return lane;
-}
-
 type LogicalPoint = {
   x: number;
   y: number;

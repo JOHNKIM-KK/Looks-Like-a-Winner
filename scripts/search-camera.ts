@@ -1,4 +1,4 @@
-import { projectWithCamera, laneRadius, goalLineLogical, renderLane, type Camera } from "@/game/track";
+import { projectWithCamera, laneRadius, goalLineLogical, type Camera } from "@/game/track";
 import { progressAt } from "@/lib/race";
 import { readFile } from "fs/promises";
 

@@ -1,4 +1,4 @@
-import { projectWithCamera, laneRadius, goalLineLogical, renderLane, sampleChuteLogical, type Camera } from "@/game/track";
+import { projectWithCamera, laneRadius, goalLineLogical, sampleChuteLogical, type Camera } from "@/game/track";
 import { progressAt } from "@/lib/race";
 
 const GAME_WIDTH = 540;
