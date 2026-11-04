@@ -31,6 +31,7 @@ export function RaceResult({ race, onRematch, onExit }: Props) {
           background: style.panel,
           fontFamily: style.fontFamily,
           color: style.text,
+          animation: "results-in 0.4s ease-out both",
         }}
       >
         <h2

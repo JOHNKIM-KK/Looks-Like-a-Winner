@@ -41,6 +41,17 @@ body::before {
   );
 }
 
+@keyframes results-in {
+  from {
+    transform: translateX(48px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 @keyframes skill-in {
   from {
     transform: translateY(18px);
