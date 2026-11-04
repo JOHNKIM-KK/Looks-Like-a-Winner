@@ -22,13 +22,19 @@ import {
 const HALF = STRAIGHT / 2;
 
 describe("closed lap", () => {
-  test("the chute, the 2/3 finish, and both bends are one continuous 222 m lap", () => {
+  test("the chute, the 2/3 finish, and both bends are one continuous 357 m lap", () => {
     const meters = referenceDistance() / ENGINE_PX_PER_M;
-    expect(meters).toBeCloseTo(RACE_METERS, 3);
+    expect(meters).toBeCloseTo(55 + (8 / 3) * 80.3 + 28 * Math.PI, 3);
+    expect(Math.round(meters)).toBe(RACE_METERS);
     expect(CHUTE / ENGINE_PX_PER_M).toBeCloseTo(CHUTE_M, 3);
     expect(finishGoalX()).toBeCloseTo(-HALF + FINISH_HOME_FRACTION * STRAIGHT, 5);
 
     const ends = segmentEnds();
+    const sectionStartsM = [ends.chuteEnd, ends.corner12Entry, ends.corner12Exit, ends.backEnd, ends.corner34Exit].map(
+      (end) => end * meters,
+    );
+    [55, 135.3, 179.28, 259.58, 303.56].forEach((expected, index) => expect(sectionStartsM[index]).toBeCloseTo(expected, 2));
+
     const marks = [0, ends.chuteEnd, ends.corner12Entry, ends.corner12Exit, ends.backEnd, ends.corner34Exit, 1, 1.1];
     for (let lane = 1; lane <= LANE_COUNT; lane += 1) {
       const radius = laneRadius(lane);

@@ -15,18 +15,18 @@ function inside(point: { x: number; y: number; visible: boolean }) {
 }
 
 describe("finish goal", () => {
-  test("FINISH goal line at t=36 has an endpoint inside the 1600x900 view", () => {
+  test("FINISH goal line at t=53 has an endpoint inside the 1600x900 view", () => {
     for (const seed of SEEDS) {
       const race = simulateRace(mockHorses, seed);
       const points = race.horses.map((horse) => {
-        const progress = progressAt(horse.samples, 36);
+        const progress = progressAt(horse.samples, 53);
         return trackPoint(progress, renderLane(horse.number, progress, race.seed));
       });
       const packCenterX = points.reduce((sum, point) => sum + point.x, 0) / points.length;
       const packCenterY = points.reduce((sum, point) => sum + point.y, 0) / points.length;
       const camera = getCameraForState(
         { name: "FINISH" },
-        { raceTime: 36, started: true, gateOpen: 1, leadProgress: 0.95, horses: [] },
+        { raceTime: 53, started: true, gateOpen: 1, leadProgress: 0.95, horses: [] },
         packCenterX,
         packCenterY,
       );

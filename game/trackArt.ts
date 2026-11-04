@@ -1,6 +1,7 @@
 import {
   LOGICAL_PER_METER,
   STANDS_BEHIND_OUTER_M,
+  STRIP_PERIOD_M,
   TILE_M,
   TREES_BEHIND_RAIL_M,
   farRailRadius,
@@ -226,10 +227,10 @@ function standRadius() {
 
 /**
  * The one main stand, 20 m outside the outermost rail behind the home straight (scene 01).
- * It runs past the east bend and stops halfway along the chute, short of the gate.
+ * It runs one 12 m tile past the east bend, clear of the bend stands, and stops halfway along the chute, short of the gate.
  */
 export function mainStandLine(): Vec2[] {
-  return straightSegment(HALF * 1.6, -HALF - CHUTE * 0.5, standRadius());
+  return straightSegment(HALF + STRIP_PERIOD_M * LOGICAL_PER_METER, -HALF - CHUTE * 0.5, standRadius());
 }
 
 /** Thin placeholder across the gate. The real gate arrives in a later pass. */

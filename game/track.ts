@@ -15,13 +15,13 @@ export const RAIL_SECTION_ORIGIN_M = 1.2;
 export const LANE1_Y_M = -0.3;
 export const TRACK_CENTER_Y_M = LANE1_Y_M + ((LANE_COUNT - 1) / 2) * LANE_GAP_M;
 
-export const RACE_METERS = 222;
-export const CHUTE_M = 27;
+export const RACE_METERS = 357;
+export const CHUTE_M = 55;
 export const REFERENCE_RADIUS_M = 14;
 /** Finish line, as a fraction of the home straight from its left end. */
 export const FINISH_HOME_FRACTION = 2 / 3;
-/** Oval straight. Chosen so chute + lap to the 2/3 finish is 222 m. */
-export const STRAIGHT_M = ((RACE_METERS - CHUTE_M - 2 * Math.PI * REFERENCE_RADIUS_M) * 3) / 8;
+/** Oval straight, fixed by SPEC §8-1. Chute + lap to the 2/3 finish rounds to RACE_METERS. */
+export const STRAIGHT_M = 80.3;
 
 export const CHUTE = CHUTE_M * ENGINE_PX_PER_M;
 export const STRAIGHT = STRAIGHT_M * ENGINE_PX_PER_M;
@@ -37,7 +37,7 @@ const MINIMUM_SPRITE_SCALE = 0.45;
 export type SegmentKind = "straight" | "corner" | "final";
 
 export type SegmentEnds = {
-  /** End of the 27 m chute. */
+  /** End of the 55 m chute. */
   chuteEnd: number;
   /** Entrance of corners 1–2, after the opening home straight. */
   corner12Entry: number;

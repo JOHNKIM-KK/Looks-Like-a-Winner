@@ -107,10 +107,12 @@ export type RaceResult = {
 const STAT_KEYS = ["start", "accel", "stamina", "corner", "mental", "luck"] as const;
 const NEUTRAL_BIASES: HorseStats = { start: 0, accel: 0, stamina: 0, corner: 0, mental: 0, luck: 0 };
 /**
- * Neutral progress per second. The lap grew from ~120 m to 222 m (~1.85×),
- * so the same progress rate is already ~1.85× in meters and still finishes near 40 s.
+ * Neutral progress per second. 357 m at the SPEC §8 pace (×1.99) finishes near 60 s.
+ * 59.0 rather than 60.0: stats and skills cost ~3% over neutral, the spurt wins back ~1.4%.
  */
-const BASE_SPEED = 1 / 40.2;
+const BASE_SPEED = 1 / 59.0;
+/** SPEC §8-3: +12% from the home straight entry (303.5 m) to the finish. */
+const FINAL_SPURT = 1.12;
 const ENDS = segmentEnds();
 /** Start skills still land in the chute, not across the whole early section. */
 const START_SEGMENT = ENDS.chuteEnd;
@@ -184,7 +186,7 @@ function speedAt(stats: HorseStats, progress: number) {
   } else if (kind === "corner") {
     phase = 1 + ((stats.corner - 60) / 100) * 0.55;
   } else {
-    phase = 1 + ((stats.stamina - 60) / 100) * 1.35 + ((stats.mental - 60) / 100) * 0.4;
+    phase = (1 + ((stats.stamina - 60) / 100) * 1.35 + ((stats.mental - 60) / 100) * 0.4) * FINAL_SPURT;
   }
   const luck = 1 + ((stats.luck - 60) / 100) * 0.1;
   return Math.max(0.012, BASE_SPEED * phase * luck);

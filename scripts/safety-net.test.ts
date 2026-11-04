@@ -26,17 +26,20 @@ function mean(values: number[]) {
 }
 
 describe("race time", () => {
-  test("mean finish time over 20 seeds stays near 40s", () => {
+  test("mean finish time stays within 60s ±2 on every one of 20 seeds", () => {
     const finishTimes: number[] = [];
     for (const seed of SEEDS) {
       const race = simulateRace(fieldHorses(mockHorses, seed), seed);
-      for (const horse of race.horses) finishTimes.push(horse.finishTime);
+      const seedTimes = race.horses.map((horse) => horse.finishTime);
+      finishTimes.push(...seedTimes);
+      expect(mean(seedTimes), `seed ${seed} mean finish`).toBeGreaterThanOrEqual(58);
+      expect(mean(seedTimes), `seed ${seed} mean finish`).toBeLessThanOrEqual(62);
     }
 
     const finishMean = mean(finishTimes);
     console.log(`20-seed mean finish ${finishMean.toFixed(3)}s over ${finishTimes.length} finishes`);
-    expect(finishMean).toBeGreaterThanOrEqual(36);
-    expect(finishMean).toBeLessThanOrEqual(44);
+    expect(finishMean).toBeGreaterThanOrEqual(59);
+    expect(finishMean).toBeLessThanOrEqual(61);
   });
 });
 
@@ -54,7 +57,7 @@ describe("lane-independent progress", () => {
     expect((ends.corner12Exit - ends.corner12Entry) * distance).not.toBeCloseTo(Math.PI * laneRadius(1), 0);
     expect((ends.corner12Exit - ends.corner12Entry) * distance).not.toBeCloseTo(Math.PI * laneRadius(12), 0);
     expect(ends.corner34Exit).toBeLessThan(1);
-    expect(distance / ENGINE_PX_PER_M).toBeCloseTo(RACE_METERS, 3);
+    expect(Math.round(distance / ENGINE_PX_PER_M)).toBe(RACE_METERS);
 
     for (const seed of SEEDS) {
       const race = simulateRace(fieldHorses(mockHorses, seed), seed);
@@ -79,14 +82,16 @@ describe("lane-independent progress", () => {
 });
 
 describe("section ratios", () => {
-  test("early, mid, and late follow the closed lap, and the lengths add to 222 m", () => {
+  test("early, mid, and late follow the closed lap, and the lengths add to 357 m", () => {
     const ends = segmentEnds();
     const early = ends.corner12Exit;
     const mid = ends.corner34Exit - ends.corner12Exit;
     const late = 1 - ends.corner34Exit;
-    const earlyM = (CHUTE_M + STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M) / RACE_METERS;
-    const midM = (STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M) / RACE_METERS;
-    const lateM = (FINISH_HOME_FRACTION * STRAIGHT_M) / RACE_METERS;
+    const lapM = CHUTE_M + STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M + STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M + FINISH_HOME_FRACTION * STRAIGHT_M;
+    expect(Math.round(lapM)).toBe(RACE_METERS);
+    const earlyM = (CHUTE_M + STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M) / lapM;
+    const midM = (STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M) / lapM;
+    const lateM = (FINISH_HOME_FRACTION * STRAIGHT_M) / lapM;
 
     console.log(
       `sections early=${(early * 100).toFixed(2)}% mid=${(mid * 100).toFixed(2)}% late=${(late * 100).toFixed(2)}% straight=${STRAIGHT_M.toFixed(2)}m`,
