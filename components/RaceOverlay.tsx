@@ -263,26 +263,53 @@ function Progress({ horses }: { horses: OverlayHorse[] }) {
   );
 }
 
+const COUNTDOWN_EXTRUDE = Array.from({ length: overlayLayout.countdown.depth }, (_, step) => {
+  const t = step / (overlayLayout.countdown.depth - 1);
+  const shade = `rgb(${Math.round(150 - 92 * t)}, ${Math.round(96 - 62 * t)}, ${Math.round(34 - 22 * t)})`;
+  return `${-(step + 1) * 0.6}px ${step + 1}px 0 ${shade}`;
+})
+  .concat("-18px 34px 28px rgba(30, 14, 4, 0.55)")
+  .join(", ");
+
+const COUNTDOWN_FACE = [
+  "repeating-linear-gradient(178deg, rgba(255, 250, 225, 0) 0 6px, rgba(255, 250, 225, 0.22) 6px 8px, rgba(140, 86, 24, 0.12) 8px 11px)",
+  "linear-gradient(180deg, #fff6d6 0%, #f5d68c 28%, #dba552 50%, #c98a36 62%, #f2cf82 82%, #fff0c2 100%)",
+].join(", ");
+
 function Countdown({ label }: { label: string }) {
   const box = overlayLayout.countdown;
-  const { style } = overlayLayout;
+  const glyph: CSSProperties = {
+    position: "absolute",
+    inset: 0,
+    ...textStyle(box.fontSize, "transparent", 900),
+    fontFamily: "var(--font-geist-sans), sans-serif",
+    fontStyle: "italic",
+    textAlign: "center",
+  };
   return (
     <div
       data-testid="countdown"
       role="status"
+      aria-label={label}
       style={{
         position: "absolute",
         left: 0,
         width: overlayLayout.view.width,
-        top: box.centerY,
-        transform: "translateY(-50%)",
-        textAlign: "center",
-        ...textStyle(box.fontSize, box.color),
-        WebkitTextStroke: `${style.outlineWidth}px ${style.outlineColor}`,
-        paintOrder: "stroke fill",
+        height: box.fontSize,
+        top: box.centerY - box.fontSize / 2,
       }}
     >
-      {label}
+      <div key={label} style={{ position: "absolute", inset: 0, animation: "countdown-pop 0.8s ease-out both" }}>
+        <span aria-hidden style={{ ...glyph, color: "#2a1406", WebkitTextStroke: "6px #2a1406", textShadow: COUNTDOWN_EXTRUDE }}>
+          {label}
+        </span>
+        <span aria-hidden style={{ ...glyph, WebkitTextStroke: "5px #fff0c4" }}>
+          {label}
+        </span>
+        <span aria-hidden style={{ ...glyph, background: COUNTDOWN_FACE, WebkitBackgroundClip: "text", backgroundClip: "text" }}>
+          {label}
+        </span>
+      </div>
     </div>
   );
 }
