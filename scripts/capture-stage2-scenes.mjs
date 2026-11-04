@@ -9,16 +9,20 @@ const only = process.env.SCENES?.split(",");
 const board = path.resolve("docs/stage2/storyboard");
 fs.mkdirSync(outDir, { recursive: true });
 
+const RACE_M = 357;
 const scenes = [
   { name: "01_drone_park", line: "오늘의 무대", afterMs: 300 },
   { name: "02_drone_descend", line: "출발 게이트로 갑니다", afterMs: 150 },
   { name: "03_gate_front", line: "게이트 진입 완료", afterMs: 500 },
   { name: "04_countdown", wall: 0.4 },
   { name: "05_gates_open", wall: 3.1 },
-  { name: "06_early_straight", lead: 40 / 222 },
-  { name: "07_corner", lead: 96 / 222 },
-  { name: "08_back_final_corner", lead: 150 / 222, settled: true },
-  { name: "09_home_sprint", lead: 200 / 222 },
+  { name: "A1_chute_run", lead: 40 / RACE_M, board: "06_early_straight" },
+  { name: "06_early_straight", lead: 68 / RACE_M },
+  { name: "07_corner", lead: 164 / RACE_M },
+  { name: "08_back_final_corner", lead: 259 / RACE_M, settled: true },
+  { name: "A2_home_entry", lead: 303.5 / RACE_M, board: "09_home_sprint" },
+  { name: "09_home_sprint", lead: 309 / RACE_M },
+  { name: "A3_finish_line", lead: 0.999, board: "10_finish_results" },
   { name: "10_finish_results", result: true },
 ].filter((scene) => !only || only.some((prefix) => scene.name.startsWith(prefix)));
 
@@ -62,8 +66,8 @@ try {
     const file = path.join(tmp, `${scene.name}.png`);
     await page.screenshot({ path: file });
     const cam = await camera();
-    const caption = `seed ${seed}, ${cam.state ?? "intro"}, lead ${((cam.leadProgress ?? 0) * 222).toFixed(0)}/222m`;
-    await sideBySide(file, path.join(board, `${scene.name}.webp`), path.join(outDir, `${scene.name}_vs_storyboard.jpg`), caption);
+    const caption = `seed ${seed}, ${cam.state ?? "intro"}, lead ${((cam.leadProgress ?? 0) * RACE_M).toFixed(1)}/${RACE_M}m`;
+    await sideBySide(file, path.join(board, `${scene.board ?? scene.name}.webp`), path.join(outDir, `${scene.name}_vs_storyboard.jpg`), caption);
     console.log(scene.name, caption);
   }
 } finally {
