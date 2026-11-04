@@ -3,8 +3,8 @@ import { fieldHorses } from "../lib/field";
 import { mockHorses } from "../lib/mockHorses";
 import { simulateRace } from "../lib/race";
 
-/** Enough seeds that a fair 1/12 rate stays inside ±2 percentage points. */
-const SEEDS = 4000;
+/** SPEC §8-4: seeds 1..10000. */
+const SEEDS = 10000;
 
 describe("stall fairness", () => {
   test(
@@ -28,6 +28,6 @@ describe("stall fairness", () => {
         expect(rate, lines[index]).toBeLessThanOrEqual(0.0833 + 0.02);
       }
     },
-    60_000,
+    120_000,
   );
 });
