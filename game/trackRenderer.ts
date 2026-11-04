@@ -56,6 +56,7 @@ export type TrackView = {
   showStands: boolean;
   standHeightScale: number;
   showFinish: boolean;
+  showOuterRail: boolean;
 };
 
 export function trackViewFor(stateName: string, leadProgress: number, cornerEnd: number): TrackView {
@@ -64,6 +65,7 @@ export function trackViewFor(stateName: string, leadProgress: number, cornerEnd:
     showStands: stateName === "START" || stateName === "STRAIGHT" || stateName === "FINISH",
     standHeightScale: STRIP_HEIGHT_SCALE,
     showFinish: stateName === "FINISH" || home,
+    showOuterRail: true,
   };
 }
 
@@ -117,6 +119,7 @@ export function createTrackRenderer(scene: Phaser.Scene) {
     clearSlot(backRail);
     clearSlot(frontRail);
     for (const rail of rails) {
+      if (rail.kind === "outer" && !view.showOuterRail) continue;
       paintVertical(backRail, rail.points, rail.closed, RAIL_IMAGE, 1, camera, null, (from, to) => !railSegmentInFront(rail.kind, from, to, camera));
       paintVertical(frontRail, rail.points, rail.closed, RAIL_IMAGE, 1, camera, null, (from, to) => railSegmentInFront(rail.kind, from, to, camera));
     }
