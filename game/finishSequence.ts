@@ -309,6 +309,15 @@ export function finishCamera(state: FinishState, frame: FinishFrame): Camera | n
   }
 }
 
+/**
+ * The rig rides 1.1 m outside the 1.24 m outer rail, so its top bar and posts would sweep through
+ * the lower frame; no keyframe from the cut on shows it.
+ */
+export function showsOuterRail(state: FinishState) {
+  const { kind } = state.phase;
+  return kind === "before" || kind === "stretch";
+}
+
 /** Photo-finish line and label, freeze only. */
 export function showsPhotoFinish(state: FinishState) {
   return state.phase.kind === "freeze";
@@ -319,14 +328,28 @@ function arrivalSpeed(samples: number[], finishTime: number) {
   return ((1 - progressAt(samples, finishTime - window)) * COURSE_M) / window;
 }
 
+type Finisher = { samples: number[]; finishTime: number };
+
 /**
- * Progress a horse is drawn at. Up to the line it is the simulation. Past it the horse gallops
- * out from its arrival speed, so gaps stay arrival speed × finish-time difference instead of the
- * sim's 7 m brake piling the field onto the winner.
+ * Progress each horse is drawn at, by finishing order. Up to the line it is the simulation. Past
+ * it a horse gallops out from its arrival speed instead of the sim's 7 m brake, which piles the
+ * field onto the winner. It never closes on the horse that finished ahead of it past the gap the
+ * two had at the line, so the finishing order stays readable on the track.
  */
-export function shownProgressAt(samples: number[], finishTime: number, raceTime: number) {
-  if (finishTime <= 0 || raceTime <= finishTime) return progressAt(samples, raceTime);
-  const speed = arrivalSpeed(samples, finishTime);
-  const run = Math.min(raceTime - finishTime, speed / GALLOP_OUT_DECEL);
-  return 1 + (speed * run - (GALLOP_OUT_DECEL * run * run) / 2) / COURSE_M;
+export function gallopOut(ranking: readonly Finisher[]) {
+  const speeds = ranking.map((horse) => arrivalSpeed(horse.samples, horse.finishTime));
+  const gaps: number[] = [];
+  const pastLine = (index: number, raceTime: number): number => {
+    const speed = speeds[index] ?? 0;
+    const run = Math.min(Math.max(0, raceTime - (ranking[index]?.finishTime ?? 0)), speed / GALLOP_OUT_DECEL);
+    const own = speed * run - (GALLOP_OUT_DECEL * run * run) / 2;
+    return index === 0 ? own : Math.min(own, pastLine(index - 1, raceTime) - (gaps[index] ?? 0));
+  };
+  ranking.forEach((horse, index) => gaps.push(index === 0 ? 0 : Math.max(0, pastLine(index - 1, horse.finishTime))));
+  return (index: number, raceTime: number) => {
+    const horse = ranking[index];
+    if (!horse) return 0;
+    if (horse.finishTime <= 0 || raceTime <= horse.finishTime) return progressAt(horse.samples, raceTime);
+    return 1 + pastLine(index, raceTime) / COURSE_M;
+  };
 }

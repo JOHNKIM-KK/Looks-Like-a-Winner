@@ -9,8 +9,8 @@ import {
   captionText,
   finishCamera,
   finishCourseFrom,
+  gallopOut,
   josa,
-  shownProgressAt,
   timeScale,
   toGoAt,
   type FinishFrame,
@@ -161,18 +161,33 @@ describe("gallop-out past the line", () => {
   const samplesFor = (finishTime: number, speed: number) =>
     Array.from({ length: 200 }, (_, index) => Math.min(1.02, 1 + (speed * (index * SAMPLE_STEP - finishTime)) / COURSE_M));
 
-  it("keeps the sim up to the line and keeps gaps after it", () => {
-    const winner = samplesFor(10, 6);
-    const second = samplesFor(10.2, 6);
-    expect(shownProgressAt(winner, 10, 9.5)).toBeCloseTo(1 - 3 / COURSE_M, 6);
-    const gapM = (t: number) => (shownProgressAt(winner, 10, t) - shownProgressAt(second, 10.2, t)) * COURSE_M;
-    expect(gapM(10.2)).toBeCloseTo(1.2, 1);
-    expect(gapM(11.5)).toBeGreaterThan(0.8);
+  const pastLineM = (shown: ReturnType<typeof gallopOut>, index: number, t: number) => (shown(index, t) - 1) * COURSE_M;
+
+  it("keeps the sim up to the line and the gap after it", () => {
+    const shown = gallopOut([
+      { samples: samplesFor(10, 6), finishTime: 10 },
+      { samples: samplesFor(10.2, 6), finishTime: 10.2 },
+    ]);
+    expect(shown(0, 9.5)).toBeCloseTo(1 - 3 / COURSE_M, 6);
+    expect(pastLineM(shown, 0, 10.2) - pastLineM(shown, 1, 10.2)).toBeCloseTo(1.2, 1);
+    expect(pastLineM(shown, 0, 11.5) - pastLineM(shown, 1, 11.5)).toBeGreaterThan(0.8);
+    expect(pastLineM(shown, 0, 30) - pastLineM(shown, 1, 30)).toBeGreaterThan(0.8);
+  });
+
+  it("never lets a faster closer catch the winner after the line", () => {
+    const shown = gallopOut([
+      { samples: samplesFor(10, 6.4), finishTime: 10 },
+      { samples: samplesFor(10.18, 7.3), finishTime: 10.18 },
+    ]);
+    const lineGap = pastLineM(shown, 0, 10.18);
+    for (let t = 10.2; t < 30; t += 0.1) {
+      expect(pastLineM(shown, 0, t) - pastLineM(shown, 1, t)).toBeGreaterThanOrEqual(lineGap - 1e-9);
+    }
   });
 
   it("pulls up on the home straight", () => {
-    const fastest = samplesFor(10, 7.8);
-    const stopM = (shownProgressAt(fastest, 10, 30) - 1) * COURSE_M;
+    const shown = gallopOut([{ samples: samplesFor(10, 7.8), finishTime: 10 }]);
+    const stopM = pastLineM(shown, 0, 30);
     expect(stopM).toBeGreaterThan(18);
     expect(finishGoalX() / ENGINE_PX_PER_M + stopM).toBeLessThan(40.15);
   });
