@@ -12,9 +12,25 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const deploymentUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  process.env.VERCEL_PROJECT_PRODUCTION_URL ??
+  process.env.VERCEL_URL ??
+  "http://localhost:3000";
+
 export const metadata: Metadata = {
-  title: "누가 1등일까",
-  description: "열두 마리가 한 바퀴를 달리고, 누가 1등인지 보는 경주",
+  metadataBase: new URL(
+    deploymentUrl.startsWith("http") ? deploymentUrl : `https://${deploymentUrl}`,
+  ),
+  title: "WINNING POST",
+  description: "모바일로 즐기는 짜릿한 경마, 지금 레이스에 참여하세요.",
+  openGraph: {
+    title: "WINNING POST",
+    description: "모바일로 즐기는 짜릿한 경마, 지금 레이스에 참여하세요.",
+    siteName: "WINNING POST",
+    locale: "ko_KR",
+    type: "website",
+  },
 };
 
 // Without cover, iOS reports env(safe-area-inset-*) as 0 and the race HUD cannot avoid the notch.
