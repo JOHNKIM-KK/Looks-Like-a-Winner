@@ -23,10 +23,10 @@ export const metadata: Metadata = {
     deploymentUrl.startsWith("http") ? deploymentUrl : `https://${deploymentUrl}`,
   ),
   title: "WINNING POST",
-  description: "모바일로 즐기는 짜릿한 경마, 지금 레이스에 참여하세요.",
+  description: "모바일로 경마를 함께하세요.",
   openGraph: {
     title: "WINNING POST",
-    description: "모바일로 즐기는 짜릿한 경마, 지금 레이스에 참여하세요.",
+    description: "모바일로 경마를 함께하세요.",
     siteName: "WINNING POST",
     locale: "ko_KR",
     type: "website",
