@@ -248,6 +248,38 @@ export function groundAt(camera: Camera, sx: number, sy: number) {
   };
 }
 
+export type GroundSample = { x: number; y: number; ok: boolean };
+
+/**
+ * `groundAt` for many points under one camera. The camera's sines and cosines are taken once
+ * and the result is written into `out`, so the per-frame ground mesh pass does no allocation.
+ * Same arithmetic as `groundAt`, step for step.
+ */
+export function makeGroundSampler(camera: Camera) {
+  const { focalLength, height, groundX, groundY } = camera;
+  const cosP = Math.cos(camera.pitch);
+  const sinP = Math.sin(camera.pitch);
+  const cosY = Math.cos(camera.yaw);
+  const sinY = Math.sin(camera.yaw);
+  const centerX = PROJECTION_CENTER.x;
+  const centerY = PROJECTION_CENTER.y;
+  const heightSinP = height * sinP;
+  return (sx: number, sy: number, out: GroundSample) => {
+    const fx = (centerX - sx) / focalLength;
+    const fy = (centerY - sy) / focalLength;
+    const denom = sinP - fy * cosP;
+    out.ok = false;
+    if (Math.abs(denom) < 1e-6) return;
+    const localY = (height * (fy * sinP + cosP)) / denom;
+    const depth = localY * cosP + heightSinP;
+    if (depth < 10) return;
+    const localX = fx * depth;
+    out.x = groundX + localX * cosY - localY * sinY;
+    out.y = groundY + localX * sinY + localY * cosY;
+    out.ok = true;
+  };
+}
+
 /** Worst column of empty grass under the near outer rail, as a fraction of screen height. */
 export function grassBelowRailFraction(camera: Camera, lanes = LANE_COUNT) {
   const outer = outerRailRadius(lanes);

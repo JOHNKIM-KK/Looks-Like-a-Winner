@@ -8,14 +8,13 @@ import {
   propSpriteScale,
 } from "./artScale";
 import { groundAt, skyStripBottomY } from "./cameraFrame";
+import { paintGround as paintGroundMesh } from "./groundMesh";
 import type { Rect } from "./stage";
 import { sceneryFaces } from "./scenery";
 import { finishGoalX, presentationOnRadius, type Camera } from "./track";
 import {
   farRailRadius,
   finishCheckerQuad,
-  groundUv,
-  isDirt,
   projectHeight,
   propSpriteAccepted,
   propStripAccepted,
@@ -23,7 +22,6 @@ import {
   railLines,
   railSegmentInFront,
   startLineQuad,
-  unprojectCell,
   type Vec2,
 } from "./trackArt";
 
@@ -152,36 +150,6 @@ export function createTrackRenderer(scene: Phaser.Scene) {
   return { paint };
 }
 
-function splitGround(
-  camera: Camera,
-  turf: MeshSlot,
-  dirt: MeshSlot,
-  sx0: number,
-  sy0: number,
-  sx1: number,
-  sy1: number,
-  depth: number,
-) {
-  const mx = (sx0 + sx1) / 2;
-  const my = (sy0 + sy1) / 2;
-  emitGround(camera, turf, dirt, sx0, sy0, mx, my, depth + 1);
-  emitGround(camera, turf, dirt, mx, sy0, sx1, my, depth + 1);
-  emitGround(camera, turf, dirt, sx0, my, mx, sy1, depth + 1);
-  emitGround(camera, turf, dirt, mx, my, sx1, sy1, depth + 1);
-}
-
-/** A screen cell that touches both sky and ground, so it should be split down to the horizon. */
-function crossesHorizon(camera: Camera, sx0: number, sy0: number, sx1: number, sy1: number) {
-  const corners = [
-    groundAt(camera, sx0, sy0),
-    groundAt(camera, sx1, sy0),
-    groundAt(camera, sx0, sy1),
-    groundAt(camera, sx1, sy1),
-  ];
-  const hits = corners.filter((corner) => corner.ok).length;
-  return hits > 0 && hits < 4;
-}
-
 function paintFog(fog: Phaser.GameObjects.Graphics, camera: Camera, area: Rect, haze: number) {
   fog.clear();
   const bandH = area.height / FOG_BANDS;
@@ -271,19 +239,7 @@ function enableTurfMipmaps(scene: Phaser.Scene, key: string) {
 }
 
 function paintGround(camera: Camera, turf: MeshSlot, dirt: MeshSlot, area: Rect) {
-  clearSlot(turf);
-  clearSlot(dirt);
-  const col0 = Math.floor(area.x / GROUND_CELL);
-  const col1 = Math.ceil((area.x + area.width) / GROUND_CELL);
-  const row0 = Math.floor(area.y / GROUND_CELL);
-  const row1 = Math.ceil((area.y + area.height) / GROUND_CELL);
-  for (let row = row0; row < row1; row += 1) {
-    for (let col = col0; col < col1; col += 1) {
-      const sx = col * GROUND_CELL;
-      const sy = row * GROUND_CELL;
-      emitGround(camera, turf, dirt, sx, sy, sx + GROUND_CELL, sy + GROUND_CELL, 0);
-    }
-  }
+  paintGroundMesh(camera, turf, dirt, area, GROUND_CELL);
 }
 
 function skyRowColor(scene: Phaser.Scene, width: number, row: number) {
@@ -301,46 +257,6 @@ function skyRowColor(scene: Phaser.Scene, width: number, row: number) {
   }
   if (count === 0) return 0xd9b07a;
   return Phaser.Display.Color.GetColor(Math.round(r / count), Math.round(g / count), Math.round(b / count));
-}
-
-function emitGround(
-  camera: Camera,
-  turf: MeshSlot,
-  dirt: MeshSlot,
-  sx0: number,
-  sy0: number,
-  sx1: number,
-  sy1: number,
-  depth: number,
-) {
-  const cell = unprojectCell(camera, sx0, sy0, sx1, sy1);
-  const wide = sx1 - sx0 > 4 || sy1 - sy0 > 4;
-  if (!cell) {
-    if (wide && crossesHorizon(camera, sx0, sy0, sx1, sy1)) {
-      splitGround(camera, turf, dirt, sx0, sy0, sx1, sy1, depth);
-    }
-    return;
-  }
-  const straddles = cell.corners.some((corner) => isDirt(corner.x, corner.y)) && cell.corners.some((corner) => !isDirt(corner.x, corner.y));
-  if ((cell.spanM > 8 || straddles) && wide) {
-    splitGround(camera, turf, dirt, sx0, sy0, sx1, sy1, depth);
-    return;
-  }
-  const [c0, c1, c2, c3] = cell.corners;
-  if (!c0 || !c1 || !c2 || !c3) return;
-  const cx = (c0.x + c1.x + c2.x + c3.x) / 4;
-  const cy = (c0.y + c1.y + c2.y + c3.y) / 4;
-  const slot = isDirt(cx, cy) ? dirt : turf;
-  const uv0 = groundUv(c0.x, c0.y);
-  const uv1 = groundUv(c1.x, c1.y);
-  const uv2 = groundUv(c2.x, c2.y);
-  const uv3 = groundUv(c3.x, c3.y);
-  const i0 = pushVert(slot, sx0, sy0, uv0.u, uv0.v);
-  const i1 = pushVert(slot, sx1, sy0, uv1.u, uv1.v);
-  const i2 = pushVert(slot, sx0, sy1, uv2.u, uv2.v);
-  const i3 = pushVert(slot, sx1, sy1, uv3.u, uv3.v);
-  pushTri(slot, i0, i2, i1);
-  pushTri(slot, i2, i3, i1);
 }
 
 function paintVertical(
