@@ -141,7 +141,6 @@ export type OverlayHorse = {
   name: string;
   number: number;
   place: number;
-  portrait: string;
   /** Presentation progress along the track, 0–1 and beyond while braking. */
   progress: number;
 };

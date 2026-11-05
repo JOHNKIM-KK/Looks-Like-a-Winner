@@ -3,7 +3,7 @@ import { leadMeters, overlayLayout, resultGapLabel, resultsFit, type OverlayHors
 import { REFERENCE } from "./stage";
 
 function horse(place: number, progress: number): OverlayHorse {
-  return { id: `h${place}`, name: `말${place}`, number: place, place, portrait: "", progress };
+  return { id: `h${place}`, name: `말${place}`, number: place, place, progress };
 }
 
 describe("overlay layout (storyboard 09·10)", () => {

@@ -85,7 +85,6 @@ function createFiller(random: () => number, usedNames: Set<string>, index: numbe
     name,
     title: "임시 출전",
     color: type.color,
-    portrait: type.portrait,
     skillId: type.skillId,
     biases: { ...type.biases },
     reasons: ["같은 출전 규칙으로 채워진 말이다", "칸은 시드가 정한다"],

@@ -5,7 +5,6 @@ import type { RaceResult as RaceData } from "@/lib/race";
 import type { RaceGameHandle } from "@/game/createRaceGame";
 import { introLine } from "@/game/droneIntro";
 import type { RaceOverlaySnapshot } from "@/game/overlayLayout";
-import { rankSlotModeFromSearch, type RankSlotMode } from "@/game/rankDisplay";
 import { RaceOverlay } from "@/components/RaceOverlay";
 import { RaceResult } from "@/components/RaceResult";
 import { RotatePrompt } from "@/components/RotatePrompt";
@@ -41,7 +40,6 @@ export function RaceGame({ race, started, finished, onStart, onComplete, onRemat
   const [ready, setReady] = useState(false);
   const [comment, setComment] = useState(() => introLine(0));
   const [overlay, setOverlay] = useState<RaceOverlaySnapshot>(EMPTY_OVERLAY);
-  const [slotMode] = useState<RankSlotMode>(() => rankSlotModeFromSearch(window.location.search));
 
   useEffect(() => {
     onCompleteRef.current = onComplete;
@@ -95,7 +93,6 @@ export function RaceGame({ race, started, finished, onStart, onComplete, onRemat
           stage={stage}
           snapshot={overlay}
           comment={comment}
-          slotMode={slotMode}
           results={finished ? <RaceResult race={race} hudHeight={stage.hud.height} onRematch={onRematch} onExit={onExit} /> : null}
         />
       ) : null}

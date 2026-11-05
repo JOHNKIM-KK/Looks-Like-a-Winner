@@ -2,7 +2,6 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import { laneColor } from "@/game/laneColors";
-import type { RankSlotMode } from "@/game/rankDisplay";
 import {
   clamp01,
   leadMeters,
@@ -18,11 +17,10 @@ type Props = {
   stage: LandscapeStage;
   snapshot: RaceOverlaySnapshot;
   comment: string;
-  slotMode?: RankSlotMode;
   results?: ReactNode;
 };
 
-export function RaceOverlay({ stage, snapshot, comment, slotMode = "name", results }: Props) {
+export function RaceOverlay({ stage, snapshot, comment, results }: Props) {
   const { frame, scale, hud } = stage;
   const showHud = snapshot.phase !== "countdown";
 
@@ -44,7 +42,7 @@ export function RaceOverlay({ stage, snapshot, comment, slotMode = "name", resul
           data-testid="race-hud"
           style={{ position: "absolute", left: hud.x, top: hud.y, width: hud.width, height: hud.height }}
         >
-          {showHud ? <RankBoard horses={snapshot.horses} slotMode={slotMode} /> : null}
+          {showHud ? <RankBoard horses={snapshot.horses} /> : null}
           {showHud && !results ? <Ticker comment={comment} horses={snapshot.horses} /> : null}
           {results}
         </div>
@@ -74,7 +72,7 @@ function textStyle(fontSize: number, color: string, fontWeight = 700): CSSProper
   };
 }
 
-function RankBoard({ horses, slotMode }: { horses: OverlayHorse[]; slotMode: RankSlotMode }) {
+function RankBoard({ horses }: { horses: OverlayHorse[] }) {
   const board = overlayLayout.board;
   const podium = horses.filter((horse) => horse.place >= 1 && horse.place <= 3);
   const chase = horses.filter((horse) => horse.place >= 4 && horse.place <= 12);
@@ -86,7 +84,7 @@ function RankBoard({ horses, slotMode }: { horses: OverlayHorse[]; slotMode: Ran
     >
       <ol style={rowStyle(board.padX, board.podium.top, board.podium.gap)}>
         {podium.map((horse) => (
-          <PodiumCard key={horse.id} horse={horse} slotMode={slotMode} />
+          <PodiumCard key={horse.id} horse={horse} />
         ))}
       </ol>
       <ol style={rowStyle(board.padX, board.chase.top, board.chase.gap)}>
@@ -111,7 +109,7 @@ function rowStyle(left: number, top: number, gap: number): CSSProperties {
   };
 }
 
-function PodiumCard({ horse, slotMode }: { horse: OverlayHorse; slotMode: RankSlotMode }) {
+function PodiumCard({ horse }: { horse: OverlayHorse }) {
   const card = overlayLayout.board.podium;
   const { style } = overlayLayout;
   const first = horse.place === 1;
@@ -132,24 +130,12 @@ function PodiumCard({ horse, slotMode }: { horse: OverlayHorse; slotMode: RankSl
         {horse.place}
       </span>
       <LaneBadge number={horse.number} size={card.badge} fontSize={card.badgeSize} />
-      {slotMode === "name" ? (
-        <span
-          data-testid="rank-slot-name"
-          style={{ ...textStyle(card.nameSize, style.text, 800), marginLeft: card.nameGap, overflow: "hidden" }}
-        >
-          {horse.name}
-        </span>
-      ) : (
-        // Portrait is a local mock illustration.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={horse.portrait}
-          alt=""
-          width={card.badge}
-          height={card.badge}
-          style={{ width: card.badge, height: card.badge, objectFit: "cover", marginLeft: card.nameGap }}
-        />
-      )}
+      <span
+        data-testid="rank-slot-name"
+        style={{ ...textStyle(card.nameSize, style.text, 800), marginLeft: card.nameGap, overflow: "hidden" }}
+      >
+        {horse.name}
+      </span>
     </li>
   );
 }

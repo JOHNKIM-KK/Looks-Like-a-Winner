@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { assignHorseSheet, assignRiderSheet, createMountedSlots, disableRideLayer, transferRideLayer } from "./mountedPair";
 import { RIDE_ANGLES, horseAttach, ridePose } from "./jockeyRide";
-import { rankSlotModeFromSearch } from "./rankDisplay";
 import {
   HORSE_ANGLES,
   START_FRAME_OFFSET,
@@ -10,6 +9,7 @@ import {
   glyphFontPx,
   glyphHeightPx,
   glyphOutlinePx,
+  glyphRaster,
   luminance,
   cameraElevationDeg,
   headingView,
@@ -166,6 +166,17 @@ describe("saddle number", () => {
     expect(glyphOutlinePx(40)).toBeCloseTo(4.8, 5);
   });
 
+  test("plate numbers rasterize at a few fixed sizes and scale the rest", () => {
+    const small = glyphRaster(glyphFontPx(40));
+    expect(small.font).toBe(64);
+    expect(small.font * small.scale).toBeCloseTo(glyphFontPx(40), 5);
+    expect(small.outline * small.scale).toBeCloseTo(glyphOutlinePx(40), 5);
+    expect(glyphRaster(glyphFontPx(41)).font).toBe(64);
+    const huge = glyphRaster(3094);
+    expect(huge.font).toBe(512);
+    expect(huge.scale).toBeCloseTo(3094 / 512, 5);
+  });
+
   test("flip mirrors the plate across the ground anchor", () => {
     const plate = { cx: 100, cy: 80, h: 30 };
     expect(plateScreenOffset(plate, 160, 200, 1, false).x).toBeCloseTo(-60, 5);
@@ -290,15 +301,6 @@ describe("ride seating", () => {
     expect(topLeftY).toBeCloseTo((ride.offsetY - anchor.anchorY) * scale, 4);
     expect(flipped.x).toBeCloseTo(-seated.x, 4);
     expect(flipped.originX).toBeCloseTo(seated.originX, 6);
-  });
-});
-
-describe("rank slot mode", () => {
-  test("hud query selects face or name and otherwise uses the phase-1 default", () => {
-    expect(rankSlotModeFromSearch("")).toBe("name");
-    expect(rankSlotModeFromSearch("?hud=face")).toBe("face");
-    expect(rankSlotModeFromSearch("?hud=name")).toBe("name");
-    expect(rankSlotModeFromSearch("?hud=photo")).toBe("name");
   });
 });
 

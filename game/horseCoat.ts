@@ -27,6 +27,8 @@ export type HorseCoatLibrary = {
   silksKey(set: AngleSetName, angleIndex: number): string;
   shadowKey(set: AngleSetName, angleIndex: number, frame: number, flip: boolean): string;
   shadowOrigin(set: AngleSetName, angleIndex: number): { x: number; y: number };
+  /** Builds every overlay, then frees the mask sheets: overlays for unbuilt angles cannot be made afterwards. */
+  bakeOverlays(): void;
 };
 
 export function createHorseCoatLibrary(scene: Phaser.Scene): HorseCoatLibrary {
@@ -51,12 +53,13 @@ export function createHorseCoatLibrary(scene: Phaser.Scene): HorseCoatLibrary {
     frameW: number,
     frameH: number,
     paint: (color: Uint8ClampedArray, mask: Uint8ClampedArray, out: Uint8ClampedArray) => void,
+    cachedColor?: Uint8ClampedArray,
   ) {
     if (scene.textures.exists(key)) return key;
     if (!scene.textures.exists(colorKey) || !scene.textures.exists(maskKey)) return key;
     const width = frameW * HORSE_FRAMES;
     const height = frameH;
-    const color = readPixels(scene.textures.get(colorKey).getSourceImage() as CanvasImageSource, width, height);
+    const color = cachedColor ?? readPixels(scene.textures.get(colorKey).getSourceImage() as CanvasImageSource, width, height);
     const mask = readPixels(scene.textures.get(maskKey).getSourceImage() as CanvasImageSource, width, height);
     const canvas = document.createElement("canvas");
     canvas.width = width;
@@ -97,7 +100,8 @@ export function createHorseCoatLibrary(scene: Phaser.Scene): HorseCoatLibrary {
     const key = `horse-cloth-${set}-${angleIndex}`;
     const angle = HORSE_ANGLES[set][angleIndex];
     if (!angle) return key;
-    return overlayKey(key, `horse-color-${set}-${angleIndex}`, `horse-mask-${set}-${angleIndex}`, angle.frameW, angle.frameH, clothOverlayPixels);
+    const color = scene.textures.exists(key) ? undefined : pixelsFor(set, angleIndex)?.color;
+    return overlayKey(key, `horse-color-${set}-${angleIndex}`, `horse-mask-${set}-${angleIndex}`, angle.frameW, angle.frameH, clothOverlayPixels, color);
   }
 
   function rideKey(set: AngleSetName, angleIndex: number) {
@@ -164,7 +168,20 @@ export function createHorseCoatLibrary(scene: Phaser.Scene): HorseCoatLibrary {
     return { x: layout.groundX / layout.width, y: layout.groundY / layout.height };
   }
 
-  return { horseKey, clothKey, rideKey, silksKey, shadowKey, shadowOrigin };
+  function bakeOverlays() {
+    for (const set of ["straight", "corner", "wide"] as const) {
+      for (const angle of HORSE_ANGLES[set]) {
+        clothKey(set, angle.index);
+        scene.textures.remove(`horse-mask-${set}-${angle.index}`);
+      }
+      for (const angle of RIDE_ANGLES[set]) {
+        silksKey(set, angle.index);
+        scene.textures.remove(`ride-mask-${set}-${angle.index}`);
+      }
+    }
+  }
+
+  return { horseKey, clothKey, rideKey, silksKey, shadowKey, shadowOrigin, bakeOverlays };
 }
 
 function readPixels(image: CanvasImageSource, width: number, height: number) {
