@@ -105,7 +105,7 @@
      "yaw_deg": -15,
      "color": "straight_color_a1.webp",
      "mask": "straight_mask_a1.webp",
-     "frame_w": 314,
+     "frame_w": 328,
      "frame_h": 213,
      "sheet": "12 frames in one row",
      "anchor": [
@@ -181,7 +181,7 @@
      "yaw_deg": 0,
      "color": "straight_color_a2.webp",
      "mask": "straight_mask_a2.webp",
-     "frame_w": 320,
+     "frame_w": 339,
      "frame_h": 217,
      "sheet": "12 frames in one row",
      "anchor": [
@@ -257,7 +257,7 @@
      "yaw_deg": 15,
      "color": "straight_color_a3.webp",
      "mask": "straight_mask_a3.webp",
-     "frame_w": 315,
+     "frame_w": 328,
      "frame_h": 222,
      "sheet": "12 frames in one row",
      "anchor": [
@@ -415,7 +415,7 @@
      "yaw_deg": 0,
      "color": "corner_color_a0.webp",
      "mask": "corner_mask_a0.webp",
-     "frame_w": 320,
+     "frame_w": 339,
      "frame_h": 223,
      "sheet": "12 frames in one row",
      "anchor": [
@@ -491,7 +491,7 @@
      "yaw_deg": 20,
      "color": "corner_color_a1.webp",
      "mask": "corner_mask_a1.webp",
-     "frame_w": 311,
+     "frame_w": 321,
      "frame_h": 226,
      "sheet": "12 frames in one row",
      "anchor": [
