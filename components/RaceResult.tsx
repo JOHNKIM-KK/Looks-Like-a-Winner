@@ -1,28 +1,37 @@
 import type { CSSProperties } from "react";
 import type { RaceResult as RaceData } from "@/lib/race";
-import { overlayLayout, resultGapLabel } from "@/game/overlayLayout";
+import { overlayLayout, resultGapLabel, resultsFit } from "@/game/overlayLayout";
 import { LaneBadge } from "@/components/LaneBadge";
 
 type Props = {
   race: RaceData;
+  /** Reference units. */
+  hudHeight: number;
   onRematch: () => void;
   onExit: () => void;
 };
 
-export function RaceResult({ race, onRematch, onExit }: Props) {
+export function RaceResult({ race, hudHeight, onRematch, onExit }: Props) {
   const box = overlayLayout.results;
   const { style } = overlayLayout;
   const winnerTime = race.ranking[0]?.finishTime ?? 0;
 
   return (
-    <>
+    <div
+      style={{
+        position: "absolute",
+        top: box.top,
+        right: box.right,
+        width: box.width,
+        transform: `scale(${resultsFit(hudHeight)})`,
+        transformOrigin: "top right",
+      }}
+    >
       <section
         data-testid="race-results"
         aria-label="경주 결과"
         style={{
-          position: "absolute",
-          top: box.top,
-          right: box.right,
+          position: "relative",
           width: box.width,
           height: box.height,
           boxSizing: "border-box",
@@ -108,7 +117,7 @@ export function RaceResult({ race, onRematch, onExit }: Props) {
         </ol>
       </section>
       <Actions onRematch={onRematch} onExit={onExit} />
-    </>
+    </div>
   );
 }
 
@@ -117,9 +126,9 @@ function cell(fontSize: number, color: string, fontWeight: number): CSSPropertie
 }
 
 function Actions({ onRematch, onExit }: { onRematch: () => void; onExit: () => void }) {
-  const { actions, results, style } = overlayLayout;
+  const { actions, style } = overlayLayout;
   const button: CSSProperties = {
-    width: actions.width,
+    flex: 1,
     height: actions.height,
     borderRadius: 10,
     fontFamily: style.fontFamily,
@@ -130,12 +139,11 @@ function Actions({ onRematch, onExit }: { onRematch: () => void; onExit: () => v
   return (
     <div
       style={{
-        position: "absolute",
-        top: results.top + results.height - actions.height,
-        right: results.right + results.width + actions.gap,
         display: "flex",
         gap: actions.gap,
+        marginTop: actions.top,
         pointerEvents: "auto",
+        animation: "results-in 0.4s ease-out 0.25s both",
       }}
     >
       <button

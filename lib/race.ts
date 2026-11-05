@@ -45,7 +45,6 @@ export type HorseInput = {
   name: string;
   title: string;
   color: string;
-  portrait: string;
   skillId: SkillId;
   biases: HorseStats;
   reasons: [string, string];
@@ -58,7 +57,6 @@ export type SkillCutin = {
   shout: string;
   reason: string;
   hit: boolean;
-  portrait: string;
   color: string;
   horseName: string;
   number: number;
@@ -489,7 +487,6 @@ function buildEvents(horses: RaceHorse[]): RaceEvent[] {
         shout: horse.skillShout,
         reason: horse.reasons[0],
         hit: horse.skillHit,
-        portrait: horse.portrait,
         color: horse.color,
         horseName: horse.name,
         number: horse.number,

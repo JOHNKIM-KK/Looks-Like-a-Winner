@@ -147,12 +147,25 @@ export function glyphHeightPx(plateH: number, spriteScale: number, viewShortSide
   return Math.max(minimum, 1.15 * plateH * spriteScale);
 }
 
+const GLYPH_FONT_RATIO = 1.3;
+
 export function glyphFontPx(glyphHeight: number) {
-  return 1.3 * glyphHeight;
+  return GLYPH_FONT_RATIO * glyphHeight;
 }
 
 export function glyphOutlinePx(glyphHeight: number) {
   return Math.max(3, glyphHeight * 0.12);
+}
+
+const GLYPH_RASTER_PX = [32, 64, 128, 256, 512] as const;
+
+/**
+ * Font size a plate number is rasterized at; the text scale covers the rest.
+ * Every font or stroke change redraws and re-uploads the text canvas, and close cameras ask for 3000px glyphs.
+ */
+export function glyphRaster(fontPx: number) {
+  const font = GLYPH_RASTER_PX.find((px) => px >= fontPx) ?? GLYPH_RASTER_PX[GLYPH_RASTER_PX.length - 1];
+  return { font, outline: glyphOutlinePx(font / GLYPH_FONT_RATIO), scale: fontPx / font };
 }
 
 /** Plate center relative to the ground anchor, in screen pixels. Flip mirrors across the anchor. */

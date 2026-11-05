@@ -7,7 +7,6 @@ export const mockHorses: HorseInput[] = [
     name: "번개",
     title: "앞만 보는 눈",
     color: "#e23b3b",
-    portrait: "/mock/sprinter.jpg",
     skillId: "start-dash" satisfies SkillId,
     biases: { start: 5, accel: 4, stamina: -3, corner: 0, mental: 2, luck: -1 },
     reasons: [
@@ -20,7 +19,6 @@ export const mockHorses: HorseInput[] = [
     name: "하늘새",
     title: "남을 읽는 눈",
     color: "#1f8a84",
-    portrait: "/mock/corner.jpg",
     skillId: "horse-recall" satisfies SkillId,
     biases: { start: 0, accel: 2, stamina: 1, corner: -1, mental: 4, luck: 1 },
     reasons: [
@@ -33,7 +31,6 @@ export const mockHorses: HorseInput[] = [
     name: "은빛바람",
     title: "끝까지 가는 얼굴",
     color: "#d4a017",
-    portrait: "/mock/stamina.jpg",
     skillId: "final-spurt" satisfies SkillId,
     biases: { start: -2, accel: 0, stamina: 5, corner: 1, mental: 4, luck: 0 },
     reasons: [
@@ -46,7 +43,6 @@ export const mockHorses: HorseInput[] = [
     name: "붉은해",
     title: "지름길만 보는 눈",
     color: "#7c5cbf",
-    portrait: "/mock/luck.jpg",
     skillId: "jaywalk" satisfies SkillId,
     biases: { start: 1, accel: 1, stamina: 0, corner: -2, mental: 2, luck: 4 },
     reasons: [
@@ -59,7 +55,6 @@ export const mockHorses: HorseInput[] = [
     name: "천둥",
     title: "비뚤어진 입꼬리",
     color: "#8c3a3a",
-    portrait: "/mock/shot.jpg",
     skillId: "gunshot" satisfies SkillId,
     biases: { start: 2, accel: 2, stamina: 0, corner: 1, mental: 3, luck: 1 },
     reasons: [
@@ -72,7 +67,6 @@ export const mockHorses: HorseInput[] = [
     name: "금빛별",
     title: "좁은 미간",
     color: "#2a6f9a",
-    portrait: "/mock/glare.jpg",
     skillId: "glare" satisfies SkillId,
     biases: { start: 0, accel: 2, stamina: 1, corner: 1, mental: 5, luck: -1 },
     reasons: [
@@ -85,7 +79,6 @@ export const mockHorses: HorseInput[] = [
     name: "청룡",
     title: "자리를 맡은 얼굴",
     color: "#c9842a",
-    portrait: "/mock/crown.jpg",
     skillId: "crown" satisfies SkillId,
     biases: { start: 1, accel: 1, stamina: 2, corner: 0, mental: 3, luck: 2 },
     reasons: [
@@ -98,7 +91,6 @@ export const mockHorses: HorseInput[] = [
     name: "밤하늘",
     title: "금 가는 눈빛",
     color: "#d4537e",
-    portrait: "/mock/crack.jpg",
     skillId: "screen-crack" satisfies SkillId,
     biases: { start: -1, accel: 3, stamina: 0, corner: 1, mental: 4, luck: 0 },
     reasons: [

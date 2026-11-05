@@ -69,7 +69,7 @@ import {
   IDLE_FRAME,
   glyphFontPx,
   glyphHeightPx,
-  glyphOutlinePx,
+  glyphRaster,
   multiplyTint,
   pickHorseAngle,
   plateScreenOffset,
@@ -127,7 +127,6 @@ type Actor = {
   mount: MountedSlots;
   setHorseSheet: (sheet: SpriteSheetRef) => void;
   setRiderSheet: (sheet: SpriteSheetRef) => void;
-  face: Phaser.GameObjects.Image;
   lines: Phaser.GameObjects.Graphics;
   dust: Phaser.GameObjects.Graphics;
   body: Phaser.GameObjects.Graphics;
@@ -483,9 +482,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           this.load.image(`ride-mask-${set}-${angle.index}`, `/jockey/${angle.maskFile}`);
         }
       }
-      for (const horse of race.horses) {
-        this.load.image(`portrait-${horse.id}`, horse.portrait);
-      }
       this.load.image("crack-plate", "/fx/screen-crack.jpg");
       preloadGatePlates(this);
     }
@@ -493,6 +489,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     create() {
       this.cameras.main.setBackgroundColor(BACKDROP);
       coats = createHorseCoatLibrary(this);
+      coats.bakeOverlays();
       world = createTrackRenderer(this);
       gatePlates = {
         drone: createGatePlate(this, "drone"),
@@ -505,24 +502,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       grade = paintGoldenGrade(this);
 
       for (const horse of race.horses) {
-        const canvas = this.textures.createCanvas(`face-${horse.id}`, 64, 64);
-        if (canvas) {
-          const context = canvas.getContext();
-          const source = this.textures.get(`portrait-${horse.id}`).getSourceImage() as CanvasImageSource;
-          context.save();
-          context.beginPath();
-          context.arc(32, 32, 30, 0, Math.PI * 2);
-          context.clip();
-          context.drawImage(source, 0, 0, 64, 64);
-          context.restore();
-          context.strokeStyle = horse.color;
-          context.lineWidth = 6;
-          context.beginPath();
-          context.arc(32, 32, 28, 0, Math.PI * 2);
-          context.stroke();
-          canvas.refresh();
-        }
-
         const sprite = this.add.sprite(0, 0, "horse-color-straight-2").setOrigin(0.5, 0.96);
         const marks = this.add.sprite(0, 0, "horse-color-straight-2").setOrigin(0.5, 0.96).setVisible(false);
         const rider = this.add.sprite(0, 0, "horse-color-straight-2").setOrigin(0.5, 0.96).setVisible(false);
@@ -533,8 +512,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           rider: this.add.sprite(0, 0, "horse-color-straight-2").setVisible(false),
           silks: this.add.sprite(0, 0, "horse-color-straight-2").setVisible(false),
         };
-        const faceKey = this.textures.exists(`face-${horse.id}`) ? `face-${horse.id}` : `portrait-${horse.id}`;
-        const face = this.add.image(0, 0, faceKey).setDisplaySize(52, 52).setVisible(false);
         const lines = this.add.graphics();
         const dust = this.add.graphics();
         const body = this.add.graphics();
@@ -561,7 +538,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           })
           .setOrigin(0.5);
         const container = this.add.container(0, 0);
-        container.add([dust, lines, body, sprite, marks, rider, silks, fadeLayers.sprite, fadeLayers.marks, fadeLayers.rider, fadeLayers.silks, face, number, stamp]);
+        container.add([dust, lines, body, sprite, marks, rider, silks, fadeLayers.sprite, fadeLayers.marks, fadeLayers.rider, fadeLayers.silks, number, stamp]);
         const mount = createMountedSlots();
         const actor: Actor = {
           horse,
@@ -577,7 +554,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           setRiderSheet: (sheet) => {
             actor.mount = assignRiderSheet(actor.mount, sheet);
           },
-          face,
           lines,
           dust,
           body,
@@ -1017,7 +993,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         actor.marks.setAlpha(fade);
         actor.rider.setAlpha(fade);
         actor.silks.setAlpha(fade);
-        actor.face.setAlpha(fade);
         const stumbling = raceTime >= actor.horse.slowFrom && raceTime < actor.horse.slowUntil;
         const flash =
           (stopped && raceTime - actor.horse.stopFrom < 0.15) ||
@@ -1046,7 +1021,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         actor.dust.clear();
         const dir = picked.flip ? 1 : -1;
         const puff = (raceTime * 10 + actor.horse.number) % 1;
-        actor.face.setVisible(onFoot && !sucking);
         // Phaser draws container Text after the gate's Mesh2D front regardless of depth, so the doors cannot hide it.
         actor.number.setVisible(!onFoot && clearOfStall(heading.x));
         if (onFoot && !sucking) {
@@ -1058,8 +1032,10 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           actor.body.lineStyle(4, 0x24180f, 1);
           actor.body.lineBetween(0, -62, -16, -46);
           actor.body.lineBetween(0, -62, 16, -46);
-          actor.face.setDisplaySize(34, 34);
-          actor.face.setPosition(0, -86);
+          actor.body.fillStyle(laneColorValue(actor.horse.number), 1);
+          actor.body.fillCircle(0, -86, 14);
+          actor.body.lineStyle(3, 0x24180f, 1);
+          actor.body.strokeCircle(0, -86, 14);
           actor.dust.fillStyle(0xc4a06a, 0.7);
           actor.dust.fillCircle(dir * 10, 2, 4);
         } else if (!braking && pull > 0.15) {
@@ -1071,11 +1047,12 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         if (plate) {
           const plateAt = plateScreenOffset(plate, angle.anchorX, angle.anchorY, drawn, picked.flip);
           const glyph = glyphHeightPx(plate.h, drawn);
-          actor.number.setPosition(plateAt.x, plateAt.y);
-          const ink = laneNumberInk(actor.horse.number);
-          actor.number.setColor(ink.color);
-          actor.number.setFontSize(`${glyphFontPx(glyph)}px`);
-          actor.number.setStroke(ink.stroke, glyphOutlinePx(glyph));
+          const raster = glyphRaster(glyphFontPx(glyph));
+          actor.number.setPosition(plateAt.x, plateAt.y).setScale(raster.scale);
+          if (actor.number.style.fontSize !== `${raster.font}px`) {
+            actor.number.setFontSize(raster.font);
+            actor.number.setStroke(laneNumberInk(actor.horse.number).stroke, raster.outline);
+          }
         }
         if (castingNow && kind === "jaywalk" && !actor.horse.skillHit) {
           const fence = Math.sin(payoffAge * 30) * 18;
@@ -1456,7 +1433,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           id: actor.horse.id,
           name: actor.horse.name,
           number: actor.horse.number,
-          portrait: actor.horse.portrait,
           color: actor.horse.color,
           shown: actor.shown,
           finishTime: actor.horse.finishTime,
@@ -1481,7 +1457,6 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           name: horse.name,
           number: horse.number,
           place: index + 1,
-          portrait: horse.portrait,
           progress: horse.shown,
         })),
       });
