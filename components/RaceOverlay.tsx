@@ -45,7 +45,7 @@ export function RaceOverlay({ stage, snapshot, comment, slotMode = "name", resul
           style={{ position: "absolute", left: hud.x, top: hud.y, width: hud.width, height: hud.height }}
         >
           {showHud ? <RankBoard horses={snapshot.horses} slotMode={slotMode} /> : null}
-          {showHud ? <Ticker comment={comment} horses={snapshot.horses} /> : null}
+          {showHud && !results ? <Ticker comment={comment} horses={snapshot.horses} /> : null}
           {results}
         </div>
       </div>

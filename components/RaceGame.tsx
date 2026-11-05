@@ -96,7 +96,7 @@ export function RaceGame({ race, started, finished, onStart, onComplete, onRemat
           snapshot={overlay}
           comment={comment}
           slotMode={slotMode}
-          results={finished ? <RaceResult race={race} onRematch={onRematch} onExit={onExit} /> : null}
+          results={finished ? <RaceResult race={race} hudHeight={stage.hud.height} onRematch={onRematch} onExit={onExit} /> : null}
         />
       ) : null}
       {stage?.kind === "portrait" ? <RotatePrompt /> : null}

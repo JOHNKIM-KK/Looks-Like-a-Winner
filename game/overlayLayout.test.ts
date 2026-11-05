@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { leadMeters, overlayLayout, resultGapLabel, type OverlayHorse } from "./overlayLayout";
+import { leadMeters, overlayLayout, resultGapLabel, resultsFit, type OverlayHorse } from "./overlayLayout";
 import { REFERENCE } from "./stage";
 
 function horse(place: number, progress: number): OverlayHorse {
@@ -23,14 +23,25 @@ describe("overlay layout (storyboard 09·10)", () => {
     const { results } = overlayLayout;
     const lastBottom = results.rowsTop + results.rowPitch * 11 + results.rowHeight;
     expect(lastBottom).toBeLessThan(results.height);
-    expect(results.top + results.height).toBeLessThan(REFERENCE.height - overlayLayout.ticker.bottom - overlayLayout.ticker.height);
   });
 
-  it("keeps the rank board clear of the results panel and its buttons", () => {
-    const { board, results, actions } = overlayLayout;
+  it("lines the results panel up with the rank board's top edge", () => {
+    expect(overlayLayout.results.top).toBe(overlayLayout.board.top);
+  });
+
+  it("keeps the rank board clear of the results panel", () => {
+    const { board, results } = overlayLayout;
     const resultsLeft = REFERENCE.width - results.right - results.width;
     expect(board.left + board.width).toBeLessThan(resultsLeft);
-    expect(board.top + board.height).toBeLessThan(results.top + results.height - actions.height);
+  });
+
+  it("shrinks the results and buttons only when the HUD is too short for them", () => {
+    const { results, actions } = overlayLayout;
+    expect(resultsFit(REFERENCE.height)).toBe(1);
+    const short = 700;
+    const fit = resultsFit(short);
+    expect(fit).toBeLessThan(1);
+    expect(results.top + (results.height + actions.top + actions.height) * fit).toBeCloseTo(short - results.bottom);
   });
 });
 

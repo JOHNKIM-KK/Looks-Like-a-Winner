@@ -92,8 +92,10 @@ export const overlayLayout = {
     },
   },
   results: {
-    top: 40,
-    right: 30,
+    top: 16,
+    right: 18,
+    /** Kept clear below the buttons. The panel and buttons shrink together when the HUD is shorter. */
+    bottom: 16,
     width: 530,
     height: 709,
     radius: 12,
@@ -120,11 +122,12 @@ export const overlayLayout = {
     gapRight: 18,
     gapSize: 21,
   },
+  /** Under the results panel, splitting its width. */
   actions: {
+    top: 12,
     gap: 12,
-    width: 140,
-    height: 50,
-    fontSize: 20,
+    height: 56,
+    fontSize: 22,
   },
   countdown: {
     fontSize: 480,
@@ -157,6 +160,14 @@ export function leadMeters(horses: OverlayHorse[]) {
 export function clamp01(value: number) {
   if (!Number.isFinite(value)) return 0;
   return Math.min(1, Math.max(0, value));
+}
+
+/** Scale for the results panel and its buttons so both fit a HUD `hudHeight` reference units tall. */
+export function resultsFit(hudHeight: number) {
+  const { results, actions } = overlayLayout;
+  const needed = results.height + actions.top + actions.height;
+  const room = hudHeight - results.top - results.bottom;
+  return Math.min(1, Math.max(0, room / needed));
 }
 
 /** Winner reads as absolute time, everyone else as the gap behind the winner. */
