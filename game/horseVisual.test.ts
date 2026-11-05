@@ -17,13 +17,15 @@ import {
   plateScreenOffset,
   JOCKEY_TINT_GAMMA,
   type PickedAngle,
-  tintHorsePixels,
-  tintJockeyPixels,
+  clothOverlayPixels,
+  multiplyTint,
+  silksOverlayPixels,
 } from "./horseVisual";
 import { distancePostProgresses } from "./artScale";
 import { cameraFromLook } from "./cameraState";
 import { createDefaultCamera, laneRadius, presentationLogical, projectWithCamera, segmentEnds } from "./track";
 import { isDirt } from "./trackArt";
+import { laneColorValue } from "./laneColors";
 
 describe("horse heading", () => {
   // HEADING_RULE §7: [scene, camera (x, y, height), horse (x, y), tangent, sheetYaw, sheet, flip]
@@ -172,46 +174,53 @@ describe("saddle number", () => {
 });
 
 describe("lane tint", () => {
-  test("coat stays put and the silk mask takes the lane color", () => {
-    const color = new Uint8ClampedArray([200, 100, 50, 255]);
+  const color = new Uint8ClampedArray([200, 100, 50, 255]);
+  const lum = luminance(200, 100, 50);
+
+  test("the coat leaves the cloth overlay transparent", () => {
     const clear = new Uint8ClampedArray([255, 0, 0, 255]);
     const out = new Uint8ClampedArray(4);
-    tintHorsePixels(color, clear, [229, 23, 63], out);
-    expect([...out]).toEqual([200, 100, 50, 255]);
+    clothOverlayPixels(color, clear, out);
+    expect(out[3]).toBe(0);
+  });
 
+  test("the silk mask becomes an opaque gain the lane tint multiplies", () => {
     const silk = new Uint8ClampedArray([0, 255, 0, 255]);
-    tintHorsePixels(color, silk, [229, 23, 63], out);
-    const lum = luminance(200, 100, 50);
+    const out = new Uint8ClampedArray(4);
+    clothOverlayPixels(color, silk, out);
     const gain = (lum / 185) ** 1.1;
-    expect(out[0]).toBe(Math.round(Math.min(255, 229 * gain)));
-    expect(out[1]).toBe(Math.round(Math.min(255, 23 * gain)));
+    expect([...out]).toEqual([...Array(3).fill(Math.round(255 * Math.min(1, gain))), 255]);
+  });
+
+  test("the plate mask uses a linear gain", () => {
+    const plate = new Uint8ClampedArray([0, 0, 255, 255]);
+    const out = new Uint8ClampedArray(4);
+    clothOverlayPixels(color, plate, out);
+    expect(out[0]).toBe(Math.round(255 * (lum / 200)));
     expect(out[3]).toBe(255);
   });
 
-  test("the jockey tint uses the G channel and a steeper gamma", () => {
-    const color = new Uint8ClampedArray([200, 100, 50, 255]);
+  test("the jockey overlay uses the G channel and a steeper gamma", () => {
     const silk = new Uint8ClampedArray([0, 255, 0, 255]);
     const plate = new Uint8ClampedArray([0, 0, 255, 255]);
     const out = new Uint8ClampedArray(4);
-    tintJockeyPixels(color, silk, [229, 23, 63], out);
-    const lum = luminance(200, 100, 50);
-    const gain = (lum / 185) ** JOCKEY_TINT_GAMMA;
+    silksOverlayPixels(color, silk, out);
     expect(JOCKEY_TINT_GAMMA).toBeCloseTo(1.4);
-    expect(out[0]).toBe(Math.round(Math.min(255, 229 * gain)));
-    expect(out[1]).toBe(Math.round(Math.min(255, 23 * gain)));
-    tintJockeyPixels(color, plate, [229, 23, 63], out);
-    expect([...out]).toEqual([200, 100, 50, 255]);
+    expect(out[0]).toBe(Math.round(255 * Math.min(1, (lum / 185) ** JOCKEY_TINT_GAMMA)));
+    expect(out[3]).toBe(255);
+    silksOverlayPixels(color, plate, out);
+    expect(out[3]).toBe(0);
   });
 
-  test("the plate mask is a lane-colored panel", () => {
-    const color = new Uint8ClampedArray([200, 100, 50, 255]);
-    const plate = new Uint8ClampedArray([0, 0, 255, 255]);
-    const out = new Uint8ClampedArray(4);
-    tintHorsePixels(color, plate, [229, 23, 63], out);
-    const lum = luminance(200, 100, 50);
-    const gain = lum / 200;
-    expect(out[0]).toBe(Math.round(229 * gain));
-    expect(out[2]).toBe(Math.round(63 * gain));
+  test("every lane in a 12-horse field gets its own cloth color", () => {
+    const tints = Array.from({ length: 12 }, (_, i) => laneColorValue(i + 1));
+    expect(new Set(tints).size).toBe(12);
+    expect(tints[0]).toBe(0xe5173f);
+  });
+
+  test("tints multiply per channel", () => {
+    expect(multiplyTint(0xe5173f, 0xffffff)).toBe(0xe5173f);
+    expect(multiplyTint(0xff8000, 0x808080)).toBe(0x804000);
   });
 });
 

@@ -165,26 +165,10 @@ export function plateScreenOffset(plate: PlateRect, anchorX: number, anchorY: nu
   };
 }
 
-const LANE_RGB = [
-  [0xe5, 0x17, 0x3f],
-  [0x1f, 0x5b, 0xff],
-  [0xff, 0xd0, 0x00],
-  [0x00, 0xa8, 0x6b],
-  [0x8e, 0x3b, 0xff],
-  [0xff, 0x4f, 0xc8],
-  [0x00, 0xc8, 0xe0],
-  [0x14, 0x18, 0x1f],
-] as const;
-
-export function laneRgb(laneNumber: number): readonly [number, number, number] {
-  const index = (Math.max(1, Math.floor(laneNumber)) - 1) % LANE_RGB.length;
-  return LANE_RGB[index] ?? LANE_RGB[0];
-}
-
-function clampByte(value: number) {
-  if (value < 0) return 0;
-  if (value > 255) return 255;
-  return Math.round(value);
+/** Channel-wise product of two 0xRRGGBB tints. */
+export function multiplyTint(a: number, b: number) {
+  const channel = (shift: number) => Math.round((((a >> shift) & 0xff) * ((b >> shift) & 0xff)) / 255);
+  return (channel(16) << 16) | (channel(8) << 8) | channel(0);
 }
 
 /** Rec.601 luminance of a color-sheet pixel. */
@@ -195,82 +179,48 @@ export function luminance(r: number, g: number, b: number) {
 /** Jockey silks use a steeper gamma than the saddle cloth. The mask is G only. */
 export const JOCKEY_TINT_GAMMA = 1.4;
 
-/**
- * Silks (mask G): lane × (lum/185)^1.1, blended by G.
- * Number plate (mask B): lane × (lum/200), blended by B.
- * Coat (mask R, and everywhere else) stays the bay color sheet.
- */
-export function tintHorsePixels(
-  color: Uint8ClampedArray,
-  mask: Uint8ClampedArray,
-  lane: readonly [number, number, number],
-  out: Uint8ClampedArray,
-) {
-  const [lr, lg, lb] = lane;
-  const pixels = color.length;
-  for (let i = 0; i < pixels; i += 4) {
-    const r = color[i] ?? 0;
-    const g = color[i + 1] ?? 0;
-    const b = color[i + 2] ?? 0;
-    const a = color[i + 3] ?? 0;
-    const maskG = (mask[i + 1] ?? 0) / 255;
-    const maskB = (mask[i + 2] ?? 0) / 255;
-    let or = r;
-    let og = g;
-    let ob = b;
-    if ((maskG > 0 || maskB > 0) && a > 0) {
-      const lum = luminance(r, g, b);
-      if (maskG > 0) {
-        const gain = (lum / 185) ** 1.1;
-        or = or * (1 - maskG) + lr * gain * maskG;
-        og = og * (1 - maskG) + lg * gain * maskG;
-        ob = ob * (1 - maskG) + lb * gain * maskG;
-      }
-      if (maskB > 0) {
-        const gain = lum / 200;
-        or = or * (1 - maskB) + lr * gain * maskB;
-        og = og * (1 - maskB) + lg * gain * maskB;
-        ob = ob * (1 - maskB) + lb * gain * maskB;
-      }
-    }
-    out[i] = clampByte(or);
-    out[i + 1] = clampByte(og);
-    out[i + 2] = clampByte(ob);
-    out[i + 3] = a;
-  }
+function gainByte(gain: number) {
+  return Math.round(255 * Math.min(1, Math.max(0, gain)));
 }
 
 /**
- * Riding jockey. Mask G only, lane × (lum/185)^1.4.
- * Mask R and B stay on the color sheet until the jockey mask is repainted.
+ * One overlay per angle, shared by every lane: RGB is the shading gain, alpha the mask coverage.
+ * Drawn over the bay color sheet with a lane-color tint, it gives coat × (1 − m) + lane × gain × m.
+ * Silks (mask G): gain (lum/185)^1.1. Number plate (mask B): gain lum/200.
  */
-export function tintJockeyPixels(
-  color: Uint8ClampedArray,
-  mask: Uint8ClampedArray,
-  lane: readonly [number, number, number],
-  out: Uint8ClampedArray,
-) {
-  const [lr, lg, lb] = lane;
-  const pixels = color.length;
-  for (let i = 0; i < pixels; i += 4) {
-    const r = color[i] ?? 0;
-    const g = color[i + 1] ?? 0;
-    const b = color[i + 2] ?? 0;
+export function clothOverlayPixels(color: Uint8ClampedArray, mask: Uint8ClampedArray, out: Uint8ClampedArray) {
+  for (let i = 0; i < color.length; i += 4) {
     const a = color[i + 3] ?? 0;
     const maskG = (mask[i + 1] ?? 0) / 255;
-    let or = r;
-    let og = g;
-    let ob = b;
-    if (maskG > 0 && a > 0) {
-      const gain = (luminance(r, g, b) / 185) ** JOCKEY_TINT_GAMMA;
-      or = or * (1 - maskG) + lr * gain * maskG;
-      og = og * (1 - maskG) + lg * gain * maskG;
-      ob = ob * (1 - maskG) + lb * gain * maskG;
+    const maskB = (mask[i + 2] ?? 0) / 255;
+    const cover = maskG + maskB;
+    let gain = 0;
+    if (cover > 0 && a > 0) {
+      const lum = luminance(color[i] ?? 0, color[i + 1] ?? 0, color[i + 2] ?? 0);
+      gain = (((lum / 185) ** 1.1) * maskG + (lum / 200) * maskB) / cover;
     }
-    out[i] = clampByte(or);
-    out[i + 1] = clampByte(og);
-    out[i + 2] = clampByte(ob);
-    out[i + 3] = a;
+    const value = gainByte(gain);
+    out[i] = value;
+    out[i + 1] = value;
+    out[i + 2] = value;
+    out[i + 3] = gain > 0 ? Math.round(a * Math.min(1, cover)) : 0;
+  }
+}
+
+/** Jockey counterpart of `clothOverlayPixels`: silks only (mask G), gamma `JOCKEY_TINT_GAMMA`. */
+export function silksOverlayPixels(color: Uint8ClampedArray, mask: Uint8ClampedArray, out: Uint8ClampedArray) {
+  for (let i = 0; i < color.length; i += 4) {
+    const a = color[i + 3] ?? 0;
+    const maskG = (mask[i + 1] ?? 0) / 255;
+    let gain = 0;
+    if (maskG > 0 && a > 0) {
+      gain = (luminance(color[i] ?? 0, color[i + 1] ?? 0, color[i + 2] ?? 0) / 185) ** JOCKEY_TINT_GAMMA;
+    }
+    const value = gainByte(gain);
+    out[i] = value;
+    out[i + 1] = value;
+    out[i + 2] = value;
+    out[i + 3] = gain > 0 ? Math.round(a * maskG) : 0;
   }
 }
 

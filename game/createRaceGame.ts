@@ -58,7 +58,7 @@ import {
   type FrameMemory,
 } from "@/game/cameraFrame";
 import { cameraConfig } from "@/game/cameraConfig";
-import { laneNumberInk } from "@/game/laneColors";
+import { laneColorValue, laneNumberInk } from "@/game/laneColors";
 import { BACKDROP, LOGICAL_PER_METER, horseSpriteScale } from "@/game/artScale";
 import { createHorseCoatLibrary, type HorseCoatLibrary } from "@/game/horseCoat";
 import {
@@ -70,6 +70,7 @@ import {
   glyphFontPx,
   glyphHeightPx,
   glyphOutlinePx,
+  multiplyTint,
   pickHorseAngle,
   plateScreenOffset,
   type HorseAngle,
@@ -107,6 +108,7 @@ type MountLayers = {
   sprite: Phaser.GameObjects.Sprite;
   marks: Phaser.GameObjects.Sprite;
   rider: Phaser.GameObjects.Sprite;
+  silks: Phaser.GameObjects.Sprite;
 };
 
 const ANGLE_FADE_S = 0.12;
@@ -118,6 +120,8 @@ type Actor = {
   container: Phaser.GameObjects.Container;
   sprite: Phaser.GameObjects.Sprite;
   rider: Phaser.GameObjects.Sprite;
+  /** Jockey silks, drawn above the rider. */
+  silks: Phaser.GameObjects.Sprite;
   /** Saddle cloth and number plate, drawn above the shaded body. */
   marks: Phaser.GameObjects.Sprite;
   mount: MountedSlots;
@@ -401,41 +405,57 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     offsetY: number,
   ) {
     const textures = layers.sprite.scene.textures;
-    const lane = actor.horse.number;
-    const baked = coats?.bakedKey(picked.set, picked.index, lane) ?? `horse-color-${picked.set}-${picked.index}`;
-    const horseKey = horseSheetKey(actor.mount, baked);
+    const sheetKey = coats?.horseKey(picked.set, picked.index) ?? `horse-color-${picked.set}-${picked.index}`;
+    const horseKey = horseSheetKey(actor.mount, sheetKey);
     const horseSheet = actor.mount.horse;
     const anchorX = horseSheet?.anchorX ?? angle.anchorX;
     const anchorY = horseSheet?.anchorY ?? angle.anchorY;
     const frameW = horseSheet?.frameWidth ?? angle.frameW;
     const frameH = horseSheet?.frameHeight ?? angle.frameH;
     paintGallop(layers.sprite, horseKey, frame, anchorX, anchorY, frameW, frameH, drawn, picked.flip);
-    const marksBaked = horseSheet ? null : coats?.marksKey(picked.set, picked.index, lane) ?? null;
-    const marksVisible = marksBaked != null && textures.exists(marksBaked);
-    if (marksVisible && marksBaked) {
-      paintGallop(layers.marks, marksBaked, frame, anchorX, anchorY, frameW, frameH, drawn, picked.flip);
+    const clothKey = horseSheet ? null : coats?.clothKey(picked.set, picked.index) ?? null;
+    const marksVisible = clothKey != null && textures.exists(clothKey);
+    if (marksVisible && clothKey) {
+      paintGallop(layers.marks, clothKey, frame, anchorX, anchorY, frameW, frameH, drawn, picked.flip);
     }
     layers.sprite.setVisible(mounted);
     layers.marks.setVisible(mounted && marksVisible);
     layers.sprite.setPosition(offsetX, offsetY);
     layers.marks.setPosition(offsetX, offsetY);
     const customRide = actor.mount.rider;
-    const rideBaked = actor.mount.rideEnabled ? coats?.rideKey(picked.set, picked.index, lane) ?? null : null;
-    const rideVisible = mounted && actor.mount.rideEnabled && (customRide != null || (rideBaked != null && textures.exists(rideBaked)));
+    const rideKey = actor.mount.rideEnabled ? coats?.rideKey(picked.set, picked.index) ?? null : null;
+    const rideVisible = mounted && actor.mount.rideEnabled && (customRide != null || (rideKey != null && textures.exists(rideKey)));
     layers.rider.setVisible(rideVisible);
+    layers.silks.setVisible(false);
     if (rideVisible && customRide) {
       const rideFrame = frame % Math.max(1, customRide.frames);
       paintGallop(layers.rider, customRide.key, rideFrame, customRide.anchorX, customRide.anchorY, customRide.frameWidth, customRide.frameHeight, drawn, picked.flip);
       layers.rider.setPosition(offsetX, offsetY);
-    } else if (rideVisible && rideBaked) {
+    } else if (rideVisible && rideKey) {
       const seated = ridePose(picked.set, picked.index, frame, angle.anchorX, angle.anchorY, drawn, picked.flip);
       if (seated) {
-        paintGallop(layers.rider, rideBaked, frame, seated.originX * seated.frameW, seated.originY * seated.frameH, seated.frameW, seated.frameH, drawn, picked.flip);
+        const originX = seated.originX * seated.frameW;
+        const originY = seated.originY * seated.frameH;
+        paintGallop(layers.rider, rideKey, frame, originX, originY, seated.frameW, seated.frameH, drawn, picked.flip);
         layers.rider.setPosition(offsetX + seated.x, offsetY + seated.y);
+        const silksKey = coats?.silksKey(picked.set, picked.index) ?? null;
+        if (silksKey && textures.exists(silksKey)) {
+          paintGallop(layers.silks, silksKey, frame, originX, originY, seated.frameW, seated.frameH, drawn, picked.flip);
+          layers.silks.setPosition(offsetX + seated.x, offsetY + seated.y).setVisible(true);
+        }
       } else {
         layers.rider.setVisible(false);
       }
     }
+  }
+
+  /** Body shade on the horse and rider, lane color on the overlays. */
+  function tintMount(layers: MountLayers, lane: number, tint: number, tintMode: Phaser.TintModes) {
+    layers.sprite.setTint(tint).setTintMode(tintMode);
+    layers.rider.setTint(tint).setTintMode(tintMode);
+    layers.marks.setTint(laneColorValue(lane)).setTintMode(Phaser.TintModes.MULTIPLY);
+    const silks = tintMode === Phaser.TintModes.FILL ? tint : multiplyTint(laneColorValue(lane), tint);
+    layers.silks.setTint(silks).setTintMode(tintMode);
   }
 
   class RaceScene extends Phaser.Scene {
@@ -506,10 +526,12 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const sprite = this.add.sprite(0, 0, "horse-color-straight-2").setOrigin(0.5, 0.96);
         const marks = this.add.sprite(0, 0, "horse-color-straight-2").setOrigin(0.5, 0.96).setVisible(false);
         const rider = this.add.sprite(0, 0, "horse-color-straight-2").setOrigin(0.5, 0.96).setVisible(false);
+        const silks = this.add.sprite(0, 0, "horse-color-straight-2").setOrigin(0.5, 0.96).setVisible(false);
         const fadeLayers: MountLayers = {
           sprite: this.add.sprite(0, 0, "horse-color-straight-2").setVisible(false),
           marks: this.add.sprite(0, 0, "horse-color-straight-2").setVisible(false),
           rider: this.add.sprite(0, 0, "horse-color-straight-2").setVisible(false),
+          silks: this.add.sprite(0, 0, "horse-color-straight-2").setVisible(false),
         };
         const faceKey = this.textures.exists(`face-${horse.id}`) ? `face-${horse.id}` : `portrait-${horse.id}`;
         const face = this.add.image(0, 0, faceKey).setDisplaySize(52, 52).setVisible(false);
@@ -539,13 +561,14 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           })
           .setOrigin(0.5);
         const container = this.add.container(0, 0);
-        container.add([dust, lines, body, sprite, marks, rider, fadeLayers.sprite, fadeLayers.marks, fadeLayers.rider, face, number, stamp]);
+        container.add([dust, lines, body, sprite, marks, rider, silks, fadeLayers.sprite, fadeLayers.marks, fadeLayers.rider, fadeLayers.silks, face, number, stamp]);
         const mount = createMountedSlots();
         const actor: Actor = {
           horse,
           container,
           sprite,
           rider,
+          silks,
           marks,
           mount,
           setHorseSheet: (sheet) => {
@@ -993,6 +1016,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         actor.sprite.setAlpha(fade);
         actor.marks.setAlpha(fade);
         actor.rider.setAlpha(fade);
+        actor.silks.setAlpha(fade);
         actor.face.setAlpha(fade);
         const stumbling = raceTime >= actor.horse.slowFrom && raceTime < actor.horse.slowUntil;
         const flash =
@@ -1000,14 +1024,13 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           (stumbling && raceTime - actor.horse.slowFrom < 0.15);
         const tint = flash ? 0xffffff : farShade(pose.scale);
         const tintMode = flash ? Phaser.TintModes.FILL : Phaser.TintModes.MULTIPLY;
-        actor.sprite.setTint(tint).setTintMode(tintMode);
-        actor.rider.setTint(tint).setTintMode(tintMode);
-        actor.marks.setTint(0xffffff).setTintMode(Phaser.TintModes.MULTIPLY);
+        tintMount(actor, actor.horse.number, tint, tintMode);
         actor.number.setTint(0xffffff);
         const wobble = missed || stopped || stumbling ? Math.sin(raceTime * 26) * 8 : 0;
         actor.sprite.setAngle(wobble);
         actor.marks.setAngle(wobble);
         actor.rider.setAngle(wobble);
+        actor.silks.setAngle(wobble);
         if (coats) {
           const shadowKey = coats.shadowKey(picked.set, picked.index, frame, picked.flip);
           const origin = coats.shadowOrigin(picked.set, picked.index);
@@ -1059,6 +1082,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           actor.sprite.setAngle(fence);
           actor.marks.setAngle(fence);
           actor.rider.setAngle(fence);
+          actor.silks.setAngle(fence);
         }
         const fadeLayers = actor.fadeLayers;
         const angleFade = actor.angleFade;
@@ -1067,17 +1091,16 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const fromAngle = angleFade ? HORSE_ANGLES[angleFade.from.set][angleFade.from.index] : undefined;
         if (angleFade && fromAngle && fadeAge < 1 && !customSheets) {
           paintMount(actor, fadeLayers, fromAngle, { ...angleFade.from, flip: picked.flip }, frame, drawn, mounted, recoilX, recoilY);
-          for (const layer of [fadeLayers.sprite, fadeLayers.marks, fadeLayers.rider]) {
+          for (const layer of [fadeLayers.sprite, fadeLayers.marks, fadeLayers.rider, fadeLayers.silks]) {
             layer.setAlpha((1 - fadeAge) * fade).setAngle(actor.sprite.angle);
           }
-          fadeLayers.sprite.setTint(tint).setTintMode(tintMode);
-          fadeLayers.rider.setTint(tint).setTintMode(tintMode);
-          fadeLayers.marks.setTint(0xffffff).setTintMode(Phaser.TintModes.MULTIPLY);
+          tintMount(fadeLayers, actor.horse.number, tint, tintMode);
         } else {
           actor.angleFade = undefined;
           fadeLayers.sprite.setVisible(false);
           fadeLayers.marks.setVisible(false);
           fadeLayers.rider.setVisible(false);
+          fadeLayers.silks.setVisible(false);
         }
         const word =
           casting && (kind === "start" || kind === "final-burst")
