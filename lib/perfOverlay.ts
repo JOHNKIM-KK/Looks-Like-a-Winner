@@ -6,7 +6,7 @@
 
 type CameraProbe = { state?: string; finishPhase?: string; raceTime?: number; wallClock?: number };
 
-type Segment = { label: string; dts: number[]; order: number };
+type Segment = { label: string; dts: number[]; js: number[]; order: number };
 
 export function perfOverlayRequested(search: string) {
   return new URLSearchParams(search).get("perf") === "1";
@@ -30,6 +30,17 @@ export function startPerfOverlay() {
     "position:fixed;left:4px;top:4px;z-index:99999;background:#000b;color:#0f0;font:11px/1.35 monospace;padding:3px 6px;border-radius:4px;white-space:pre-wrap;max-width:92vw;max-height:80vh;overflow:auto";
   document.body.appendChild(badge);
 
+  // Time spent inside everyone else's animation-frame callbacks (the game loop). Frame time far
+  // above this means the wait is outside our JavaScript, usually the GPU or the compositor.
+  const nativeRaf = window.requestAnimationFrame.bind(window);
+  let jsAccum = 0;
+  window.requestAnimationFrame = (callback: FrameRequestCallback) =>
+    nativeRaf((time) => {
+      const began = performance.now();
+      callback(time);
+      jsAccum += performance.now() - began;
+    });
+
   const segments = new Map<string, Segment>();
   let showReport = false;
   let frames = 0;
@@ -46,7 +57,8 @@ export function startPerfOverlay() {
       .map((segment) => {
         const sorted = [...segment.dts].sort((a, b) => a - b);
         const avg = segment.dts.reduce((sum, dt) => sum + dt, 0) / segment.dts.length;
-        return `${segment.label.padEnd(20)} ${(1000 / avg).toFixed(0).padStart(3)}fps avg ${avg.toFixed(0)}ms p95 ${quantile(sorted, 0.95).toFixed(0)}ms`;
+        const js = segment.js.reduce((sum, ms) => sum + ms, 0) / segment.js.length;
+        return `${segment.label.padEnd(20)} ${(1000 / avg).toFixed(0).padStart(3)}fps avg ${avg.toFixed(0)}ms p95 ${quantile(sorted, 0.95).toFixed(0)}ms js ${js.toFixed(0)}ms`;
       });
     return rows.join("\n");
   };
@@ -64,10 +76,12 @@ export function startPerfOverlay() {
     const label = segmentLabel((window as Window & { __raceCamera?: CameraProbe }).__raceCamera);
     let segment = segments.get(label);
     if (!segment) {
-      segment = { label, dts: [], order: segments.size };
+      segment = { label, dts: [], js: [], order: segments.size };
       segments.set(label, segment);
     }
     segment.dts.push(dt);
+    segment.js.push(jsAccum);
+    jsAccum = 0;
 
     if (now - mark >= 1000) {
       line = `${frames} fps  worst ${worst.toFixed(0)}ms  ${label}`;
@@ -76,7 +90,7 @@ export function startPerfOverlay() {
       mark = now;
       render();
     }
-    raf = requestAnimationFrame(tick);
+    raf = nativeRaf(tick);
   };
 
   badge.addEventListener("click", () => {
@@ -85,8 +99,9 @@ export function startPerfOverlay() {
     if (showReport) void navigator.clipboard?.writeText(report()).catch(() => undefined);
   });
 
-  raf = requestAnimationFrame(tick);
+  raf = nativeRaf(tick);
   return () => {
+    window.requestAnimationFrame = nativeRaf;
     cancelAnimationFrame(raf);
     badge.remove();
   };

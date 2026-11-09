@@ -12,6 +12,14 @@ export const SAFE_AREA_PADDING: CSSProperties = {
 
 const TOUCH_PORTRAIT = "(orientation: portrait) and (pointer: coarse)";
 
+/** `?dpr=1.5` caps the render resolution so a slow phone can be tried at a lower one. */
+function pixelRatioNow() {
+  const device = window.devicePixelRatio || 1;
+  const asked = Number.parseFloat(new URLSearchParams(window.location.search).get("dpr") ?? "");
+  if (!(asked > 0)) return device;
+  return Math.min(device, Math.max(0.5, asked));
+}
+
 export function readStageInput(shell: HTMLElement): StageInput | null {
   const box = shell.getBoundingClientRect();
   if (!(box.width >= 1 && box.height >= 1)) return null;
@@ -25,7 +33,7 @@ export function readStageInput(shell: HTMLElement): StageInput | null {
       bottom: px(style.paddingBottom),
       left: px(style.paddingLeft),
     },
-    pixelRatio: window.devicePixelRatio || 1,
+    pixelRatio: pixelRatioNow(),
     touchPortrait: window.matchMedia(TOUCH_PORTRAIT).matches,
   };
 }
