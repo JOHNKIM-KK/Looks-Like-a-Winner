@@ -5,6 +5,7 @@ import type { RaceResult as RaceData } from "@/lib/race";
 import type { RaceGameHandle } from "@/game/createRaceGame";
 import { introLine } from "@/game/droneIntro";
 import type { RaceOverlaySnapshot } from "@/game/overlayLayout";
+import { perfOverlayRequested, startPerfOverlay } from "@/lib/perfOverlay";
 import { RaceOverlay } from "@/components/RaceOverlay";
 import { RaceResult } from "@/components/RaceResult";
 import { RotatePrompt } from "@/components/RotatePrompt";
@@ -44,6 +45,11 @@ export function RaceGame({ race, started, finished, onStart, onComplete, onRemat
   useEffect(() => {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
+
+  useEffect(() => {
+    if (!perfOverlayRequested(window.location.search)) return;
+    return startPerfOverlay();
+  }, []);
 
   useLayoutEffect(() => {
     stageRef.current = stage;
