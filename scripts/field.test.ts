@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fieldHorses } from "../lib/field";
+import { fieldHorses, reshuffleStalls } from "../lib/field";
 import { mockHorses } from "../lib/mockHorses";
 import { MAX_HORSES } from "../lib/race";
 
@@ -27,5 +27,22 @@ describe("race field", () => {
     }
     expect(fillerLeads).toBe(true);
     expect(leadStalls.size).toBeGreaterThan(1);
+  });
+
+  it("reshuffles gate order without changing who is racing", () => {
+    const field = fieldHorses(mockHorses, 7);
+    const again = reshuffleStalls(field, 7);
+    const moved = reshuffleStalls(field, 99);
+    expect(again.map((horse) => horse.id)).toEqual(reshuffleStalls(field, 7).map((horse) => horse.id));
+    expect(moved).toHaveLength(field.length);
+    expect(moved.map((horse) => horse.id).sort()).toEqual(field.map((horse) => horse.id).sort());
+    expect(moved.map((horse) => horse.id)).not.toEqual(field.map((horse) => horse.id));
+    for (const horse of moved) {
+      const original = field.find((entry) => entry.id === horse.id);
+      expect(original).toBeTruthy();
+      expect(horse.name).toBe(original?.name);
+      expect(horse.skillId).toBe(original?.skillId);
+      expect(horse.biases).toEqual(original?.biases);
+    }
   });
 });

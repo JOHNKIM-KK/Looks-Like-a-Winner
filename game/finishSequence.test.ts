@@ -1,142 +1,345 @@
 import { describe, expect, it } from "vitest";
 import { SAMPLE_STEP } from "@/lib/race";
+import { HORSE_LENGTH_M } from "@/lib/lanes";
 import {
   FINISH_START,
   FINISH_TIMELINE,
   advanceFinish,
   boardDue,
+  cameraAtFor,
   captionCue,
   captionText,
+  contestGroups,
   finishCamera,
   finishCourseFrom,
+  finishPlanFrom,
   gallopOut,
   josa,
+  revealedRows,
+  showsOuterRail,
+  showsPhotoFinish,
+  slowSpans,
   timeScale,
   toGoAt,
-  type FinishFrame,
-  type FinishPhase,
+  type BoardHorse,
+  type FinishPlan,
   type FinishState,
 } from "./finishSequence";
 import { ENGINE_PX_PER_M, finishGoalX, referenceDistance, segmentEnds, type Camera } from "./track";
 
+const DT = 1 / 240;
 const COURSE_M = referenceDistance() / ENGINE_PX_PER_M;
 const SPEED = 6.7;
 const EXIT_M = segmentEnds().corner34Exit * COURSE_M;
-const course = finishCourseFrom((t) => (EXIT_M + SPEED * Math.max(0, t)) / COURSE_M, 20);
-const DT = 1 / 240;
+
+function horse(id: string, rank: number, finishTime: number, name = id): BoardHorse {
+  return { id, name, number: rank, rank, finishTime };
+}
+
+function planOf(times: readonly number[], cameraAt = 0): FinishPlan {
+  return finishPlanFrom(
+    times.map((finishTime, index) => horse(String.fromCharCode(97 + index), index + 1, finishTime, `말${index + 1}`)),
+    cameraAt,
+  );
+}
 
 type Step = { wall: number; state: FinishState };
 
-function run(seconds: number): Step[] {
+function run(plan: FinishPlan, seconds: number, start: FinishState = FINISH_START): Step[] {
   const steps: Step[] = [];
-  let state = FINISH_START;
+  let state = start;
   for (let wall = 0; wall <= seconds; wall += DT) {
     steps.push({ wall, state });
-    state = advanceFinish(state, DT, course);
+    state = advanceFinish(state, DT, plan);
   }
   return steps;
 }
 
-const steps = run(16);
-const wallAt = (test: (state: FinishState) => boolean) => steps.find((step) => test(step.state))?.wall ?? NaN;
-const enters = (kind: FinishPhase["kind"]) => wallAt((state) => state.phase.kind === kind);
-const atToGo = (toGo: number): FinishState => ({
-  phase: { kind: "track" },
-  raceTime: (toGoAt(course, 0) - toGo) / SPEED,
-});
-
-function frameAt(state: FinishState, winnerY = 8.6): FinishFrame {
-  const winnerX = finishGoalX() + (COURSE_M * (course.leadProgressAt(state.raceTime) - 1)) * ENGINE_PX_PER_M;
-  const enteredFrom: Camera = { groundX: 0, groundY: 0, height: 500, pitch: 0.2, yaw: 0, focalLength: 1500 };
-  return { course, winner: { x: winnerX, y: winnerY * ENGINE_PX_PER_M }, enteredFrom };
+function approaching(plan: FinishPlan, before = 0.4): FinishState {
+  const raceTime = Math.max(0, plan.winnerAt - before);
+  const onCamera = raceTime >= plan.cameraAt;
+  return {
+    ...FINISH_START,
+    raceTime,
+    phase: onCamera ? { kind: "line" } : { kind: "before" },
+    cameraAge: onCamera ? FINISH_TIMELINE.cameraBlendSec : -1,
+  };
 }
 
-describe("finish course marks", () => {
-  it("cuts 30 m out and freezes with the leader's nose on the line", () => {
-    expect(course.exitAt).toBeCloseTo(0, 6);
-    expect(toGoAt(course, course.cutAt)).toBeCloseTo(30, 6);
-    expect(toGoAt(course, course.freezeAt)).toBeCloseTo(0, 6);
-  });
-});
+function burstLengths(steps: Step[]) {
+  const lengths: number[] = [];
+  let start = -1;
+  let prev = "";
+  for (const step of steps) {
+    const kind = step.state.phase.kind;
+    const bursting = kind === "easeIn" || kind === "slow" || kind === "easeOut";
+    if (prev === "easeOut" && kind === "easeIn" && start >= 0) {
+      lengths.push(step.wall - start);
+      start = step.wall;
+    } else if (bursting && start < 0) start = step.wall;
+    else if (!bursting && start >= 0) {
+      lengths.push(step.wall - start);
+      start = -1;
+    }
+    prev = kind;
+  }
+  return lengths;
+}
 
-describe("finish phases", () => {
-  it("holds the f01 stretch until 30 m out, then cuts to tracking", () => {
-    const lastStretch = steps.filter((step) => step.state.phase.kind === "stretch").at(-1);
-    const firstTrack = steps.find((step) => step.state.phase.kind === "track");
-    expect(toGoAt(course, lastStretch?.state.raceTime ?? 0)).toBeGreaterThan(30);
-    expect(toGoAt(course, firstTrack?.state.raceTime ?? 0)).toBeLessThanOrEqual(30);
-    expect(toGoAt(course, firstTrack?.state.raceTime ?? 0)).toBeGreaterThan(29.9);
+const enteredFrom: Camera = {
+  groundX: 0,
+  groundY: 400,
+  height: 500,
+  pitch: 0.2,
+  yaw: 0.4,
+  focalLength: 800,
+};
+
+describe("contest groups", () => {
+  it("builds no group when every gap is past 0.15s", () => {
+    expect(contestGroups([horse("a", 1, 10), horse("b", 2, 10.16), horse("c", 3, 10.32)])).toEqual([]);
   });
 
-  it("starts the slow-mo phase 10 m out", () => {
-    const firstSlow = steps.find((step) => step.state.phase.kind === "slow");
-    expect(toGoAt(course, firstSlow?.state.raceTime ?? 0)).toBeCloseTo(10, 1);
+  it("groups a single pair at the 0.15s boundary and drops the horse after it", () => {
+    const groups = contestGroups([horse("a", 1, 10), horse("b", 2, 10.15), horse("c", 3, 11)]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.horses.map((entry) => entry.id)).toEqual(["a", "b"]);
+    expect(groups[0]?.photoPairs).toEqual([]);
+    expect(groups[0]?.slowStart).toBeCloseTo(9.6, 6);
+    expect(groups[0]?.slowEnd).toBeCloseTo(10.35, 6);
   });
 
-  it("freezes for 1.0 s of wall time with race time pinned to the nose-on-line moment", () => {
-    const frozen = steps.filter((step) => step.state.phase.kind === "freeze");
-    for (const step of frozen) expect(step.state.raceTime).toBe(course.freezeAt);
-    expect(enters("rise") - enters("freeze")).toBeCloseTo(FINISH_TIMELINE.freezeSec, 2);
+  it("leaves a 0.151s gap ungrouped", () => {
+    expect(contestGroups([horse("a", 1, 10), horse("b", 2, 10.151)])).toEqual([]);
   });
 
-  it("rises for 1.8 s and brings the board in 0.4 s before the rise ends", () => {
-    expect(enters("result") - enters("rise")).toBeCloseTo(FINISH_TIMELINE.riseSec, 2);
-    expect(wallAt(boardDue) - enters("rise")).toBeCloseTo(1.4, 2);
-    expect(steps.filter((step) => step.state.phase.kind === "rise").some((step) => step.state.raceTime > course.freezeAt)).toBe(true);
+  it("marks a 0.03s pair as a photo finish and not a 0.031s pair", () => {
+    const photo = contestGroups([horse("a", 1, 10), horse("b", 2, 10.03)]);
+    expect(photo[0]?.photoPairs).toEqual([{ from: 10, to: 10.03 }]);
+    const plain = contestGroups([horse("a", 1, 10), horse("b", 2, 10.031)]);
+    expect(plain).toHaveLength(1);
+    expect(plain[0]?.photoPairs).toEqual([]);
   });
 
-  it("tracks for about 6.7 s from the cut to the end of the freeze", () => {
-    expect(enters("rise") - enters("track")).toBeCloseTo(2.99 + 2.72 + 1.0, 1);
+  it("groups horses that are not contesting the win", () => {
+    const groups = contestGroups([
+      horse("a", 1, 10),
+      horse("b", 2, 11),
+      horse("c", 3, 20),
+      horse("d", 4, 20.1),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.horses.map((entry) => entry.rank)).toEqual([3, 4]);
+  });
+
+  it("keeps playing one slow across groups whose windows sit within 0.5s", () => {
+    const plan = planOf([10, 10.1, 10.9, 11], 8);
+    expect(plan.spans).toHaveLength(1);
+    const span = plan.spans[0];
+    const steps = run(plan, 12, approaching(plan, 1));
+    const inside = steps.filter(
+      (step) => step.state.raceTime > (span?.start ?? 0) + 0.05 && step.state.raceTime < (span?.end ?? 0) - 0.05,
+    );
+    expect(inside.length).toBeGreaterThan(0);
+    for (const step of inside) expect(["easeIn", "slow", "easeOut"]).toContain(step.state.phase.kind);
+  });
+
+  it("keeps one slow span when the next window starts within 0.5s, including the boundary", () => {
+    const close = contestGroups([
+      horse("a", 1, 10),
+      horse("b", 2, 10.1),
+      horse("c", 3, 10.9),
+      horse("d", 4, 11),
+    ]);
+    const merged = slowSpans(close);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.merged).toBe(true);
+    expect(merged[0]?.start).toBeCloseTo(9.6, 6);
+    expect(merged[0]?.end).toBeCloseTo(11.2, 6);
+
+    const edge = slowSpans(
+      contestGroups([
+        horse("a", 1, 10),
+        horse("b", 2, 10.1),
+        horse("c", 3, 11.2),
+        horse("d", 4, 11.3),
+      ]),
+    );
+    expect(edge).toHaveLength(1);
+
+    const split = slowSpans(
+      contestGroups([
+        horse("a", 1, 10),
+        horse("b", 2, 10.1),
+        horse("c", 3, 11.21),
+        horse("d", 4, 11.31),
+      ]),
+    );
+    expect(split).toHaveLength(2);
+    expect(split[1]!.start - split[0]!.end).toBeGreaterThan(0.5);
   });
 });
 
 describe("time scale", () => {
-  it("eases from real speed to 0.5x between 10 and 7 m out", () => {
-    expect(timeScale(atToGo(12), course)).toBe(1);
-    expect(timeScale(atToGo(10), course)).toBeCloseTo(1, 6);
-    expect(timeScale(atToGo(8.5), course)).toBeCloseTo(0.75, 6);
-    expect(timeScale(atToGo(7), course)).toBeCloseTo(0.5, 6);
-    expect(timeScale(atToGo(2), course)).toBeCloseTo(0.5, 6);
+  const spread = planOf([10, 12, 14], 8);
+
+  it("eases between full speed and 0.3x over 0.2s and holds 0.3x", () => {
+    const state = (kind: FinishState["phase"]["kind"], age: number, raceTime: number): FinishState => ({
+      ...FINISH_START,
+      raceTime,
+      phase:
+        kind === "easeIn" || kind === "slow"
+          ? { kind, age, span: 0 }
+          : kind === "easeOut"
+            ? { kind, age, span: 0, reason: "end" }
+            : { kind: "line" },
+    });
+    expect(timeScale(state("line", 0, 10), spread)).toBe(1);
+    expect(timeScale(state("easeIn", 0, 10), spread)).toBeCloseTo(1, 6);
+    expect(timeScale(state("easeIn", 0.1, 10), spread)).toBeCloseTo(0.65, 6);
+    expect(timeScale(state("easeIn", 0.2, 10), spread)).toBeCloseTo(0.3, 6);
+    expect(timeScale(state("slow", 0.4, 10), spread)).toBe(0.3);
+    expect(timeScale(state("easeOut", 0, 10), spread)).toBeCloseTo(0.3, 6);
+    expect(timeScale(state("easeOut", 0.2, 10), spread)).toBeCloseTo(1, 6);
   });
 
-  it("stops in the freeze and ramps 0.5x back to 1.0x over 0.6 s", () => {
-    const at = (phase: FinishPhase) => timeScale({ phase, raceTime: course.freezeAt }, course);
-    expect(at({ kind: "freeze", age: 0.5 })).toBe(0);
-    expect(at({ kind: "rise", age: 0 })).toBeCloseTo(0.5, 6);
-    expect(at({ kind: "rise", age: 0.3 })).toBeCloseTo(0.75, 6);
-    expect(at({ kind: "rise", age: 0.6 })).toBeCloseTo(1, 6);
-    expect(at({ kind: "result", age: 0 })).toBe(1);
+  it("plays a contest at 0.3x, eases for 0.2s, and caps one burst at 1.5s", () => {
+    const plan = planOf([10, 10.15], 8);
+    const steps = run(plan, 8, approaching(plan, 1));
+    const slow = steps.find((step) => step.state.phase.kind === "slow");
+    expect(slow).toBeTruthy();
+    expect(timeScale(slow?.state ?? FINISH_START, plan)).toBe(0.3);
+
+    const firstIn = steps.find((step) => step.state.phase.kind === "easeIn");
+    const firstSlow = steps.find((step) => step.wall >= (firstIn?.wall ?? 0) && step.state.phase.kind === "slow");
+    expect((firstSlow?.wall ?? 0) - (firstIn?.wall ?? 0)).toBeCloseTo(FINISH_TIMELINE.easeSec, 2);
+
+    const firstOut = steps.find((step) => step.state.phase.kind === "easeOut");
+    const afterOut = steps.find(
+      (step) =>
+        step.wall > (firstOut?.wall ?? 0) &&
+        (step.state.phase.kind === "line" || step.state.phase.kind === "easeIn"),
+    );
+    expect((afterOut?.wall ?? 0) - (firstOut?.wall ?? 0)).toBeCloseTo(FINISH_TIMELINE.easeSec, 2);
+
+    const bursts = burstLengths(steps);
+    expect(bursts.length).toBeGreaterThan(1);
+    for (const length of bursts) expect(length).toBeLessThanOrEqual(FINISH_TIMELINE.slowMaxSec + DT);
+  });
+
+  it("runs at 2x after 3 sim seconds past the winner when nobody is contesting", () => {
+    const plan = planOf([20, 30, 40], 18);
+    const steps = run(plan, 12, approaching(plan, 1));
+    const ratio = (from: number, until: number) => {
+      const start = steps.find((step) => step.state.raceTime >= from && step.state.phase.kind === "line");
+      const end = steps.find((step) => step.wall >= (start?.wall ?? 0) + 0.4 && step.state.raceTime < until);
+      const wall = (end?.wall ?? 0) - (start?.wall ?? 0);
+      return ((end?.state.raceTime ?? 0) - (start?.state.raceTime ?? 0)) / wall;
+    };
+    expect(ratio(20.2, 23)).toBeCloseTo(1, 1);
+    expect(ratio(23.2, 29)).toBeCloseTo(2, 1);
+  });
+
+  it("confirms horses still out after 8 wall seconds at their simulated rank", () => {
+    const plan = planOf([30, 50, 70], 28);
+    const steps = run(plan, 12, approaching(plan, 0.5));
+    const won = steps.find((step) => step.state.sinceWinner >= 0);
+    const timed = steps.find((step) => step.state.timedOut);
+    const due = steps.find((step) => boardDue(step.state, plan));
+    expect(timed?.state.raceTime ?? 0).toBeLessThan(50);
+    expect(revealedRows(timed?.state ?? FINISH_START, plan).map((row) => row.rank)).toEqual([1, 2, 3]);
+    expect((due?.wall ?? 0) - (won?.wall ?? 0)).toBeCloseTo(8.5, 1);
+    expect((due?.wall ?? 0) - (won?.wall ?? 0)).toBeLessThanOrEqual(8.5 + DT);
+  });
+
+  it("reaches the full board within 8.5 wall seconds of the winner", () => {
+    const plans = [
+      planOf([10, 12, 14, 16], 8),
+      planOf([10, 10.05, 10.1, 10.2], 8),
+      planOf([10, 10.2, 10.7, 10.9, 14], 8),
+      planOf([30, 50, 70], 28),
+    ];
+    for (const plan of plans) {
+      const steps = run(plan, 20, approaching(plan, 0.5));
+      const won = steps.find((step) => step.state.sinceWinner >= 0);
+      const due = steps.find((step) => boardDue(step.state, plan));
+      expect(due).toBeTruthy();
+      expect((due?.wall ?? 99) - (won?.wall ?? 0)).toBeLessThanOrEqual(8.5 + DT);
+      for (const step of steps) expect(timeScale(step.state, plan)).toBeGreaterThan(0);
+    }
   });
 });
 
 describe("finish camera", () => {
-  it("starts the rise exactly where the frozen rig camera stands", () => {
-    const frozen: FinishState = { phase: { kind: "freeze", age: 0.99 }, raceTime: course.freezeAt };
-    const rising: FinishState = { phase: { kind: "rise", age: 0 }, raceTime: course.freezeAt };
-    const a = finishCamera(frozen, frameAt(frozen));
-    const b = finishCamera(rising, frameAt(rising));
-    for (const key of ["groundX", "groundY", "height", "pitch", "yaw", "focalLength"] as const) {
-      expect(b?.[key]).toBeCloseTo(a?.[key] ?? NaN, 6);
+  const course = finishCourseFrom((t) => (EXIT_M + SPEED * Math.max(0, t)) / COURSE_M);
+  const cameraAt = cameraAtFor(course, 30);
+  const winnerAt = cameraAt + FINISH_TIMELINE.closeM / SPEED;
+  const plan = finishPlanFrom(
+    [horse("a", 1, winnerAt, "금빛별"), horse("b", 2, winnerAt + 1.5, "붉은해")],
+    cameraAt,
+  );
+
+  it("fixes the side camera when the leader's nose is 3 lengths out and then stays on the line", () => {
+    expect(FINISH_TIMELINE.closeM).toBeCloseTo(3 * HORSE_LENGTH_M, 6);
+    expect(FINISH_TIMELINE.closeM).toBeCloseTo(7.2, 6);
+    const steps = run(plan, 6, { ...FINISH_START, raceTime: cameraAt - 0.3 });
+    const switched = steps.find((step) => step.state.cameraAge >= 0);
+    expect(toGoAt(course, switched?.state.raceTime ?? 0)).toBeCloseTo(7.2, 1);
+    const locked = steps.filter((step) => step.state.cameraAge >= FINISH_TIMELINE.cameraBlendSec);
+    expect(locked.length).toBeGreaterThan(10);
+    const ground = locked.map((step) => finishCamera(step.state, { enteredFrom })?.groundX ?? NaN);
+    for (const x of ground) expect(x).toBeCloseTo(finishGoalX(), 4);
+    expect(Math.max(...ground) - Math.min(...ground)).toBeLessThan(1e-6);
+    const last = locked.filter((step) => step.state.raceTime <= plan.lastAt);
+    expect(last.at(-1)?.state.raceTime ?? 0).toBeGreaterThan(winnerAt);
+    expect(showsOuterRail(FINISH_START)).toBe(true);
+    expect(showsOuterRail(switched?.state ?? FINISH_START)).toBe(false);
+  });
+});
+
+describe("result board", () => {
+  it("adds a row per finisher and opens the full board 0.5s after the last", () => {
+    const plan = planOf([10, 12, 14], 8);
+    const steps = run(plan, 8, approaching(plan, 1));
+    const counts: number[] = [];
+    for (const step of steps) {
+      const count = revealedRows(step.state, plan).length;
+      if (count !== counts[counts.length - 1]) counts.push(count);
     }
+    expect(counts).toEqual([0, 1, 2, 3]);
+    const marked = steps.find((step) => step.state.sinceMark >= 0);
+    const due = steps.find((step) => boardDue(step.state, plan));
+    expect((due?.wall ?? 0) - (marked?.wall ?? 0)).toBeCloseTo(0.5, 2);
+    expect(revealedRows(due?.state ?? FINISH_START, plan).map((row) => row.rank)).toEqual([1, 2, 3]);
   });
 
-  it("puts the frozen camera on the finish line", () => {
-    const frozen: FinishState = { phase: { kind: "freeze", age: 0 }, raceTime: course.freezeAt };
-    expect(finishCamera(frozen, frameAt(frozen))?.groundX).toBeCloseTo(finishGoalX(), 6);
+  it("holds a slow group until that slow has eased out", () => {
+    const plan = planOf([10, 10.1, 14], 8);
+    const steps = run(plan, 10, approaching(plan, 1));
+    const during = steps.filter(
+      (step) => step.state.spanIndex === 0 && step.state.raceTime > 10.12 && step.state.raceTime < 10.28,
+    );
+    expect(during.length).toBeGreaterThan(0);
+    for (const step of during) expect(revealedRows(step.state, plan)).toEqual([]);
+    const released = steps.find((step) => step.state.spanIndex > 0 && step.state.raceTime < 14);
+    expect(revealedRows(released?.state ?? FINISH_START, plan).map((row) => row.id)).toEqual(["a", "b"]);
+    const due = steps.find((step) => boardDue(step.state, plan));
+    expect(due?.state.raceTime ?? 0).toBeGreaterThanOrEqual(14);
+    expect(revealedRows(due?.state ?? FINISH_START, plan)).toHaveLength(3);
   });
 
-  it("stays outside the winner through the rise, so it never crosses the 180° line", () => {
-    for (const lane of [8.6, 14.6, 20.6]) {
-      for (let age = 0; age <= FINISH_TIMELINE.riseSec; age += 0.05) {
-        const state: FinishState = { phase: { kind: "rise", age }, raceTime: course.freezeAt + age };
-        const frame = frameAt(state, lane);
-        expect(finishCamera(state, frame)?.groundY).toBeGreaterThan(frame.winner.y);
-      }
-    }
-  });
-
-  it("leaves the race camera alone before the corner exit", () => {
-    expect(finishCamera(FINISH_START, frameAt(FINISH_START))).toBeNull();
+  it("shows the photo line only while a 0.03s pair is crossing", () => {
+    const photo = planOf([10, 10.03, 12], 8);
+    const inside: FinishState = { ...FINISH_START, raceTime: 10.03, phase: { kind: "slow", age: 0, span: 0 } };
+    const outside: FinishState = { ...inside, raceTime: 10.04 };
+    expect(showsPhotoFinish(inside, photo)).toBe(true);
+    expect(showsPhotoFinish({ ...inside, raceTime: 10 }, photo)).toBe(true);
+    expect(showsPhotoFinish(outside, photo)).toBe(false);
+    expect(captionCue(inside, photo)).toBe("photo");
+    const plain = planOf([10, 10.1], 8);
+    const slow: FinishState = { ...FINISH_START, raceTime: 10.05, phase: { kind: "slow", age: 0, span: 0 } };
+    expect(showsPhotoFinish(slow, plain)).toBe(false);
+    expect(captionCue(slow, plain)).toBe("contest");
   });
 });
 
@@ -148,12 +351,12 @@ describe("captions", () => {
     expect(josa("붉은해", "과/와")).toBe("붉은해와");
   });
 
-  it("speaks each phase once, with the result line when the board starts", () => {
-    const cues = steps.map((step) => captionCue(step.state)).filter((cue, index, all) => cue !== all[index - 1]);
-    expect(cues).toEqual([null, "stretch", "track", "slow", "freeze", "rise", "result"]);
+  it("uses the photo line only for that cue", () => {
     const live = ["금빛별", "붉은해", "번개"];
-    expect(captionText("track", live, live)).toBe("금빛별과 붉은해, 번개까지 세 마리의 접전!");
+    expect(captionText("photo", live, live)).toBe("사진 판정할 것 같습니다!");
+    expect(captionText("contest", live, live)).toBe("금빛별과 붉은해, 번개까지 접전입니다!");
     expect(captionText("result", live, live)).toBe("금빛별 1착! 붉은해 2착, 번개 3착!");
+    expect(captionText("winner", live, live)).toBe("금빛별! 금빛별이 해냈습니다!");
   });
 });
 

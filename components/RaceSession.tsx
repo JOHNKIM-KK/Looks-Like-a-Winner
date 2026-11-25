@@ -4,7 +4,7 @@ import { useState } from "react";
 import { RaceGame } from "@/components/RaceGame";
 import { mockHorses } from "@/lib/mockHorses";
 import { primeStartSound } from "@/game/bang";
-import { fieldHorses } from "@/lib/field";
+import { fieldHorses, reshuffleStalls } from "@/lib/field";
 import { simulateRace, type RaceResult as RaceData } from "@/lib/race";
 
 type Phase = "title" | "racing" | "done";
@@ -39,7 +39,8 @@ export function RaceSession() {
 
   function rematch() {
     primeStartSound();
-    setRace(newRace());
+    const seed = seedFromSearch() ?? nextSeed();
+    setRace(simulateRace(reshuffleStalls(race.horses, seed), seed));
     setPhase("racing");
   }
 
