@@ -38,13 +38,15 @@ export const overlayLayout = {
       gap: 12,
       radius: 8,
       border: 2.5,
-      padLeft: 15,
-      placeWidth: 28,
-      placeSize: 36,
-      badge: 36,
-      badgeSize: 27,
-      nameGap: 12,
-      nameSize: 28,
+      padLeft: 6,
+      placeWidth: 20,
+      placeSize: 28,
+      badge: 28,
+      badgeSize: 16,
+      nameGap: 4,
+      /** Clearance so an 8-grapheme name ends before the card edge. */
+      nameInset: 6,
+      nameSize: 20,
     },
     chase: {
       top: 88,
@@ -127,7 +129,7 @@ export const overlayLayout = {
    * results panel. The large one sits under the rank board, left of the panel.
    */
   winner: {
-    small: { top: 16, left: 770, fontSize: 18, padX: 12, padY: 7, radius: 8 },
+    small: { top: 16, left: 770, maxWidth: 270, fontSize: 18, padX: 12, padY: 7, radius: 8 },
     large: { top: 178, left: 36, maxWidth: 980, fontSize: 42, padX: 20, padY: 12, radius: 12 },
   },
   /** Under the results panel, splitting its width. */
@@ -142,7 +144,66 @@ export const overlayLayout = {
     centerY: REFERENCE.height * 0.42,
     depth: 22,
   },
+  lineup: {
+    rowHeight: 58,
+    badge: 44,
+    badgeSize: 22,
+    gap: 16,
+    nameSize: 26,
+    column: 500,
+    wideColumn: 640,
+  },
 } as const;
+
+/** 12-horse board stays 150. Two or three horses drop the empty chip band. */
+export function rankBoardHeight(count: number) {
+  const { board } = overlayLayout;
+  const pad = board.height - (board.chase.top + board.chase.height);
+  if (count > 3) return board.height;
+  return board.podium.top + board.podium.height + pad;
+}
+
+/** Panel height for `rowCount` result rows. Twelve rows keep the 709px panel. */
+export function resultsPanelHeight(rowCount: number) {
+  const { results } = overlayLayout;
+  const rows = Math.max(1, Math.min(12, Math.floor(rowCount) || 1));
+  const fullBottom = results.rowsTop + results.rowPitch * 11 + results.rowHeight;
+  const tail = results.height - fullBottom;
+  return results.rowsTop + results.rowPitch * (rows - 1) + results.rowHeight + tail;
+}
+
+/** Hangul in this face occupies one em. The slot must hold eight graphemes. */
+export function podiumNameSlot() {
+  const card = overlayLayout.board.podium;
+  return {
+    fontSize: card.nameSize,
+    width: card.width - card.padLeft - card.placeWidth - card.badge - card.nameGap - card.nameInset,
+  };
+}
+
+export function resultNameSlot(podium: boolean) {
+  const box = overlayLayout.results;
+  const rowWidth = box.width - 2 * (box.padX - box.border);
+  const nameLeft = box.badgeLeft + box.badge + box.nameGap - (podium ? box.rowBorder : 0);
+  const timeWidth = box.gapSize * 7 * 0.62;
+  const gapRight = box.gapRight - (podium ? box.rowBorder : 0);
+  return {
+    fontSize: podium ? box.podiumNameSize : box.nameSize,
+    width: rowWidth - nameLeft - gapRight - timeWidth,
+  };
+}
+
+export function lineupNameSlot(wide: boolean) {
+  const { lineup } = overlayLayout;
+  const column = wide ? lineup.wideColumn : lineup.column;
+  return { fontSize: lineup.nameSize, width: column - lineup.badge - lineup.gap };
+}
+
+export function winnerNameSlot(large: boolean) {
+  const box = large ? overlayLayout.winner.large : overlayLayout.winner.small;
+  const latin = 7 * box.fontSize * 0.72;
+  return { fontSize: box.fontSize, width: box.maxWidth - box.padX * 2 - latin };
+}
 
 export type OverlayHorse = {
   id: string;
@@ -186,9 +247,9 @@ export function clamp01(value: number) {
 }
 
 /** Scale for the results panel and its buttons so both fit a HUD `hudHeight` reference units tall. */
-export function resultsFit(hudHeight: number) {
+export function resultsFit(hudHeight: number, rowCount = 12) {
   const { results, actions } = overlayLayout;
-  const needed = results.height + actions.top + actions.height;
+  const needed = resultsPanelHeight(rowCount) + actions.top + actions.height;
   const room = hudHeight - results.top - results.bottom;
   return Math.min(1, Math.max(0, room / needed));
 }

@@ -1,7 +1,9 @@
 /**
  * Retune the race camera here. State looks, the safe-frame margins, damping,
  * and the background targets all live in this object.
- * "all" states only widen a state look. "topN" states pick a distance and focal
+ * "all" states widen a state look until the selected horses fit. Away from START
+ * they may first pull in when those horses leave the outer lanes empty.
+ * "topN" states pick a distance and focal
  * length so the leaders' box fills the safe width, and never zoom in past
  * `framing.maxZoom`.
  */

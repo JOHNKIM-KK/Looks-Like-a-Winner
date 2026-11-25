@@ -27,10 +27,17 @@ export function LineupScreen({ stage, horses, onShuffle, onStart }: Props) {
                 key={row.id}
                 data-testid={`lineup-gate-${row.stall}`}
                 aria-label={`${row.stall}번 게이트 ${row.name}`}
-                style={{ display: "flex", alignItems: "center", gap: 16, height: 58 }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: overlayLayout.lineup.gap,
+                  height: overlayLayout.lineup.rowHeight,
+                }}
               >
-                <LaneBadge number={row.stall} size={44} fontSize={22} />
-                <span style={{ fontSize: 26, fontWeight: 800, color: style.text }}>{row.name}</span>
+                <LaneBadge number={row.stall} size={overlayLayout.lineup.badge} fontSize={overlayLayout.lineup.badgeSize} />
+                <span data-testid="lineup-name" style={{ fontSize: overlayLayout.lineup.nameSize, fontWeight: 800, color: style.text, whiteSpace: "nowrap" }}>
+                  {row.name}
+                </span>
               </div>
             ))}
           </EntrantColumn>

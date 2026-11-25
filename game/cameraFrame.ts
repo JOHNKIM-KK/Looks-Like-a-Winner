@@ -41,6 +41,8 @@ export type FrameSubject = {
   id?: string;
   /** 1-based live rank. Missing rank is outside the top-N set. */
   rank?: number;
+  /** Current lane, 1–12. A running camera uses it to drop empty outer rails. */
+  lane?: number;
 };
 
 /** State-camera key used by `cameraConfig.framing.rules`. */
@@ -127,6 +129,25 @@ export function requiredFrameSubjects(
     framingRuleFor(state),
     cameraConfig.framing.includePolicy,
   );
+}
+
+/**
+ * Share of the authored 12-lane frame the running pack needs.
+ * 1 keeps the state camera. Subjects without a lane do not pull the camera in.
+ */
+export function packFrameScale(subjects: readonly { lane?: number }[]) {
+  if (subjects.length === 0) return 1;
+  let min = Infinity;
+  let max = -Infinity;
+  for (const subject of subjects) {
+    if (subject.lane === undefined || !Number.isFinite(subject.lane)) return 1;
+    min = Math.min(min, subject.lane);
+    max = Math.max(max, subject.lane);
+  }
+  const span = max - min + 1;
+  if (span >= LANE_COUNT - 1e-3) return 1;
+  const covered = Math.min(LANE_COUNT, span + 1);
+  return Math.max(covered / LANE_COUNT, 1 / cameraConfig.framing.maxZoom);
 }
 
 export type FrameAnchor = {
@@ -611,13 +632,21 @@ function damp(current: number, target: number, dt: number) {
   return current + (target - current) * alpha;
 }
 
+/** Pull a running camera in when the pack leaves the outer lanes empty. START stays wide. */
+function tightenToPack(look: CameraLook, subjects: readonly FrameSubject[], state: CameraStateName) {
+  if (state === "START") return look;
+  const scale = packFrameScale(subjects);
+  if (scale >= 1) return look;
+  return widened(look, scale);
+}
+
 function fitLook(
   base: CameraLook,
   subjects: FrameSubject[],
   state: CameraStateName,
 ) {
   const bias = cameraConfig.framing.lookBias[state] ?? 0;
-  const shifted = shiftLook(base, bias);
+  const shifted = tightenToPack(shiftLook(base, bias), subjects, state);
   const rule = framingRuleFor(state);
   if (rule !== "topN") {
     return { look: recenterPack(widenToFit(shifted, subjects), subjects), bias, rule };
@@ -627,8 +656,9 @@ function fitLook(
 
 /**
  * Frame the horses selected by the state's rule.
- * "all" only widens. "topN" zooms in or out so that box fills the safe width,
- * damped over `dampSec`, and never closer than `maxZoom`.
+ * START only widens, so the countdown stays on the authored gate shot.
+ * A running state may zoom in to the occupied lanes, down to `maxZoom`, then widens if those horses would leave the safe rect.
+ * "topN" zooms in or out so that box fills the safe width, damped over `dampSec`.
  */
 export function solveFramedLook(
   base: CameraLook,
@@ -658,14 +688,11 @@ export function frameHorseLook(
   const maxZoom = cameraConfig.framing.maxZoom;
   const distanceTarget = damp(memory.distance, solved.look.distance, dt);
   const focalTarget = damp(memory.focalLength, solved.look.focalLength, dt);
-  const distance =
-    solved.rule === "topN"
-      ? Math.max(base.distance / maxZoom, distanceTarget)
-      : Math.max(base.distance, distanceTarget);
-  const focalLength =
-    solved.rule === "topN"
-      ? Math.min(base.focalLength * maxZoom, focalTarget)
-      : Math.min(base.focalLength, focalTarget);
+  const canZoomIn = solved.rule === "topN" || state !== "START";
+  const distance = canZoomIn ? Math.max(base.distance / maxZoom, distanceTarget) : Math.max(base.distance, distanceTarget);
+  const focalLength = canZoomIn
+    ? Math.min(base.focalLength * maxZoom, focalTarget)
+    : Math.min(base.focalLength, focalTarget);
   const bias = damp(memory.bias, solved.bias, dt);
   const shifted = shiftLook({ ...base, distance, focalLength }, bias);
   if (solved.rule !== "topN") {

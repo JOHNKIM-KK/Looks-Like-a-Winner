@@ -1,5 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { leadMeters, overlayLayout, resultGapLabel, resultsFit, type OverlayHorse } from "./overlayLayout";
+import {
+  leadMeters,
+  lineupNameSlot,
+  overlayLayout,
+  podiumNameSlot,
+  rankBoardHeight,
+  resultGapLabel,
+  resultNameSlot,
+  resultsFit,
+  resultsPanelHeight,
+  winnerNameSlot,
+  type OverlayHorse,
+} from "./overlayLayout";
 import { REFERENCE } from "./stage";
 
 function horse(place: number, progress: number): OverlayHorse {
@@ -23,6 +35,30 @@ describe("overlay layout (storyboard 09·10)", () => {
     const { results } = overlayLayout;
     const lastBottom = results.rowsTop + results.rowPitch * 11 + results.rowHeight;
     expect(lastBottom).toBeLessThan(results.height);
+    expect(resultsPanelHeight(12)).toBe(results.height);
+  });
+
+  it("gives an 8-grapheme name a full em slot on the board, the result row, the lineup, and the winner line", () => {
+    for (const slot of [
+      podiumNameSlot(),
+      resultNameSlot(true),
+      resultNameSlot(false),
+      lineupNameSlot(false),
+      lineupNameSlot(true),
+      winnerNameSlot(false),
+      winnerNameSlot(true),
+    ]) {
+      expect(slot.width).toBeGreaterThanOrEqual(slot.fontSize * 8);
+    }
+  });
+
+  it("drops the chip band for two or three horses and keeps it for a larger field", () => {
+    expect(rankBoardHeight(2)).toBeLessThan(overlayLayout.board.height);
+    expect(rankBoardHeight(3)).toBe(rankBoardHeight(2));
+    expect(rankBoardHeight(4)).toBe(overlayLayout.board.height);
+    expect(resultsPanelHeight(2)).toBeLessThan(resultsPanelHeight(4));
+    expect(resultsPanelHeight(4)).toBeLessThan(resultsPanelHeight(8));
+    expect(resultsPanelHeight(8)).toBeLessThan(resultsPanelHeight(12));
   });
 
   it("lines the results panel up with the rank board's top edge", () => {

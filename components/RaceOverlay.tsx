@@ -6,6 +6,7 @@ import {
   clamp01,
   leadMeters,
   overlayLayout,
+  rankBoardHeight,
   type OverlayHorse,
   type RaceOverlaySnapshot,
 } from "@/game/overlayLayout";
@@ -89,12 +90,20 @@ function textStyle(fontSize: number, color: string, fontWeight = 700): CSSProper
 function RankBoard({ horses }: { horses: OverlayHorse[] }) {
   const board = overlayLayout.board;
   const podium = horses.filter((horse) => horse.place >= 1 && horse.place <= 3);
-  const chase = horses.filter((horse) => horse.place >= 4 && horse.place <= 12);
+  const chase = horses.filter((horse) => horse.place >= 4);
 
   return (
     <div
       data-testid="ranking"
-      style={{ ...panelStyle(board.radius), left: board.left, top: board.top, width: board.width, height: board.height }}
+      data-podium-count={podium.length}
+      data-chase-count={chase.length}
+      style={{
+        ...panelStyle(board.radius),
+        left: board.left,
+        top: board.top,
+        width: board.width,
+        height: rankBoardHeight(horses.length),
+      }}
     >
       <ol style={rowStyle(board.padX, board.podium.top, board.podium.gap)}>
         {podium.map((horse) => (
@@ -129,6 +138,9 @@ function PodiumCard({ horse }: { horse: OverlayHorse }) {
   const first = horse.place === 1;
   return (
     <li
+      data-testid="podium-card"
+      data-place={horse.place}
+      data-lane={horse.number}
       style={{
         width: card.width,
         height: card.height,
@@ -144,10 +156,7 @@ function PodiumCard({ horse }: { horse: OverlayHorse }) {
         {horse.place}
       </span>
       <LaneBadge number={horse.number} size={card.badge} fontSize={card.badgeSize} />
-      <span
-        data-testid="rank-slot-name"
-        style={{ ...textStyle(card.nameSize, style.text, 800), marginLeft: card.nameGap, overflow: "hidden" }}
-      >
+      <span data-testid="rank-slot-name" style={{ ...textStyle(card.nameSize, style.text, 800), marginLeft: card.nameGap }}>
         {horse.name}
       </span>
     </li>
@@ -158,6 +167,9 @@ function ChaseChip({ horse }: { horse: OverlayHorse }) {
   const chip = overlayLayout.board.chase;
   return (
     <li
+      data-testid="chase-chip"
+      data-place={horse.place}
+      data-lane={horse.number}
       style={{
         width: chip.width,
         height: chip.height,
@@ -234,6 +246,8 @@ function Progress({ horses }: { horses: OverlayHorse[] }) {
         {back.map((horse) => (
           <span
             key={horse.id}
+            data-testid="progress-marker"
+            data-lane={horse.number}
             style={{
               position: "absolute",
               left: `calc(${clamp01(horse.progress) * 100}% - ${bar.marker / 2}px)`,

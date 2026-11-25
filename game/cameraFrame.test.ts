@@ -34,6 +34,7 @@ import {
   groundAt,
   horizonScreenY,
   horseFit,
+  packFrameScale,
   skyStripBottomY,
   requestFrameInclude,
   requiredFrameSubjects,
@@ -438,6 +439,39 @@ describe("horse framing", () => {
     expect(activeFrameIncludes()).toEqual([]);
     expect(topNIds("widen")).not.toContain("dummy");
     resetFrameIncludes();
+  });
+
+  test("a running camera pulls in to the occupied lanes and the start shot does not", () => {
+    const ends = segmentEnds();
+    const progress = (ends.chuteEnd + ends.corner12Entry) / 2;
+    const pack = (lanes: number[]) =>
+      lanes.map((lane, index) => ({ ...presentationLogical(progress, lane), id: `l${lane}`, rank: index + 1, lane }));
+    const tight = pack([5, 6]);
+    const full = pack(Array.from({ length: 12 }, (_, index) => index + 1));
+    expect(packFrameScale(tight)).toBeLessThan(1);
+    expect(packFrameScale(full)).toBe(1);
+    expect(packFrameScale(tight.map((subject) => ({ ...subject, lane: undefined })))).toBe(1);
+    const packX = tight.reduce((sum, horse) => sum + horse.x, 0) / tight.length;
+    const packY = tight.reduce((sum, horse) => sum + horse.y, 0) / tight.length;
+    const snapshot: RaceSnapshot = { raceTime: 8, started: true, gateOpen: 1, leadProgress: progress, horses: [] };
+    const straight = getCameraLookForState({ name: "STRAIGHT" }, snapshot, packX, packY);
+    const tightLook = frameHorseLook(straight, tight, "STRAIGHT", createFrameMemory(straight), 0).look;
+    const fullLook = frameHorseLook(straight, full, "STRAIGHT", createFrameMemory(straight), 0).look;
+    const startLook = frameHorseLook(straight, tight, "START", createFrameMemory(straight), 0).look;
+    expect(tightLook.distance).toBeLessThan(straight.distance);
+    expect(tightLook.distance).toBeGreaterThanOrEqual(straight.distance / cameraConfig.framing.maxZoom - 0.01);
+    expect(fullLook.distance).toBeGreaterThanOrEqual(straight.distance - 0.01);
+    expect(startLook.distance).toBeGreaterThanOrEqual(straight.distance - 0.01);
+    expect(requiredFrameSubjects(tight, "STRAIGHT").map((subject) => subject.lane)).toEqual([5, 6]);
+    const camera = cameraFromLook(tightLook);
+    for (const subject of tight) {
+      const pose = projectWithCamera(subject, camera);
+      const rect = spriteRect(pose);
+      expect(rect.minX).toBeGreaterThanOrEqual(FRAME_LEFT - 0.6);
+      expect(rect.maxX).toBeLessThanOrEqual(FRAME_RIGHT + 0.6);
+      expect(rect.minY).toBeGreaterThanOrEqual(FRAME_TOP - 0.6);
+      expect(rect.maxY).toBeLessThanOrEqual(FRAME_BOTTOM + 0.6);
+    }
   });
 });
 

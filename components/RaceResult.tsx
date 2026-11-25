@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { overlayLayout, resultGapLabel, resultsFit, type FinishBoardRow } from "@/game/overlayLayout";
+import { overlayLayout, resultGapLabel, resultsFit, resultsPanelHeight, type FinishBoardRow } from "@/game/overlayLayout";
 import { LaneBadge } from "@/components/LaneBadge";
 
 type Props = {
@@ -28,18 +28,19 @@ export function RaceResult({ rows, winnerName, complete, hudHeight, onRematch, o
             top: box.top,
             right: box.right,
             width: box.width,
-            transform: `scale(${resultsFit(hudHeight)})`,
+            transform: `scale(${resultsFit(hudHeight, rows.length)})`,
             transformOrigin: "top right",
           }}
         >
           <section
             data-testid="race-results"
+            data-rows={rows.length}
             data-complete={complete ? "true" : "false"}
             aria-label="경주 결과"
             style={{
               position: "relative",
               width: box.width,
-              height: box.height,
+              height: resultsPanelHeight(rows.length),
               boxSizing: "border-box",
               borderRadius: box.radius,
               border: `${box.border}px solid ${style.border}`,
@@ -72,6 +73,9 @@ export function RaceResult({ rows, winnerName, complete, hudHeight, onRematch, o
                 return (
                   <li
                     key={horse.id}
+                    data-testid="result-row"
+                    data-rank={horse.rank}
+                    data-lane={horse.number}
                     style={{
                       position: "absolute",
                       left: box.padX - box.border,
@@ -99,6 +103,7 @@ export function RaceResult({ rows, winnerName, complete, hudHeight, onRematch, o
                       <LaneBadge number={horse.number} size={box.badge} fontSize={box.badgeSize} />
                     </span>
                     <span
+                      data-testid="result-name"
                       style={{
                         ...cell(podium ? box.podiumNameSize : box.nameSize, style.text, podium ? 800 : 700),
                         position: "absolute",
@@ -140,7 +145,7 @@ function WinnerBanner({ name, large }: { name: string; large: boolean }) {
         position: "absolute",
         top: box.top,
         left: box.left,
-        maxWidth: "maxWidth" in box ? box.maxWidth : 270,
+        maxWidth: box.maxWidth,
         boxSizing: "border-box",
         padding: `${box.padY}px ${box.padX}px`,
         borderRadius: box.radius,
@@ -152,8 +157,6 @@ function WinnerBanner({ name, large }: { name: string; large: boolean }) {
         fontSize: box.fontSize,
         lineHeight: 1,
         whiteSpace: "nowrap",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
         pointerEvents: "none",
       }}
     >

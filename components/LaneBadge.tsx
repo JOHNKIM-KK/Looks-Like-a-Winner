@@ -6,6 +6,8 @@ export function LaneBadge({ number, size, fontSize }: { number: number; size: nu
   const edged = badge.edgedLanes.includes(number);
   return (
     <span
+      data-testid="lane-badge"
+      data-lane={number}
       style={{
         width: size,
         height: size,
