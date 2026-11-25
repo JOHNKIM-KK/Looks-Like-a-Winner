@@ -108,20 +108,137 @@ export function fieldHorses(players: readonly HorseInput[], seed: number): Horse
   return shuffle([...players, ...fillers], random);
 }
 
+const graphemes = new Intl.Segmenter("ko", { granularity: "grapheme" });
+
+/** Hangul syllables count as one character, including decomposed jamo. */
+export function graphemeLength(text: string) {
+  return Array.from(graphemes.segment(text)).length;
+}
+
 /**
- * Same entrants and the same horse count. Only the gate order changes.
- * Fillers are not redrawn.
+ * Final names, after empty slots have been filled.
+ * Longer than 8 graphemes, or the same name twice, cannot start.
  */
-export function reshuffleStalls(horses: readonly HorseInput[], seed: number): HorseInput[] {
-  const random = mulberry32(mixSeed(seed, 0x57411));
-  const copies = horses.map((horse) => ({
+export function validateEntrantNames(names: readonly string[]) {
+  const seen = new Set<string>();
+  for (const name of names) {
+    if (graphemeLength(name) > 8) return "이름은 8자까지입니다.";
+    if (seen.has(name)) return "이름이 겹칩니다.";
+    seen.add(name);
+  }
+  return null;
+}
+
+function defaultNamePool() {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const horse of mockHorses) {
+    if (seen.has(horse.name)) continue;
+    seen.add(horse.name);
+    names.push(horse.name);
+  }
+  for (const name of ORDINARY_NAMES) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    names.push(name);
+  }
+  return names;
+}
+
+/**
+ * Empty or whitespace-only slots take the next unused default name.
+ * Catalog names come first, then ordinary names. Names already taken are skipped.
+ */
+export function fillEntrantNames(names: readonly string[]) {
+  const trimmed = names.map((name) => name.trim());
+  const used = new Set(trimmed.filter((name) => name.length > 0));
+  const pool = defaultNamePool();
+  let cursor = 0;
+  return trimmed.map((name) => {
+    if (name) return name;
+    while (cursor < pool.length && used.has(pool[cursor] ?? "")) cursor += 1;
+    const next = pool[cursor];
+    if (!next) throw new Error("기본 이름이 부족합니다.");
+    cursor += 1;
+    used.add(next);
+    return next;
+  });
+}
+
+/** N distinct stalls out of the 12 gates. The rest stay empty. */
+function drawStalls(count: number, seed: number, salt: number) {
+  const random = mulberry32(mixSeed(seed, salt));
+  const gates = shuffle(
+    Array.from({ length: MAX_HORSES }, (_, index) => index + 1),
+    random,
+  );
+  return gates.slice(0, count);
+}
+
+function dealTypes(count: number, seed: number) {
+  const random = mulberry32(mixSeed(seed, 0x7be01));
+  const deck = shuffle(mockHorses, random);
+  return Array.from({ length: count }, (_, index) => deck[index % deck.length]);
+}
+
+/**
+ * V2 entry. One horse per participant, never padded to 12.
+ * Names stay the participants' names. Skill, bias, and coat come from the catalog.
+ * Stalls are a seeded draw of N gates out of 12.
+ */
+export function entrantField(names: readonly string[], seed: number): HorseInput[] {
+  if (names.length < 2 || names.length > MAX_HORSES) {
+    throw new Error(`출전마는 2마리에서 ${MAX_HORSES}마리까지입니다.`);
+  }
+  const resolved = fillEntrantNames(names);
+  const issue = validateEntrantNames(resolved);
+  if (issue) throw new Error(issue);
+  const types = dealTypes(names.length, seed);
+  const stalls = drawStalls(names.length, seed, 0x0a11e);
+  return resolved.map((name, index) => {
+    const type = types[index];
+    const stall = stalls[index];
+    if (!type || stall === undefined) throw new Error("출전 말을 만들지 못했습니다.");
+    return {
+      id: `entrant-${index + 1}`,
+      name,
+      title: type.title,
+      color: type.color,
+      skillId: type.skillId,
+      biases: { ...type.biases },
+      reasons: [type.reasons[0], type.reasons[1]],
+      stall,
+    };
+  });
+}
+
+function copyHorse(horse: HorseInput): HorseInput {
+  return {
     id: horse.id,
     name: horse.name,
     title: horse.title,
     color: horse.color,
     skillId: horse.skillId,
     biases: { ...horse.biases },
-    reasons: [horse.reasons[0], horse.reasons[1]] as [string, string],
-  }));
-  return shuffle(copies, random);
+    reasons: [horse.reasons[0], horse.reasons[1]],
+    ...(horse.stall !== undefined ? { stall: horse.stall } : {}),
+  };
+}
+
+/**
+ * Same entrants and the same horse count. Only the gate assignment changes.
+ * Horses that already have stalls keep roster order and draw new stalls.
+ * A legacy full field has no stalls, so its array order is shuffled instead.
+ */
+export function reshuffleStalls(horses: readonly HorseInput[], seed: number): HorseInput[] {
+  const copies = horses.map(copyHorse);
+  if (copies.length > 0 && copies.every((horse) => horse.stall !== undefined)) {
+    const stalls = drawStalls(copies.length, seed, 0x57411);
+    return copies.map((horse, index) => {
+      const stall = stalls[index];
+      if (stall === undefined) throw new Error("칸을 다시 뽑지 못했습니다.");
+      return { ...horse, stall };
+    });
+  }
+  return shuffle(copies, mulberry32(mixSeed(seed, 0x57411)));
 }

@@ -48,6 +48,11 @@ export type HorseInput = {
   skillId: SkillId;
   biases: HorseStats;
   reasons: [string, string];
+  /**
+   * Gate stall, 1–12. The displayed number and the starting lane.
+   * Absent on a legacy full field, where array order is the stall.
+   */
+  stall?: number;
 };
 
 export type SegmentKind = "straight" | "corner" | "final";
@@ -532,13 +537,14 @@ export function simulateRace(horses: HorseInput[], seed: number): RaceResult {
   const runners: Runner[] = horses.map((input, index) => {
     const biases = RACE_FEATURES.horseStats ? input.biases : NEUTRAL_BIASES;
     const stats = buildStats(biases, mulberry32(mixSeed(seed, index)));
+    const stall = input.stall ?? index + 1;
     return {
       input,
-      number: index + 1,
+      number: stall,
       stats,
       progress: 0,
       samples: [],
-      laneState: laneRunner(index + 1),
+      laneState: laneRunner(stall),
       laneSamples: [],
       finishTime: 0,
       arriveSpeed: 0,

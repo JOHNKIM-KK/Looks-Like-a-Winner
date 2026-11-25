@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { fieldHorses } from "../lib/field";
 import { mockHorses } from "../lib/mockHorses";
 import { simulateRace } from "../lib/race";
+import { ENTRANT_COUNTS, formatEntrantFairness, measureEntrantFairness } from "./gate-fairness";
 
 /** SPEC §8-4: seeds 1..10000. */
 const SEEDS = 10000;
@@ -29,5 +30,28 @@ describe("stall fairness", () => {
       }
     },
     120_000,
+  );
+
+  test(
+    "N=4, 6, 8, 12 stay within 2 points of 1/N for occupied stalls and roster order",
+    () => {
+      const measured = ENTRANT_COUNTS.map((count) => measureEntrantFairness(count, SEEDS));
+      console.log(measured.map(formatEntrantFairness).join("\n\n"));
+      for (const result of measured) {
+        const target = 1 / result.count;
+        for (let stall = 0; stall < result.gateWins.length; stall += 1) {
+          const starts = result.gateStarts[stall] ?? 0;
+          const rate = (result.gateWins[stall] ?? 0) / starts;
+          expect(rate, `N=${result.count} stall ${stall + 1}`).toBeGreaterThanOrEqual(target - 0.02);
+          expect(rate, `N=${result.count} stall ${stall + 1}`).toBeLessThanOrEqual(target + 0.02);
+        }
+        for (let roster = 0; roster < result.count; roster += 1) {
+          const rate = (result.rosterWins[roster] ?? 0) / result.seeds;
+          expect(rate, `N=${result.count} roster ${roster + 1}`).toBeGreaterThanOrEqual(target - 0.02);
+          expect(rate, `N=${result.count} roster ${roster + 1}`).toBeLessThanOrEqual(target + 0.02);
+        }
+      }
+    },
+    600_000,
   );
 });
