@@ -1,5 +1,5 @@
 import type Phaser from "phaser";
-import { GATE_VIEWS, gatePlanePoint, type DoorState, type GateLayer, type GateView, type GateViewSpec } from "./gateViews";
+import { GATE_VIEWS, gatePlanePoint, stallDoorLayers, type DoorState, type GateLayer, type GateView, type GateViewSpec } from "./gateViews";
 import { projectHeight } from "./trackArt";
 import { clearSlot, makeMesh, pushTri, pushVert, type MeshSlot } from "./trackRenderer";
 import type { Camera } from "./track";
@@ -36,14 +36,20 @@ function compose(scene: Phaser.Scene, key: string, layers: readonly GateLayer[],
 }
 
 /** One view's gate drawn on the plane x = GATE_X: back under the horses, doors + front + sign over them. */
-export function createGatePlate(scene: Phaser.Scene, view: GateView) {
+export function createGatePlate(scene: Phaser.Scene, view: GateView, occupied?: ReadonlySet<number>) {
   const spec = GATE_VIEWS[view];
   const { box } = spec;
   const back = compose(scene, `gate-${view}-plate-back`, [spec.back], box, BACK_DEPTH);
   const fronts = new Map<DoorState, MeshSlot>(
     spec.doorStates.map((state) => [
       state,
-      compose(scene, `gate-${view}-plate-${state}`, [...spec.doors[state], spec.front, spec.sign], box, FRONT_DEPTH),
+      compose(
+        scene,
+        `gate-${view}-plate-${state}`,
+        [...stallDoorLayers(view, state, occupied), spec.front, spec.sign],
+        box,
+        FRONT_DEPTH,
+      ),
     ]),
   );
   const closed = fronts.get("closed")!;

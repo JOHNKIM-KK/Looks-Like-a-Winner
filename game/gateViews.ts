@@ -17,7 +17,7 @@ export type DoorState = (typeof DOOR_STATES)[number];
 
 type Rect = { x: number; y: number; w: number; h: number };
 type Point = { x: number; y: number };
-export type GateLayer = Rect & { key: string; file: string };
+export type GateLayer = Rect & { key: string; file: string; lane?: number };
 
 type StallsJson = {
   layers: Record<"back.png" | "front.png" | "sign.png", Rect>;
@@ -104,7 +104,7 @@ function gateView(view: GateView): GateViewSpec {
   });
   const drawn = stallOrder === "12to1" ? [...json.stalls].sort((a, b) => b.lane - a.lane) : json.stalls;
   const doorsAt = (state: DoorState) =>
-    drawn.map(({ lane, doors }) => ({ key: `gate-${view}-${lane}-${state}`, ...doors[state] }));
+    drawn.map(({ lane, doors }) => ({ key: `gate-${view}-${lane}-${state}`, lane, ...doors[state] }));
   const doors = {
     closed: doorsAt("closed"),
     opening1: doorsAt("opening1"),
@@ -137,6 +137,20 @@ function gateView(view: GateView): GateViewSpec {
     box: { x: x0, y: y0, width: x1 - x0, height: y1 - y0 },
     feet,
   };
+}
+
+/**
+ * Door layers for one state. Empty stalls keep the closed leaf.
+ * A full field, or a view that only has closed doors, is unchanged.
+ */
+export function stallDoorLayers(view: GateView, state: DoorState, occupied?: ReadonlySet<number>): readonly GateLayer[] {
+  const doors = GATE_VIEWS[view].doors[state];
+  if (!occupied || state === "closed") return doors;
+  const shut = GATE_VIEWS[view].doors.closed;
+  return doors.map((layer) => {
+    if (layer.lane === undefined || occupied.has(layer.lane)) return layer;
+    return shut.find((closed) => closed.lane === layer.lane) ?? layer;
+  });
 }
 
 export const GATE_VIEWS: Record<GateView, GateViewSpec> = {

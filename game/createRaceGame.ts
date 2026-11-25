@@ -390,7 +390,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   
   const DEBUG_ENABLED = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('debug') === '1';
 
-  const goalOuterLogical = finishOuterLogical(Math.max(1, race.horses.length));
+  // Photo line spans the 12-lane outer rail. Entrant count is not the track width.
+  const goalOuterLogical = finishOuterLogical();
+  const occupiedStalls = new Set(race.horses.map((horse) => horse.number));
   let world: ReturnType<typeof createTrackRenderer> | null = null;
   let gatePlates: Record<GateView, ReturnType<typeof createGatePlate>> | null = null;
   let coats: HorseCoatLibrary | null = null;
@@ -495,9 +497,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       coats.bakeOverlays();
       world = createTrackRenderer(this);
       gatePlates = {
-        drone: createGatePlate(this, "drone"),
-        top: createGatePlate(this, "top"),
-        start: createGatePlate(this, "start"),
+        drone: createGatePlate(this, "drone", occupiedStalls),
+        top: createGatePlate(this, "top", occupiedStalls),
+        start: createGatePlate(this, "start", occupiedStalls),
       };
       this.input.on("pointerdown", () => {
         if (armed && introClock < INTRO_SKIP_TO) introClock = INTRO_SKIP_TO;
@@ -857,6 +859,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         ...item.logical,
         id: item.actor.horse.id,
         rank: rankById.get(item.actor.horse.id) ?? item.actor.horse.number,
+        lane: laneAt(item.actor.horse.lanes, raceTime),
       }));
       let packCenterX = 0;
       let packCenterY = 0;
@@ -1561,9 +1564,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         `Offset: (${offsetX.toFixed(0)}, ${offsetY.toFixed(0)})`,
         `Logic: (${packCenterX.toFixed(0)}, ${packCenterY.toFixed(0)})`,
         `Center: (${centerX}, ${centerY.toFixed(0)})`,
-        `Visible: ${visibleCount}/8`,
+        `Visible: ${visibleCount}/${actors.length}`,
         `Frame: ${framingRuleFor(cameraState.name) === "all" ? "all" : `top${cameraConfig.framing.topN}`}`,
-        `Grass: ${(grassBelowRailFraction(currentCamera, actors.length) * 100).toFixed(1)}%`,
+        `Grass: ${(grassBelowRailFraction(currentCamera) * 100).toFixed(1)}%`,
         `Margin: ${frameMargin.toFixed(1)}px`,
       ].join("\n");
       

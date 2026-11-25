@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import startStalls from "../public/gate/start/stalls.json";
-import { GATE_VIEWS, GATE_X, gatePlanePoint, type GateView } from "./gateViews";
+import { GATE_VIEWS, GATE_X, gatePlanePoint, stallDoorLayers, type GateView } from "./gateViews";
 import { ENGINE_PX_PER_M, laneRadius, projectWithCamera, type Camera } from "./track";
 
 const DOOR_TOP_M = 1.749;
@@ -60,6 +60,23 @@ describe("start gate view", () => {
       expect((dx * stall.exitDir[0]! + dy * stall.exitDir[1]!) / length).toBeGreaterThan(0.999);
       expect(Math.abs(length - stall.exitPxPerM)).toBeLessThan(1);
     }
+  });
+
+  test("keeps empty stalls closed while occupied stalls use the open leaf", () => {
+    const occupied = new Set([1, 12]);
+    const mixed = stallDoorLayers("start", "open", occupied);
+    expect(mixed.map((layer) => layer.lane)).toEqual([12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]);
+    for (const layer of mixed) {
+      const open = layer.lane === 1 || layer.lane === 12;
+      expect(layer.key.endsWith(open ? "-open" : "-closed")).toBe(true);
+    }
+    const every = new Set(Array.from({ length: 12 }, (_, index) => index + 1));
+    expect(stallDoorLayers("start", "open", every).map((layer) => layer.key)).toEqual(
+      GATE_VIEWS.start.doors.open.map((layer) => layer.key),
+    );
+    expect(stallDoorLayers("start", "open")).toBe(GATE_VIEWS.start.doors.open);
+    expect(stallDoorLayers("start", "closed", occupied)).toBe(GATE_VIEWS.start.doors.closed);
+    expect(stallDoorLayers("drone", "closed", occupied)).toBe(GATE_VIEWS.drone.doors.closed);
   });
 
   test("draws doors from stall 12 to stall 1 so open leaves overlap toward the camera", () => {

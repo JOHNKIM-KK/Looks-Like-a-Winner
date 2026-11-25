@@ -63,7 +63,12 @@ export function EntrantColumns({ children }: { children: ReactNode }) {
 }
 
 export function EntrantColumn({ wide, children }: { wide: boolean; children: ReactNode }) {
-  return <div style={{ width: wide ? 640 : 500, display: "flex", flexDirection: "column", gap: 10 }}>{children}</div>;
+  const { lineup } = overlayLayout;
+  return (
+    <div style={{ width: wide ? lineup.wideColumn : lineup.column, display: "flex", flexDirection: "column", gap: 10 }}>
+      {children}
+    </div>
+  );
 }
 
 export function EntrantActions({ children }: { children: ReactNode }) {
