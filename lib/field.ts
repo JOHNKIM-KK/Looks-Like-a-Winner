@@ -107,3 +107,21 @@ export function fieldHorses(players: readonly HorseInput[], seed: number): Horse
   }
   return shuffle([...players, ...fillers], random);
 }
+
+/**
+ * Same entrants and the same horse count. Only the gate order changes.
+ * Fillers are not redrawn.
+ */
+export function reshuffleStalls(horses: readonly HorseInput[], seed: number): HorseInput[] {
+  const random = mulberry32(mixSeed(seed, 0x57411));
+  const copies = horses.map((horse) => ({
+    id: horse.id,
+    name: horse.name,
+    title: horse.title,
+    color: horse.color,
+    skillId: horse.skillId,
+    biases: { ...horse.biases },
+    reasons: [horse.reasons[0], horse.reasons[1]] as [string, string],
+  }));
+  return shuffle(copies, random);
+}

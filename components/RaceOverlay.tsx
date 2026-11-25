@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 import { laneColor } from "@/game/laneColors";
 import {
   clamp01,
@@ -12,17 +12,22 @@ import {
 import { RACE_METERS } from "@/game/track";
 import type { LandscapeStage } from "@/game/stage";
 import { LaneBadge } from "@/components/LaneBadge";
+import { RaceResult } from "@/components/RaceResult";
 
 type Props = {
   stage: LandscapeStage;
   snapshot: RaceOverlaySnapshot;
   comment: string;
-  results?: ReactNode;
+  finished?: boolean;
+  onRematch: () => void;
+  onExit: () => void;
 };
 
-export function RaceOverlay({ stage, snapshot, comment, results }: Props) {
+export function RaceOverlay({ stage, snapshot, comment, finished = false, onRematch, onExit }: Props) {
   const { frame, scale, hud } = stage;
   const showHud = snapshot.phase !== "countdown";
+  const board = snapshot.finishBoard;
+  const showBoard = !!board && board.rows.length > 0;
 
   return (
     <div data-testid="race-overlay" data-phase={snapshot.phase} className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
@@ -43,8 +48,17 @@ export function RaceOverlay({ stage, snapshot, comment, results }: Props) {
           style={{ position: "absolute", left: hud.x, top: hud.y, width: hud.width, height: hud.height }}
         >
           {showHud ? <RankBoard horses={snapshot.horses} /> : null}
-          {showHud && !results ? <Ticker comment={comment} horses={snapshot.horses} /> : null}
-          {results}
+          {showHud && !showBoard ? <Ticker comment={comment} horses={snapshot.horses} /> : null}
+          {showHud && board && (board.winnerName || showBoard) ? (
+            <RaceResult
+              rows={board.rows}
+              winnerName={board.winnerName}
+              complete={board.complete || finished}
+              hudHeight={hud.height}
+              onRematch={onRematch}
+              onExit={onExit}
+            />
+          ) : null}
         </div>
       </div>
     </div>

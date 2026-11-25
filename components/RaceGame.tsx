@@ -7,7 +7,6 @@ import { introLine } from "@/game/droneIntro";
 import type { RaceOverlaySnapshot } from "@/game/overlayLayout";
 import { perfOverlayRequested, startPerfOverlay } from "@/lib/perfOverlay";
 import { RaceOverlay } from "@/components/RaceOverlay";
-import { RaceResult } from "@/components/RaceResult";
 import { RotatePrompt } from "@/components/RotatePrompt";
 import { StageLoading } from "@/components/StageLoading";
 import { TitleScreen } from "@/components/TitleScreen";
@@ -27,6 +26,7 @@ const EMPTY_OVERLAY: RaceOverlaySnapshot = {
   phase: "intro",
   countdown: null,
   horses: [],
+  finishBoard: null,
 };
 
 export function RaceGame({ race, started, finished, onStart, onComplete, onRematch, onExit }: Props) {
@@ -99,7 +99,9 @@ export function RaceGame({ race, started, finished, onStart, onComplete, onRemat
           stage={stage}
           snapshot={overlay}
           comment={comment}
-          results={finished ? <RaceResult race={race} hudHeight={stage.hud.height} onRematch={onRematch} onExit={onExit} /> : null}
+          finished={finished}
+          onRematch={onRematch}
+          onExit={onExit}
         />
       ) : null}
       {stage?.kind === "portrait" ? <RotatePrompt /> : null}

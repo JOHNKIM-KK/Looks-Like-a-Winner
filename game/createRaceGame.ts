@@ -23,7 +23,9 @@ import {
   captionText,
   finishCamera,
   finishCourseForRace,
+  finishPlanForRace,
   gallopOut,
+  presentationBoard,
   showsOuterRail,
   showsPhotoFinish,
   timeScale,
@@ -375,6 +377,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   let currentCamera = cameraFromLook(cameraPresentation.look);
   let lastLeadProgress = 0;
   const finishCourse = finishCourseForRace(race.horses);
+  const finishPlan = finishPlanForRace(race.ranking);
   const shownAt = gallopOut(race.ranking);
   const trackProgress = (horse: RaceHorse, time: number) => shownAt(horse.rank - 1, time);
   let finishState = FINISH_START;
@@ -703,9 +706,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       }
       if (gateOpen < 1) gateOpen = Math.min(1, gateOpen + wall / 0.28);
       const before = finishState.phase.kind;
-      finishState = advanceFinish(finishState, wall, finishCourse);
+      finishState = advanceFinish(finishState, wall, finishPlan);
       raceTime = finishState.raceTime;
-      playback = timeScale(finishState, finishCourse);
+      playback = timeScale(finishState, finishPlan);
       if (finishState.phase.kind !== before) {
         (cameraDebugHost().__finishLog ??= []).push({ kind: finishState.phase.kind, at: performance.now(), clock: wallClock, raceTime });
       }
@@ -749,7 +752,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         }
       }
 
-      const cue = captionCue(finishState);
+      const cue = captionCue(finishState, finishPlan);
       if (cue) {
         if (cue !== finishCue) {
           finishCue = cue;
@@ -779,7 +782,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         this.holdDebugShot();
       }
 
-      if (!finished && boardDue(finishState)) {
+      if (!finished && boardDue(finishState, finishPlan)) {
         finished = true;
         hooks.onCutin(null);
         hooks.onComplete();
@@ -802,7 +805,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
 
     paintPhotoFinish() {
       photoLine?.clear();
-      const shown = showsPhotoFinish(finishState);
+      const shown = showsPhotoFinish(finishState, finishPlan);
       photoLabel?.setVisible(shown);
       if (!shown) return;
       const area = visibleArea();
@@ -873,11 +876,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       frameMemory = framed.memory;
       frameMargin = horseFit(framed.look, requiredFrameSubjects(subjects, cameraState.name)).worst;
       const raceCamera = introCamera(introClock, gateCamera(wallClock, cameraFromLook(framed.look)));
-      if (finishState.phase.kind !== "before") finishEnteredFrom ??= currentCamera;
-      const winner = placed.find((item) => item.actor.horse.id === race.ranking[0]?.id);
+      if (finishState.cameraAge >= 0) finishEnteredFrom ??= currentCamera;
       currentCamera = finishCamera(finishState, {
-        course: finishCourse,
-        winner: winner?.logical ?? { x: finishGoalX(), y: goalOuterLogical.y },
         enteredFrom: finishEnteredFrom ?? raceCamera,
       }) ?? raceCamera;
       const intro = introGateSwap(introClock);
@@ -1445,7 +1445,12 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     publishField(phase: RaceOverlaySnapshot["phase"], countdown: string | null) {
       const ordered = this.orderedField(phase === "racing" ? raceTime : 0);
       const nextKey = ordered.map((horse) => horse.id).join(">");
-      const phaseSig = `${phase}|${countdown ?? ""}|${nextKey}`;
+      const board = presentationBoard(finishState, finishPlan);
+      const finishBoard = board.winnerName || board.rows.length > 0 || board.complete ? board : null;
+      const boardSig = finishBoard
+        ? `${finishBoard.complete ? 1 : 0}|${finishBoard.winnerName ?? ""}|${finishBoard.rows.map((row) => row.id).join(",")}`
+        : "";
+      const phaseSig = `${phase}|${countdown ?? ""}|${nextKey}|${boardSig}`;
       if (phaseSig === lastPhaseSig && wallClock - lastPresentationAt < 0.1) return;
       lastPhaseSig = phaseSig;
       lastPresentationAt = wallClock;
@@ -1459,6 +1464,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           place: index + 1,
           progress: horse.shown,
         })),
+        finishBoard,
       });
     }
     

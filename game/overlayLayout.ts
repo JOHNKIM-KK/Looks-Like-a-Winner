@@ -122,6 +122,14 @@ export const overlayLayout = {
     gapRight: 18,
     gapSize: 21,
   },
+  /**
+   * Winner chip. The small one sits in the gap between the rank board and the
+   * results panel. The large one sits under the rank board, left of the panel.
+   */
+  winner: {
+    small: { top: 16, left: 770, fontSize: 18, padX: 12, padY: 7, radius: 8 },
+    large: { top: 178, left: 36, maxWidth: 980, fontSize: 42, padX: 20, padY: 12, radius: 12 },
+  },
   /** Under the results panel, splitting its width. */
   actions: {
     top: 12,
@@ -145,10 +153,26 @@ export type OverlayHorse = {
   progress: number;
 };
 
+export type FinishBoardRow = {
+  id: string;
+  name: string;
+  number: number;
+  rank: number;
+  finishTime: number;
+};
+
+export type FinishBoard = {
+  rows: FinishBoardRow[];
+  /** Full results, with the rematch and exit buttons. */
+  complete: boolean;
+  winnerName: string | null;
+};
+
 export type RaceOverlaySnapshot = {
   phase: "intro" | "countdown" | "racing";
   countdown: string | null;
   horses: OverlayHorse[];
+  finishBoard: FinishBoard | null;
 };
 
 export function leadMeters(horses: OverlayHorse[]) {
