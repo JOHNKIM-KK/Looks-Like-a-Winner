@@ -10,6 +10,7 @@ import {
   captionCue,
   captionText,
   contestGroups,
+  clearOfLineCamera,
   finishCamera,
   finishCourseFrom,
   finishPlanFrom,
@@ -25,7 +26,7 @@ import {
   type FinishPlan,
   type FinishState,
 } from "./finishSequence";
-import { ENGINE_PX_PER_M, finishGoalX, referenceDistance, segmentEnds, type Camera } from "./track";
+import { ENGINE_PX_PER_M, finishGoalX, presentationLogical, referenceDistance, segmentEnds, type Camera } from "./track";
 
 const DT = 1 / 240;
 const COURSE_M = referenceDistance() / ENGINE_PX_PER_M;
@@ -295,6 +296,22 @@ describe("finish camera", () => {
     expect(showsOuterRail(FINISH_START)).toBe(true);
     expect(showsOuterRail(switched?.state ?? FINISH_START)).toBe(false);
   });
+
+  it("keeps the finish-line camera after the result board is due", () => {
+    const steps = run(plan, 8, { ...FINISH_START, raceTime: cameraAt - 0.3 });
+    const due = steps.find((step) => boardDue(step.state, plan));
+    expect(due).toBeTruthy();
+    const after = steps.filter((step) => step.wall >= (due?.wall ?? 0) && step.wall <= (due?.wall ?? 0) + 2);
+    expect(after.length).toBeGreaterThan(10);
+    const shots = after.map((step) => finishCamera(step.state, { enteredFrom }));
+    for (const shot of shots) {
+      expect(shot?.groundX).toBeCloseTo(finishGoalX(), 4);
+      expect(shot?.groundY).toBeCloseTo(shots[0]?.groundY ?? NaN, 4);
+      expect(shot?.height).toBeCloseTo(shots[0]?.height ?? NaN, 4);
+      expect(shot?.pitch).toBeCloseTo(shots[0]?.pitch ?? NaN, 6);
+      expect(shot?.yaw).toBeCloseTo(shots[0]?.yaw ?? NaN, 6);
+    }
+  });
 });
 
 describe("result board", () => {
@@ -388,10 +405,20 @@ describe("gallop-out past the line", () => {
     }
   });
 
-  it("pulls up on the home straight", () => {
-    const shown = gallopOut([{ samples: samplesFor(10, 7.8), finishTime: 10 }]);
-    const stopM = pastLineM(shown, 0, 30);
-    expect(stopM).toBeGreaterThan(18);
-    expect(finishGoalX() / ENGINE_PX_PER_M + stopM).toBeLessThan(40.15);
+  it("keeps x increasing after the line until the horse is off the side camera", () => {
+    const shown = gallopOut([
+      { samples: samplesFor(10, 7.8), finishTime: 10 },
+      { samples: samplesFor(12, 7), finishTime: 12 },
+      { samples: samplesFor(14, 6.5), finishTime: 14 },
+    ]);
+    const xOf = (index: number, t: number) => presentationLogical(shown(index, t), 1).x;
+    for (const index of [0, 1, 2]) {
+      const finish = [10, 12, 14][index] ?? 10;
+      const xs = [0.2, 1, 2, 4].map((age) => xOf(index, finish + age));
+      for (let step = 1; step < xs.length; step += 1) expect(xs[step] ?? 0).toBeGreaterThan((xs[step - 1] ?? 0) + ENGINE_PX_PER_M);
+    }
+    expect(clearOfLineCamera(shown(0, 10), 1)).toBe(false);
+    expect(clearOfLineCamera(shown(0, 12), 1)).toBe(true);
+    expect(pastLineM(shown, 0, 14)).toBeGreaterThan(pastLineM(shown, 2, 14));
   });
 });

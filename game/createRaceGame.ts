@@ -21,6 +21,7 @@ import {
   boardDue,
   captionCue,
   captionText,
+  clearOfLineCamera,
   finishCamera,
   finishCourseForRace,
   finishPlanForRace,
@@ -145,6 +146,8 @@ type Actor = {
   angleFade?: { from: PickedAngle; age: number };
   /** 0 on straights, eases to 1 through a corner. */
   leanAmount: number;
+  /** Progress and lane latched once the horse has left the finish side frame. */
+  runOutAt: { progress: number; lane: number } | null;
 };
 
 type RaceCameraDebug = {
@@ -159,6 +162,8 @@ type RaceCameraDebug = {
   settled: boolean;
   finishPhase: string;
   finishAge: number;
+  sinceMark: number;
+  result: boolean;
   toGo: number;
   winnerSheet: string | null;
   /** Sprite frame widths on screen, reference px. */
@@ -571,6 +576,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           flipMismatch: false,
           fadeLayers,
           leanAmount: 0,
+          runOutAt: null,
         };
         actors.push(actor);
       }
@@ -886,7 +892,13 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       const intro = introGateSwap(introClock);
 
       for (const actor of actors) {
-        const sample = trackProgress(actor.horse, raceTime);
+        const liveLane = laneAt(actor.horse.lanes, raceTime);
+        let sample = trackProgress(actor.horse, raceTime);
+        const finishedHorse = started && actor.horse.finishTime > 0 && raceTime > actor.horse.finishTime;
+        if (finishedHorse && actor.runOutAt == null && clearOfLineCamera(sample, liveLane)) {
+          actor.runOutAt = { progress: sample, lane: liveLane };
+        }
+        if (actor.runOutAt) sample = actor.runOutAt.progress;
         actor.progress = !started ? 0 : gateOpen < 1 ? sample * gateOpen : sample;
         const kind = skillById(actor.horse.skillId).kind;
         const since = raceTime - actor.horse.skillTime;
@@ -907,7 +919,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           raceTime >= actor.horse.skillTime &&
           raceTime < actor.horse.cutUntil;
         const cutBlend = cutting ? (raceTime - actor.horse.skillTime) / (actor.horse.cutUntil - actor.horse.skillTime) : 0;
-        const displayLane = laneAt(actor.horse.lanes, raceTime);
+        const displayLane = actor.runOutAt?.lane ?? liveLane;
         const logical = getLogicalAt(actor.progress, displayLane);
         const path = cutting
           ? blendLogical(getLogicalAt(actor.horse.cutFrom, displayLane), getLogicalAt(actor.horse.cutTo, displayLane), cutBlend)
@@ -917,20 +929,23 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const offset = gateOffset(actor.horse.number, actor.progress, wallClock, intro);
         const heading = { ...path, x: path.x + offset.x, y: path.y + offset.y };
         const pose = projectWithCamera(heading, currentCamera);
-        const ahead = !started ? 0 : actor.progress >= 1 ? trackProgress(actor.horse, raceTime + 0.2) - actor.progress : 1;
-        const braking = actor.progress >= 1;
+        const coasting = finishedHorse && actor.runOutAt == null;
+        const ahead = !started ? 0 : coasting || actor.progress < 1 ? 1 : trackProgress(actor.horse, raceTime + 0.2) - actor.progress;
+        const braking = actor.progress >= 1 && !coasting;
         const pull = !started ? 0 : braking ? Math.max(0, Math.min(1, ahead / 0.003)) : 1;
         const footAge = raceTime - actor.horse.footFrom;
         const sucking = onFoot && footAge >= 0 && footAge < 0.4;
         const gallopRate = !started
           ? 0
-          : braking
-            ? pull
-            : onFoot && !sucking
-              ? 0
-              : casting && (kind === "start" || kind === "final-burst")
-                ? 1.9
-                : 1;
+          : coasting
+            ? 1
+            : braking
+              ? actor.runOutAt ? 0 : pull
+              : onFoot && !sucking
+                ? 0
+                : casting && (kind === "start" || kind === "final-burst")
+                  ? 1.9
+                  : 1;
         if (started) actor.animTime += frameDt * gallopRate * playback;
 
         actor.container.setVisible(pose.visible);
@@ -1166,7 +1181,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     paintBrake() {
       brakeHaze?.clear();
       for (const actor of actors) {
-        if (actor.progress < 1) continue;
+        if (actor.progress < 1 || (actor.horse.finishTime > 0 && raceTime > actor.horse.finishTime)) continue;
         const ahead = trackProgress(actor.horse, raceTime + 0.2) - actor.progress;
         const pull = Math.max(0, Math.min(1, ahead / 0.003));
         if (pull < 0.08) continue;
@@ -1487,6 +1502,8 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         settled: !blend,
         finishPhase: finishState.phase.kind,
         finishAge: "age" in finishState.phase ? finishState.phase.age : 0,
+        sinceMark: finishState.sinceMark,
+        result: boardDue(finishState, finishPlan),
         toGo: toGoAt(finishCourse, raceTime),
         winnerSheet,
         horseWidths: actors.filter((actor) => actor.container.visible).map((actor) => actor.sprite.displayWidth),

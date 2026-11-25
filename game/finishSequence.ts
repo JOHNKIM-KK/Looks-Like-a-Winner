@@ -1,9 +1,16 @@
 import { HORSE_LENGTH_M } from "@/lib/lanes";
 import { progressAt } from "@/lib/race";
-import { HORSE_PX_PER_M } from "./artScale";
+import { HORSE_PX_PER_M, LOGICAL_PER_METER } from "./artScale";
 import { smoothstep } from "./droneIntro";
 import { PROJECTION_CENTER, REFERENCE } from "./stage";
-import { ENGINE_PX_PER_M, finishGoalX, referenceDistance, type Camera } from "./track";
+import {
+  ENGINE_PX_PER_M,
+  finishGoalX,
+  presentationLogical,
+  projectWithCamera,
+  referenceDistance,
+  type Camera,
+} from "./track";
 
 /**
  * Finish presentation v4 (SPEC §3-2).
@@ -37,9 +44,6 @@ export const FINISH_TIMELINE = {
  * Side-view sheets put the nose 159 sheet px ahead of the ground anchor.
  */
 export const NOSE_AHEAD_M = 159 / HORSE_PX_PER_M;
-
-/** Finished horses gallop out at this deceleration; 7.8 m/s stops 25 m past the line. */
-export const GALLOP_OUT_DECEL = 1.2;
 
 const COURSE_M = referenceDistance() / ENGINE_PX_PER_M;
 const FINISH_X_M = finishGoalX() / ENGINE_PX_PER_M;
@@ -624,17 +628,17 @@ type Finisher = { samples: number[]; finishTime: number };
 
 /**
  * Progress each horse is drawn at, by finishing order. Up to the line it is the simulation. Past
- * it a horse gallops out from its arrival speed instead of the sim's 7 m brake, which piles the
- * field onto the winner. It never closes on the horse that finished ahead of it past the gap the
- * two had at the line, so the finishing order stays readable on the track.
+ * it a horse keeps its arrival speed instead of the sim's brake, which would stop the field on
+ * the finish camera. It never closes on the horse that finished ahead of it past the gap the two
+ * had at the line, so the finishing order stays readable while they run off the side of the frame.
  */
 export function gallopOut(ranking: readonly Finisher[]) {
   const speeds = ranking.map((horse) => arrivalSpeed(horse.samples, horse.finishTime));
   const gaps: number[] = [];
   const pastLine = (index: number, raceTime: number): number => {
     const speed = speeds[index] ?? 0;
-    const run = Math.min(Math.max(0, raceTime - (ranking[index]?.finishTime ?? 0)), speed / GALLOP_OUT_DECEL);
-    const own = speed * run - (GALLOP_OUT_DECEL * run * run) / 2;
+    const run = Math.max(0, raceTime - (ranking[index]?.finishTime ?? 0));
+    const own = speed * run;
     return index === 0 ? own : Math.min(own, pastLine(index - 1, raceTime) - (gaps[index] ?? 0));
   };
   ranking.forEach((horse, index) => gaps.push(index === 0 ? 0 : Math.max(0, pastLine(index - 1, horse.finishTime))));
@@ -644,4 +648,16 @@ export function gallopOut(ranking: readonly Finisher[]) {
     if (horse.finishTime <= 0 || raceTime <= horse.finishTime) return progressAt(horse.samples, raceTime);
     return 1 + pastLine(index, raceTime) / COURSE_M;
   };
+}
+
+/**
+ * The whole horse is outside the fixed finish side frame.
+ * One length of padding covers the sprite around the ground anchor.
+ */
+export function clearOfLineCamera(progress: number, lane: number) {
+  if (!(progress >= 1)) return false;
+  const pose = projectWithCamera(presentationLogical(progress, lane), lookCamera(LINE_SHOT));
+  if (!pose.visible) return true;
+  const pad = HORSE_LENGTH_M * pose.scale * LOGICAL_PER_METER;
+  return pose.x - pad > REFERENCE.width || pose.x + pad < 0;
 }
