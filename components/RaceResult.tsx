@@ -10,10 +10,10 @@ type Props = {
   /** Reference units. */
   hudHeight: number;
   onRematch: () => void;
-  onExit: () => void;
+  onChangeSettings: () => void;
 };
 
-export function RaceResult({ rows, winnerName, complete, hudHeight, onRematch, onExit }: Props) {
+export function RaceResult({ rows, winnerName, complete, hudHeight, onRematch, onChangeSettings }: Props) {
   const box = overlayLayout.results;
   const { style } = overlayLayout;
   const winnerTime = rows.find((horse) => horse.rank === 1)?.finishTime ?? rows[0]?.finishTime ?? 0;
@@ -122,7 +122,7 @@ export function RaceResult({ rows, winnerName, complete, hudHeight, onRematch, o
               })}
             </ol>
           </section>
-          {complete ? <Actions onRematch={onRematch} onExit={onExit} /> : null}
+          {complete ? <Actions onRematch={onRematch} onChangeSettings={onChangeSettings} /> : null}
         </div>
       ) : null}
     </>
@@ -166,7 +166,7 @@ function cell(fontSize: number, color: string, fontWeight: number): CSSPropertie
   return { fontSize, color, fontWeight, lineHeight: 1, whiteSpace: "nowrap" };
 }
 
-function Actions({ onRematch, onExit }: { onRematch: () => void; onExit: () => void }) {
+function Actions({ onRematch, onChangeSettings }: { onRematch: () => void; onChangeSettings: () => void }) {
   const { actions, style } = overlayLayout;
   const button: CSSProperties = {
     flex: 1,
@@ -189,10 +189,10 @@ function Actions({ onRematch, onExit }: { onRematch: () => void; onExit: () => v
     >
       <button
         type="button"
-        onClick={onExit}
+        onClick={onChangeSettings}
         style={{ ...button, background: style.panel, color: style.text, border: `3px solid ${style.border}` }}
       >
-        나가기
+        설정 변경
       </button>
       <button
         type="button"

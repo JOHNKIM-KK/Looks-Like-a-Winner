@@ -20,10 +20,10 @@ type Props = {
   comment: string;
   finished?: boolean;
   onRematch: () => void;
-  onExit: () => void;
+  onChangeSettings: () => void;
 };
 
-export function RaceOverlay({ stage, snapshot, comment, finished = false, onRematch, onExit }: Props) {
+export function RaceOverlay({ stage, snapshot, comment, finished = false, onRematch, onChangeSettings }: Props) {
   const { frame, scale, hud } = stage;
   const showHud = snapshot.phase !== "countdown";
   const board = snapshot.finishBoard;
@@ -56,7 +56,7 @@ export function RaceOverlay({ stage, snapshot, comment, finished = false, onRema
               complete={board.complete || finished}
               hudHeight={hud.height}
               onRematch={onRematch}
-              onExit={onExit}
+              onChangeSettings={onChangeSettings}
             />
           ) : null}
         </div>
