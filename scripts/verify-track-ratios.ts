@@ -1,9 +1,12 @@
 import {
+  BEND_M,
   CHUTE_M,
+  CLOTHOID_M,
   FINISH_HOME_FRACTION,
   RACE_METERS,
   REFERENCE_RADIUS_M,
   STRAIGHT_M,
+  clothoidShiftM,
   referenceDistance,
   segmentEnds,
   ENGINE_PX_PER_M,
@@ -20,12 +23,14 @@ console.log(`총거리: ${meters.toFixed(2)} m`);
 console.log(`슈트: ${CHUTE_M.toFixed(2)} m`);
 console.log(`직선: ${STRAIGHT_M.toFixed(2)} m`);
 console.log(`기준 반경: ${REFERENCE_RADIUS_M.toFixed(2)} m`);
+console.log(`완화곡선: ${CLOTHOID_M.toFixed(2)} m, 시프트 ${clothoidShiftM().toFixed(3)} m`);
+console.log(`코너 1개: ${BEND_M.toFixed(2)} m`);
 console.log(`초반 (게이트→1·2코너 출구): ${(early * 100).toFixed(2)}%`);
 console.log(`중반 (맞은편+3·4코너): ${(mid * 100).toFixed(2)}%`);
 console.log(`막판 (홈 직선→결승): ${(late * 100).toFixed(2)}%`);
 
-const earlyM = (CHUTE_M + STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M) / RACE_METERS;
-const midM = (STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M) / RACE_METERS;
+const earlyM = (CHUTE_M + STRAIGHT_M + BEND_M) / RACE_METERS;
+const midM = (STRAIGHT_M + BEND_M) / RACE_METERS;
 const lateM = (FINISH_HOME_FRACTION * STRAIGHT_M) / RACE_METERS;
 const ok =
   Math.abs(meters - RACE_METERS) < 0.05 &&

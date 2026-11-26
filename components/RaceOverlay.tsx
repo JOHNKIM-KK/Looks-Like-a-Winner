@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { laneColor } from "@/game/laneColors";
 import {
   clamp01,
+  formatRaceMeters,
   leadMeters,
   overlayLayout,
   rankBoardHeight,
@@ -271,7 +272,7 @@ function Progress({ horses }: { horses: OverlayHorse[] }) {
           transform: "translateY(-50%)",
         }}
       >
-        {leadMeters(horses)} / {RACE_METERS}m
+        {formatRaceMeters(leadMeters(horses))} / {formatRaceMeters(RACE_METERS)}m
       </span>
     </>
   );

@@ -91,8 +91,8 @@ describe("resultGapLabel", () => {
 
 describe("leadMeters", () => {
   it("reads the leader's distance, capped at the race length", () => {
-    expect(leadMeters([horse(1, 0.932), horse(2, 0.9)])).toBe(333);
-    expect(leadMeters([horse(1, 1.04)])).toBe(357);
+    expect(leadMeters([horse(1, 0.932), horse(2, 0.9)])).toBe(417);
+    expect(leadMeters([horse(1, 1.04)])).toBe(447.5);
     expect(leadMeters([])).toBe(0);
   });
 });

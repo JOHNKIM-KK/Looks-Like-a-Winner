@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { skillById } from "@/lib/skills";
-import { SKILL_WINDOW, laneAt, type RaceHorse, type RaceResult, type SkillCutin } from "@/lib/race";
+import { GALLOP_PLAYBACK, SKILL_WINDOW, laneAt, type RaceHorse, type RaceResult, type SkillCutin } from "@/lib/race";
 import {
   BANNER_HOLD,
   BEAT_FOCUS,
@@ -935,17 +935,18 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const pull = !started ? 0 : braking ? Math.max(0, Math.min(1, ahead / 0.003)) : 1;
         const footAge = raceTime - actor.horse.footFrom;
         const sucking = onFoot && footAge >= 0 && footAge < 0.4;
-        const gallopRate = !started
-          ? 0
-          : coasting
-            ? 1
-            : braking
-              ? actor.runOutAt ? 0 : pull
-              : onFoot && !sucking
-                ? 0
-                : casting && (kind === "start" || kind === "final-burst")
-                  ? 1.9
-                  : 1;
+        const gallopRate =
+          (!started
+            ? 0
+            : coasting
+              ? 1
+              : braking
+                ? actor.runOutAt ? 0 : pull
+                : onFoot && !sucking
+                  ? 0
+                  : casting && (kind === "start" || kind === "final-burst")
+                    ? 1.9
+                    : 1) * GALLOP_PLAYBACK;
         if (started) actor.animTime += frameDt * gallopRate * playback;
 
         actor.container.setVisible(pose.visible);

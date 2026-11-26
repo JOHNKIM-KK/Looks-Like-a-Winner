@@ -3,1240 +3,1240 @@
     {
       "id": "sprinter",
       "rank": 1,
-      "finishTime": 58.967
+      "finishTime": 40.645
     },
     {
       "id": "filler-11-은빛갈기",
       "rank": 2,
-      "finishTime": 59.569
+      "finishTime": 41.723
     },
     {
       "id": "filler-8-빠른발",
       "rank": 3,
-      "finishTime": 60.318
-    },
-    {
-      "id": "corner",
-      "rank": 4,
-      "finishTime": 60.336
-    },
-    {
-      "id": "shot",
-      "rank": 5,
-      "finishTime": 61.034
-    },
-    {
-      "id": "crack",
-      "rank": 6,
-      "finishTime": 61.533
+      "finishTime": 42.038
     },
     {
       "id": "filler-9-서리갈기",
+      "rank": 4,
+      "finishTime": 42.247
+    },
+    {
+      "id": "crack",
+      "rank": 5,
+      "finishTime": 42.317
+    },
+    {
+      "id": "shot",
+      "rank": 6,
+      "finishTime": 42.636
+    },
+    {
+      "id": "corner",
       "rank": 7,
-      "finishTime": 61.548
+      "finishTime": 42.772
     },
     {
       "id": "crown",
       "rank": 8,
-      "finishTime": 62.095
-    },
-    {
-      "id": "glare",
-      "rank": 9,
-      "finishTime": 63.342
-    },
-    {
-      "id": "filler-10-노을발",
-      "rank": 10,
-      "finishTime": 64.508
+      "finishTime": 43.11
     },
     {
       "id": "luck",
-      "rank": 11,
-      "finishTime": 65.042
+      "rank": 9,
+      "finishTime": 43.446
     },
     {
       "id": "stamina",
+      "rank": 10,
+      "finishTime": 43.715
+    },
+    {
+      "id": "glare",
+      "rank": 11,
+      "finishTime": 43.992
+    },
+    {
+      "id": "filler-10-노을발",
       "rank": 12,
-      "finishTime": 65.048
+      "finishTime": 44.802
     }
   ],
   "2": [
     {
       "id": "crown",
       "rank": 1,
-      "finishTime": 56.62
+      "finishTime": 39.671
     },
     {
       "id": "filler-10-구름길",
       "rank": 2,
-      "finishTime": 57.497
-    },
-    {
-      "id": "sprinter",
-      "rank": 3,
-      "finishTime": 57.969
+      "finishTime": 39.982
     },
     {
       "id": "filler-9-청보리",
-      "rank": 4,
-      "finishTime": 58.012
+      "rank": 3,
+      "finishTime": 40.271
     },
     {
-      "id": "crack",
-      "rank": 5,
-      "finishTime": 58.512
+      "id": "sprinter",
+      "rank": 4,
+      "finishTime": 40.526
     },
     {
       "id": "corner",
-      "rank": 6,
-      "finishTime": 58.655
-    },
-    {
-      "id": "shot",
-      "rank": 7,
-      "finishTime": 61.55
-    },
-    {
-      "id": "stamina",
-      "rank": 8,
-      "finishTime": 62.053
-    },
-    {
-      "id": "filler-8-발구름",
-      "rank": 9,
-      "finishTime": 62.446
-    },
-    {
-      "id": "filler-11-푸른들",
-      "rank": 10,
-      "finishTime": 62.938
+      "rank": 5,
+      "finishTime": 41.018
     },
     {
       "id": "glare",
+      "rank": 6,
+      "finishTime": 41.248
+    },
+    {
+      "id": "crack",
+      "rank": 7,
+      "finishTime": 41.306
+    },
+    {
+      "id": "filler-8-발구름",
+      "rank": 8,
+      "finishTime": 42.637
+    },
+    {
+      "id": "stamina",
+      "rank": 9,
+      "finishTime": 42.884
+    },
+    {
+      "id": "shot",
+      "rank": 10,
+      "finishTime": 42.934
+    },
+    {
+      "id": "filler-11-푸른들",
       "rank": 11,
-      "finishTime": 63.357
+      "finishTime": 43.911
     },
     {
       "id": "luck",
       "rank": 12,
-      "finishTime": 66.757
+      "finishTime": 45.984
     }
   ],
   "3": [
     {
       "id": "stamina",
       "rank": 1,
-      "finishTime": 56.662
+      "finishTime": 39.425
     },
     {
       "id": "filler-11-아침이슬",
       "rank": 2,
-      "finishTime": 57.187
-    },
-    {
-      "id": "crown",
-      "rank": 3,
-      "finishTime": 59.4
-    },
-    {
-      "id": "filler-9-노을발",
-      "rank": 4,
-      "finishTime": 59.905
-    },
-    {
-      "id": "filler-10-단풍길",
-      "rank": 5,
-      "finishTime": 60.376
+      "finishTime": 39.756
     },
     {
       "id": "shot",
-      "rank": 6,
-      "finishTime": 60.868
+      "rank": 3,
+      "finishTime": 40.972
     },
     {
-      "id": "luck",
-      "rank": 7,
-      "finishTime": 61.192
+      "id": "crown",
+      "rank": 4,
+      "finishTime": 41.468
+    },
+    {
+      "id": "filler-9-노을발",
+      "rank": 5,
+      "finishTime": 41.726
+    },
+    {
+      "id": "filler-10-단풍길",
+      "rank": 6,
+      "finishTime": 42.219
     },
     {
       "id": "sprinter",
+      "rank": 7,
+      "finishTime": 42.765
+    },
+    {
+      "id": "luck",
       "rank": 8,
-      "finishTime": 61.304
+      "finishTime": 42.81
     },
     {
       "id": "crack",
       "rank": 9,
-      "finishTime": 62.017
+      "finishTime": 43.451
     },
     {
       "id": "corner",
       "rank": 10,
-      "finishTime": 63.715
+      "finishTime": 43.565
     },
     {
       "id": "filler-8-청보리",
       "rank": 11,
-      "finishTime": 64.218
+      "finishTime": 43.844
     },
     {
       "id": "glare",
       "rank": 12,
-      "finishTime": 64.477
+      "finishTime": 44.23
     }
   ],
   "4": [
     {
       "id": "filler-10-구름길",
       "rank": 1,
-      "finishTime": 54.831
-    },
-    {
-      "id": "shot",
-      "rank": 2,
-      "finishTime": 55.906
+      "finishTime": 39.03
     },
     {
       "id": "corner",
+      "rank": 2,
+      "finishTime": 40
+    },
+    {
+      "id": "filler-11-아침이슬",
       "rank": 3,
-      "finishTime": 56.867
+      "finishTime": 40.68
     },
     {
       "id": "crown",
       "rank": 4,
-      "finishTime": 57.352
+      "finishTime": 40.904
+    },
+    {
+      "id": "shot",
+      "rank": 5,
+      "finishTime": 40.914
     },
     {
       "id": "crack",
-      "rank": 5,
-      "finishTime": 57.843
-    },
-    {
-      "id": "filler-11-아침이슬",
       "rank": 6,
-      "finishTime": 58.117
+      "finishTime": 41.165
     },
     {
       "id": "sprinter",
       "rank": 7,
-      "finishTime": 58.117
-    },
-    {
-      "id": "filler-8-솔바람",
-      "rank": 8,
-      "finishTime": 60.309
+      "finishTime": 41.173
     },
     {
       "id": "luck",
+      "rank": 8,
+      "finishTime": 43.211
+    },
+    {
+      "id": "filler-8-솔바람",
       "rank": 9,
-      "finishTime": 62.421
-    },
-    {
-      "id": "stamina",
-      "rank": 10,
-      "finishTime": 62.704
-    },
-    {
-      "id": "glare",
-      "rank": 11,
-      "finishTime": 63.534
+      "finishTime": 43.486
     },
     {
       "id": "filler-9-빠른발",
+      "rank": 10,
+      "finishTime": 43.641
+    },
+    {
+      "id": "stamina",
+      "rank": 11,
+      "finishTime": 43.872
+    },
+    {
+      "id": "glare",
       "rank": 12,
-      "finishTime": 63.855
+      "finishTime": 43.997
     }
   ],
   "5": [
     {
-      "id": "luck",
+      "id": "crack",
       "rank": 1,
-      "finishTime": 55.492
+      "finishTime": 39.108
     },
     {
-      "id": "crack",
+      "id": "luck",
       "rank": 2,
-      "finishTime": 55.875
+      "finishTime": 39.586
     },
     {
       "id": "corner",
       "rank": 3,
-      "finishTime": 57.334
+      "finishTime": 39.916
     },
     {
       "id": "filler-11-서리갈기",
       "rank": 4,
-      "finishTime": 58.075
+      "finishTime": 40.281
     },
     {
       "id": "glare",
       "rank": 5,
-      "finishTime": 58.26
+      "finishTime": 40.481
     },
     {
       "id": "filler-8-은빛갈기",
       "rank": 6,
-      "finishTime": 59.092
+      "finishTime": 40.592
     },
     {
       "id": "sprinter",
       "rank": 7,
-      "finishTime": 59.326
+      "finishTime": 41.16
     },
     {
       "id": "shot",
       "rank": 8,
-      "finishTime": 60.97
-    },
-    {
-      "id": "stamina",
-      "rank": 9,
-      "finishTime": 62.545
+      "finishTime": 42.203
     },
     {
       "id": "filler-10-검은발",
+      "rank": 9,
+      "finishTime": 43.642
+    },
+    {
+      "id": "stamina",
       "rank": 10,
-      "finishTime": 62.638
+      "finishTime": 43.921
     },
     {
       "id": "crown",
       "rank": 11,
-      "finishTime": 63.647
+      "finishTime": 44.004
     },
     {
       "id": "filler-9-먹구름",
       "rank": 12,
-      "finishTime": 66.236
+      "finishTime": 44.869
     }
   ],
   "6": [
     {
       "id": "stamina",
       "rank": 1,
-      "finishTime": 53.877
-    },
-    {
-      "id": "glare",
-      "rank": 2,
-      "finishTime": 55.3
+      "finishTime": 38.293
     },
     {
       "id": "sprinter",
+      "rank": 2,
+      "finishTime": 39.631
+    },
+    {
+      "id": "glare",
       "rank": 3,
-      "finishTime": 56.507
+      "finishTime": 39.841
     },
     {
       "id": "crown",
       "rank": 4,
-      "finishTime": 56.618
-    },
-    {
-      "id": "filler-8-달림이",
-      "rank": 5,
-      "finishTime": 58.46
+      "finishTime": 39.978
     },
     {
       "id": "filler-11-아침이슬",
-      "rank": 6,
-      "finishTime": 59.002
+      "rank": 5,
+      "finishTime": 41.138
     },
     {
-      "id": "luck",
+      "id": "filler-8-달림이",
+      "rank": 6,
+      "finishTime": 41.459
+    },
+    {
+      "id": "shot",
       "rank": 7,
-      "finishTime": 59.614
+      "finishTime": 41.485
     },
     {
       "id": "filler-9-바람질주",
       "rank": 8,
-      "finishTime": 60.045
-    },
-    {
-      "id": "shot",
-      "rank": 9,
-      "finishTime": 60.191
+      "finishTime": 41.58
     },
     {
       "id": "filler-10-들판",
+      "rank": 9,
+      "finishTime": 41.678
+    },
+    {
+      "id": "luck",
       "rank": 10,
-      "finishTime": 60.524
+      "finishTime": 41.813
     },
     {
       "id": "crack",
       "rank": 11,
-      "finishTime": 64.477
+      "finishTime": 44.773
     },
     {
       "id": "corner",
       "rank": 12,
-      "finishTime": 65.622
+      "finishTime": 44.954
     }
   ],
   "7": [
     {
       "id": "stamina",
       "rank": 1,
-      "finishTime": 56.282
+      "finishTime": 39.157
     },
     {
       "id": "shot",
       "rank": 2,
-      "finishTime": 56.464
+      "finishTime": 39.431
     },
     {
       "id": "glare",
       "rank": 3,
-      "finishTime": 57.345
+      "finishTime": 39.909
     },
     {
       "id": "crown",
       "rank": 4,
-      "finishTime": 57.885
+      "finishTime": 40.602
     },
     {
       "id": "sprinter",
       "rank": 5,
-      "finishTime": 59.095
-    },
-    {
-      "id": "corner",
-      "rank": 6,
-      "finishTime": 59.358
+      "finishTime": 41
     },
     {
       "id": "filler-11-서리갈기",
+      "rank": 6,
+      "finishTime": 41.605
+    },
+    {
+      "id": "corner",
       "rank": 7,
-      "finishTime": 60.096
+      "finishTime": 41.642
     },
     {
       "id": "luck",
       "rank": 8,
-      "finishTime": 60.493
-    },
-    {
-      "id": "filler-9-청보리",
-      "rank": 9,
-      "finishTime": 61.803
+      "finishTime": 42.198
     },
     {
       "id": "filler-10-은빛갈기",
+      "rank": 9,
+      "finishTime": 43.149
+    },
+    {
+      "id": "filler-9-청보리",
       "rank": 10,
-      "finishTime": 62.926
+      "finishTime": 43.556
     },
     {
       "id": "crack",
       "rank": 11,
-      "finishTime": 64.567
+      "finishTime": 44.174
     },
     {
       "id": "filler-8-발구름",
       "rank": 12,
-      "finishTime": 65.262
+      "finishTime": 45.043
     }
   ],
   "8": [
     {
       "id": "filler-10-바람질주",
       "rank": 1,
-      "finishTime": 56.467
-    },
-    {
-      "id": "stamina",
-      "rank": 2,
-      "finishTime": 56.963
-    },
-    {
-      "id": "filler-8-먹구름",
-      "rank": 3,
-      "finishTime": 57.197
+      "finishTime": 39.957
     },
     {
       "id": "sprinter",
+      "rank": 2,
+      "finishTime": 40.055
+    },
+    {
+      "id": "stamina",
+      "rank": 3,
+      "finishTime": 40.336
+    },
+    {
+      "id": "filler-8-먹구름",
       "rank": 4,
-      "finishTime": 57.494
+      "finishTime": 40.337
     },
     {
       "id": "filler-11-밤별",
       "rank": 5,
-      "finishTime": 59.208
+      "finishTime": 41.393
     },
     {
       "id": "luck",
       "rank": 6,
-      "finishTime": 59.919
-    },
-    {
-      "id": "crown",
-      "rank": 7,
-      "finishTime": 60.344
+      "finishTime": 41.476
     },
     {
       "id": "glare",
+      "rank": 7,
+      "finishTime": 41.73
+    },
+    {
+      "id": "crown",
       "rank": 8,
-      "finishTime": 60.677
+      "finishTime": 42.062
     },
     {
       "id": "crack",
       "rank": 9,
-      "finishTime": 62.183
+      "finishTime": 43.199
     },
     {
       "id": "corner",
       "rank": 10,
-      "finishTime": 63.948
+      "finishTime": 43.711
     },
     {
       "id": "shot",
       "rank": 11,
-      "finishTime": 64.432
+      "finishTime": 43.841
     },
     {
       "id": "filler-9-발구름",
       "rank": 12,
-      "finishTime": 65.003
+      "finishTime": 44.955
     }
   ],
   "9": [
     {
       "id": "shot",
       "rank": 1,
-      "finishTime": 56.733
-    },
-    {
-      "id": "filler-8-바다내음",
-      "rank": 2,
-      "finishTime": 60.358
-    },
-    {
-      "id": "crack",
-      "rank": 3,
-      "finishTime": 60.561
+      "finishTime": 40.289
     },
     {
       "id": "corner",
+      "rank": 2,
+      "finishTime": 41.137
+    },
+    {
+      "id": "filler-8-바다내음",
+      "rank": 3,
+      "finishTime": 41.483
+    },
+    {
+      "id": "crack",
       "rank": 4,
-      "finishTime": 60.876
+      "finishTime": 42.424
     },
     {
       "id": "filler-10-은빛갈기",
       "rank": 5,
-      "finishTime": 61.105
+      "finishTime": 42.735
     },
     {
       "id": "filler-11-서리갈기",
       "rank": 6,
-      "finishTime": 62.397
+      "finishTime": 43.419
     },
     {
       "id": "sprinter",
       "rank": 7,
-      "finishTime": 62.67
+      "finishTime": 43.446
     },
     {
       "id": "filler-9-먹구름",
       "rank": 8,
-      "finishTime": 62.7
+      "finishTime": 43.653
     },
     {
       "id": "luck",
       "rank": 9,
-      "finishTime": 63.688
+      "finishTime": 43.883
     },
     {
       "id": "crown",
       "rank": 10,
-      "finishTime": 63.749
+      "finishTime": 44.286
     },
     {
       "id": "stamina",
       "rank": 11,
-      "finishTime": 65.331
+      "finishTime": 45.207
     },
     {
       "id": "glare",
       "rank": 12,
-      "finishTime": 65.849
+      "finishTime": 46.289
     }
   ],
   "10": [
     {
-      "id": "stamina",
+      "id": "corner",
       "rank": 1,
-      "finishTime": 56.276
+      "finishTime": 40.025
+    },
+    {
+      "id": "stamina",
+      "rank": 2,
+      "finishTime": 40.204
     },
     {
       "id": "crown",
-      "rank": 2,
-      "finishTime": 58.936
-    },
-    {
-      "id": "filler-9-솔바람",
       "rank": 3,
-      "finishTime": 59.278
-    },
-    {
-      "id": "corner",
-      "rank": 4,
-      "finishTime": 59.427
+      "finishTime": 41.009
     },
     {
       "id": "crack",
+      "rank": 4,
+      "finishTime": 41.299
+    },
+    {
+      "id": "filler-9-솔바람",
       "rank": 5,
-      "finishTime": 59.776
-    },
-    {
-      "id": "glare",
-      "rank": 6,
-      "finishTime": 60.305
-    },
-    {
-      "id": "shot",
-      "rank": 7,
-      "finishTime": 60.449
+      "finishTime": 41.665
     },
     {
       "id": "sprinter",
-      "rank": 8,
-      "finishTime": 60.806
+      "rank": 6,
+      "finishTime": 41.91
     },
     {
-      "id": "filler-8-하얀갈기",
-      "rank": 9,
-      "finishTime": 61.34
+      "id": "glare",
+      "rank": 7,
+      "finishTime": 42.157
+    },
+    {
+      "id": "shot",
+      "rank": 8,
+      "finishTime": 42.455
     },
     {
       "id": "filler-11-단풍길",
+      "rank": 9,
+      "finishTime": 42.616
+    },
+    {
+      "id": "filler-8-하얀갈기",
       "rank": 10,
-      "finishTime": 62.402
+      "finishTime": 42.746
     },
     {
       "id": "luck",
       "rank": 11,
-      "finishTime": 62.923
+      "finishTime": 43.233
     },
     {
       "id": "filler-10-아침이슬",
       "rank": 12,
-      "finishTime": 64.488
+      "finishTime": 44.307
     }
   ],
   "11": [
     {
       "id": "filler-11-푸른들",
       "rank": 1,
-      "finishTime": 55.032
+      "finishTime": 38.945
     },
     {
       "id": "crack",
       "rank": 2,
-      "finishTime": 55.755
+      "finishTime": 39.386
     },
     {
       "id": "stamina",
       "rank": 3,
-      "finishTime": 56.718
+      "finishTime": 39.968
     },
     {
-      "id": "shot",
+      "id": "glare",
       "rank": 4,
-      "finishTime": 57.703
+      "finishTime": 40.452
     },
     {
       "id": "corner",
       "rank": 5,
-      "finishTime": 57.852
+      "finishTime": 40.664
     },
     {
-      "id": "glare",
+      "id": "shot",
       "rank": 6,
-      "finishTime": 58.57
+      "finishTime": 40.942
     },
     {
       "id": "filler-10-강물",
       "rank": 7,
-      "finishTime": 59.233
+      "finishTime": 41.219
     },
     {
       "id": "crown",
       "rank": 8,
-      "finishTime": 59.839
+      "finishTime": 41.718
     },
     {
       "id": "filler-8-발구름",
       "rank": 9,
-      "finishTime": 60.979
-    },
-    {
-      "id": "filler-9-바다내음",
-      "rank": 10,
-      "finishTime": 62.17
+      "finishTime": 42.043
     },
     {
       "id": "sprinter",
+      "rank": 10,
+      "finishTime": 42.47
+    },
+    {
+      "id": "filler-9-바다내음",
       "rank": 11,
-      "finishTime": 62.612
+      "finishTime": 43.382
     },
     {
       "id": "luck",
       "rank": 12,
-      "finishTime": 62.998
+      "finishTime": 44.005
     }
   ],
   "12": [
     {
-      "id": "stamina",
+      "id": "sprinter",
       "rank": 1,
-      "finishTime": 55.453
+      "finishTime": 39.374
     },
     {
-      "id": "sprinter",
+      "id": "stamina",
       "rank": 2,
-      "finishTime": 56.118
+      "finishTime": 39.426
     },
     {
       "id": "filler-11-달림이",
       "rank": 3,
-      "finishTime": 57.399
+      "finishTime": 40.045
     },
     {
       "id": "luck",
       "rank": 4,
-      "finishTime": 57.565
+      "finishTime": 40.448
     },
     {
       "id": "shot",
       "rank": 5,
-      "finishTime": 58.718
+      "finishTime": 40.723
     },
     {
       "id": "crown",
       "rank": 6,
-      "finishTime": 60.771
+      "finishTime": 41.895
     },
     {
       "id": "filler-9-들판",
       "rank": 7,
-      "finishTime": 60.803
+      "finishTime": 42.257
     },
     {
       "id": "crack",
       "rank": 8,
-      "finishTime": 62.131
+      "finishTime": 43.008
     },
     {
       "id": "glare",
       "rank": 9,
-      "finishTime": 63.676
+      "finishTime": 44.028
     },
     {
       "id": "corner",
       "rank": 10,
-      "finishTime": 64.699
+      "finishTime": 44.527
     },
     {
       "id": "filler-8-번개발",
       "rank": 11,
-      "finishTime": 65.172
+      "finishTime": 45.492
     },
     {
       "id": "filler-10-아침이슬",
       "rank": 12,
-      "finishTime": 66.127
+      "finishTime": 45.932
     }
   ],
   "13": [
     {
       "id": "sprinter",
       "rank": 1,
-      "finishTime": 53.828
+      "finishTime": 37.783
     },
     {
       "id": "glare",
       "rank": 2,
-      "finishTime": 54.568
+      "finishTime": 38.242
     },
     {
       "id": "crown",
       "rank": 3,
-      "finishTime": 56.883
-    },
-    {
-      "id": "luck",
-      "rank": 4,
-      "finishTime": 57.671
+      "finishTime": 39.593
     },
     {
       "id": "stamina",
+      "rank": 4,
+      "finishTime": 40.495
+    },
+    {
+      "id": "luck",
       "rank": 5,
-      "finishTime": 58.516
+      "finishTime": 40.793
     },
     {
       "id": "filler-10-단풍길",
       "rank": 6,
-      "finishTime": 60.163
+      "finishTime": 41.991
     },
     {
       "id": "filler-8-아침이슬",
       "rank": 7,
-      "finishTime": 60.567
+      "finishTime": 42.085
     },
     {
       "id": "corner",
       "rank": 8,
-      "finishTime": 60.65
-    },
-    {
-      "id": "filler-9-솔바람",
-      "rank": 9,
-      "finishTime": 61.123
+      "finishTime": 42.343
     },
     {
       "id": "filler-11-빠른발",
+      "rank": 9,
+      "finishTime": 42.516
+    },
+    {
+      "id": "filler-9-솔바람",
       "rank": 10,
-      "finishTime": 61.453
+      "finishTime": 42.627
     },
     {
       "id": "crack",
       "rank": 11,
-      "finishTime": 63.039
+      "finishTime": 43.62
     },
     {
       "id": "shot",
       "rank": 12,
-      "finishTime": 64.349
+      "finishTime": 44.221
     }
   ],
   "14": [
     {
       "id": "filler-10-검은발",
       "rank": 1,
-      "finishTime": 54.703
+      "finishTime": 38.96
     },
     {
       "id": "filler-11-아침이슬",
       "rank": 2,
-      "finishTime": 56.885
-    },
-    {
-      "id": "filler-8-먹구름",
-      "rank": 3,
-      "finishTime": 58.45
+      "finishTime": 40.14
     },
     {
       "id": "stamina",
-      "rank": 4,
-      "finishTime": 58.754
+      "rank": 3,
+      "finishTime": 40.976
     },
     {
       "id": "filler-9-밤별",
+      "rank": 4,
+      "finishTime": 41.103
+    },
+    {
+      "id": "filler-8-먹구름",
       "rank": 5,
-      "finishTime": 58.945
+      "finishTime": 41.419
     },
     {
       "id": "crack",
       "rank": 6,
-      "finishTime": 59.26
+      "finishTime": 41.706
     },
     {
       "id": "luck",
       "rank": 7,
-      "finishTime": 60.928
-    },
-    {
-      "id": "glare",
-      "rank": 8,
-      "finishTime": 61.661
+      "finishTime": 42.199
     },
     {
       "id": "corner",
+      "rank": 8,
+      "finishTime": 42.912
+    },
+    {
+      "id": "shot",
       "rank": 9,
-      "finishTime": 62.028
+      "finishTime": 43.278
     },
     {
       "id": "crown",
       "rank": 10,
-      "finishTime": 62.277
+      "finishTime": 43.554
     },
     {
-      "id": "shot",
+      "id": "glare",
       "rank": 11,
-      "finishTime": 62.853
+      "finishTime": 43.556
     },
     {
       "id": "sprinter",
       "rank": 12,
-      "finishTime": 64.822
+      "finishTime": 44.31
     }
   ],
   "15": [
     {
-      "id": "glare",
-      "rank": 1,
-      "finishTime": 55.56
-    },
-    {
       "id": "stamina",
-      "rank": 2,
-      "finishTime": 56.508
+      "rank": 1,
+      "finishTime": 39.5
     },
     {
       "id": "filler-11-은빛갈기",
+      "rank": 2,
+      "finishTime": 39.844
+    },
+    {
+      "id": "glare",
       "rank": 3,
-      "finishTime": 56.529
+      "finishTime": 40.125
     },
     {
       "id": "shot",
       "rank": 4,
-      "finishTime": 57.437
+      "finishTime": 40.399
     },
     {
       "id": "filler-9-푸른들",
       "rank": 5,
-      "finishTime": 57.7
+      "finishTime": 40.745
     },
     {
       "id": "crack",
       "rank": 6,
-      "finishTime": 59.116
+      "finishTime": 41.327
     },
     {
       "id": "crown",
       "rank": 7,
-      "finishTime": 61.233
+      "finishTime": 42.251
     },
     {
       "id": "filler-8-들판",
       "rank": 8,
-      "finishTime": 61.871
+      "finishTime": 42.86
     },
     {
       "id": "luck",
       "rank": 9,
-      "finishTime": 62.423
+      "finishTime": 42.933
     },
     {
       "id": "corner",
       "rank": 10,
-      "finishTime": 64.855
+      "finishTime": 45.205
     },
     {
       "id": "sprinter",
       "rank": 11,
-      "finishTime": 65.061
+      "finishTime": 45.439
     },
     {
       "id": "filler-10-밤별",
       "rank": 12,
-      "finishTime": 66.69
+      "finishTime": 46.321
     }
   ],
   "16": [
     {
       "id": "luck",
       "rank": 1,
-      "finishTime": 54.553
+      "finishTime": 38.792
     },
     {
       "id": "filler-8-벼락호",
       "rank": 2,
-      "finishTime": 56.184
+      "finishTime": 39.395
     },
     {
       "id": "sprinter",
       "rank": 3,
-      "finishTime": 56.903
+      "finishTime": 40.503
     },
     {
       "id": "filler-10-들판",
       "rank": 4,
-      "finishTime": 58.364
-    },
-    {
-      "id": "filler-11-먹구름",
-      "rank": 5,
-      "finishTime": 60.19
+      "finishTime": 41.138
     },
     {
       "id": "glare",
+      "rank": 5,
+      "finishTime": 41.773
+    },
+    {
+      "id": "filler-11-먹구름",
       "rank": 6,
-      "finishTime": 60.922
+      "finishTime": 42.213
     },
     {
       "id": "corner",
       "rank": 7,
-      "finishTime": 61.186
+      "finishTime": 42.65
     },
     {
       "id": "filler-9-바람질주",
       "rank": 8,
-      "finishTime": 62.003
+      "finishTime": 43.169
     },
     {
       "id": "shot",
       "rank": 9,
-      "finishTime": 63.129
-    },
-    {
-      "id": "stamina",
-      "rank": 10,
-      "finishTime": 63.801
+      "finishTime": 43.78
     },
     {
       "id": "crown",
+      "rank": 10,
+      "finishTime": 44.195
+    },
+    {
+      "id": "stamina",
       "rank": 11,
-      "finishTime": 64.044
+      "finishTime": 44.69
     },
     {
       "id": "crack",
       "rank": 12,
-      "finishTime": 67.455
+      "finishTime": 46.124
     }
   ],
   "17": [
     {
-      "id": "luck",
-      "rank": 1,
-      "finishTime": 56.022
-    },
-    {
       "id": "filler-8-아침이슬",
+      "rank": 1,
+      "finishTime": 39.143
+    },
+    {
+      "id": "luck",
       "rank": 2,
-      "finishTime": 56.144
-    },
-    {
-      "id": "glare",
-      "rank": 3,
-      "finishTime": 57.539
-    },
-    {
-      "id": "shot",
-      "rank": 4,
-      "finishTime": 58.297
+      "finishTime": 39.4
     },
     {
       "id": "stamina",
+      "rank": 3,
+      "finishTime": 40.484
+    },
+    {
+      "id": "glare",
+      "rank": 4,
+      "finishTime": 40.583
+    },
+    {
+      "id": "shot",
       "rank": 5,
-      "finishTime": 59.084
-    },
-    {
-      "id": "corner",
-      "rank": 6,
-      "finishTime": 60.63
-    },
-    {
-      "id": "crack",
-      "rank": 7,
-      "finishTime": 62.938
-    },
-    {
-      "id": "filler-10-밤별",
-      "rank": 8,
-      "finishTime": 63.079
+      "finishTime": 41.246
     },
     {
       "id": "filler-11-발구름",
-      "rank": 9,
-      "finishTime": 63.655
+      "rank": 6,
+      "finishTime": 41.693
     },
     {
-      "id": "filler-9-달림이",
-      "rank": 10,
-      "finishTime": 64.253
+      "id": "corner",
+      "rank": 7,
+      "finishTime": 42.002
+    },
+    {
+      "id": "crack",
+      "rank": 8,
+      "finishTime": 43.108
     },
     {
       "id": "crown",
+      "rank": 9,
+      "finishTime": 43.829
+    },
+    {
+      "id": "filler-10-밤별",
+      "rank": 10,
+      "finishTime": 43.953
+    },
+    {
+      "id": "filler-9-달림이",
       "rank": 11,
-      "finishTime": 64.407
+      "finishTime": 44.853
     },
     {
       "id": "sprinter",
       "rank": 12,
-      "finishTime": 66.536
+      "finishTime": 46.461
     }
   ],
   "18": [
     {
       "id": "glare",
       "rank": 1,
-      "finishTime": 56.029
+      "finishTime": 39.281
     },
     {
       "id": "stamina",
       "rank": 2,
-      "finishTime": 56.345
+      "finishTime": 39.521
     },
     {
       "id": "luck",
       "rank": 3,
-      "finishTime": 56.896
-    },
-    {
-      "id": "corner",
-      "rank": 4,
-      "finishTime": 58.576
+      "finishTime": 39.826
     },
     {
       "id": "filler-10-하얀갈기",
-      "rank": 5,
-      "finishTime": 59.186
+      "rank": 4,
+      "finishTime": 40.992
     },
     {
-      "id": "filler-11-산들바람",
-      "rank": 6,
-      "finishTime": 59.74
+      "id": "corner",
+      "rank": 5,
+      "finishTime": 41.382
     },
     {
       "id": "sprinter",
-      "rank": 7,
-      "finishTime": 60.217
+      "rank": 6,
+      "finishTime": 41.592
     },
     {
-      "id": "filler-9-발구름",
-      "rank": 8,
-      "finishTime": 62.048
+      "id": "filler-11-산들바람",
+      "rank": 7,
+      "finishTime": 41.735
     },
     {
       "id": "crack",
+      "rank": 8,
+      "finishTime": 42.188
+    },
+    {
+      "id": "filler-9-발구름",
       "rank": 9,
-      "finishTime": 62.346
+      "finishTime": 42.944
     },
     {
       "id": "filler-8-밤별",
       "rank": 10,
-      "finishTime": 62.657
+      "finishTime": 43.124
     },
     {
       "id": "crown",
       "rank": 11,
-      "finishTime": 62.837
+      "finishTime": 43.23
     },
     {
       "id": "shot",
       "rank": 12,
-      "finishTime": 63.203
+      "finishTime": 43.435
     }
   ],
   "19": [
     {
       "id": "filler-9-산들바람",
       "rank": 1,
-      "finishTime": 55.979
-    },
-    {
-      "id": "glare",
-      "rank": 2,
-      "finishTime": 58.787
+      "finishTime": 39.373
     },
     {
       "id": "filler-8-바람질주",
-      "rank": 3,
-      "finishTime": 59.765
-    },
-    {
-      "id": "crown",
-      "rank": 4,
-      "finishTime": 59.789
+      "rank": 2,
+      "finishTime": 41.657
     },
     {
       "id": "filler-11-달림이",
-      "rank": 5,
-      "finishTime": 60.106
+      "rank": 3,
+      "finishTime": 41.788
     },
     {
       "id": "corner",
-      "rank": 6,
-      "finishTime": 60.559
+      "rank": 4,
+      "finishTime": 41.951
     },
     {
-      "id": "stamina",
-      "rank": 7,
-      "finishTime": 60.575
+      "id": "glare",
+      "rank": 5,
+      "finishTime": 41.963
     },
     {
       "id": "filler-10-들판",
+      "rank": 6,
+      "finishTime": 42.246
+    },
+    {
+      "id": "crown",
+      "rank": 7,
+      "finishTime": 42.258
+    },
+    {
+      "id": "stamina",
       "rank": 8,
-      "finishTime": 60.611
+      "finishTime": 42.311
     },
     {
       "id": "crack",
       "rank": 9,
-      "finishTime": 61.851
+      "finishTime": 43.329
     },
     {
       "id": "sprinter",
       "rank": 10,
-      "finishTime": 63.433
+      "finishTime": 43.818
     },
     {
       "id": "shot",
       "rank": 11,
-      "finishTime": 64.108
+      "finishTime": 44.407
     },
     {
       "id": "luck",
       "rank": 12,
-      "finishTime": 64.58
+      "finishTime": 45.531
     }
   ],
   "20": [
     {
       "id": "crack",
       "rank": 1,
-      "finishTime": 55.354
-    },
-    {
-      "id": "shot",
-      "rank": 2,
-      "finishTime": 56.365
+      "finishTime": 38.862
     },
     {
       "id": "filler-9-청보리",
-      "rank": 3,
-      "finishTime": 56.784
+      "rank": 2,
+      "finishTime": 39.559
     },
     {
-      "id": "sprinter",
-      "rank": 4,
-      "finishTime": 58.125
+      "id": "shot",
+      "rank": 3,
+      "finishTime": 39.575
     },
     {
       "id": "filler-11-은빛갈기",
-      "rank": 5,
-      "finishTime": 58.53
+      "rank": 4,
+      "finishTime": 40.831
     },
     {
-      "id": "corner",
-      "rank": 6,
-      "finishTime": 60.383
+      "id": "sprinter",
+      "rank": 5,
+      "finishTime": 40.974
     },
     {
       "id": "glare",
+      "rank": 6,
+      "finishTime": 41.813
+    },
+    {
+      "id": "corner",
       "rank": 7,
-      "finishTime": 60.442
+      "finishTime": 42.133
     },
     {
       "id": "filler-8-번개발",
       "rank": 8,
-      "finishTime": 60.901
+      "finishTime": 42.268
     },
     {
       "id": "luck",
       "rank": 9,
-      "finishTime": 60.91
+      "finishTime": 42.524
     },
     {
       "id": "crown",
       "rank": 10,
-      "finishTime": 61.367
+      "finishTime": 42.529
     },
     {
       "id": "stamina",
       "rank": 11,
-      "finishTime": 61.396
+      "finishTime": 42.807
     },
     {
       "id": "filler-10-단풍길",
       "rank": 12,
-      "finishTime": 63.074
+      "finishTime": 43.65
     }
   ]
 }

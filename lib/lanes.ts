@@ -1,12 +1,12 @@
-import { LANE_COUNT } from "@/game/track";
+import { BEND_M, CHUTE_M, FINISH_HOME_FRACTION, LANE_COUNT, STRAIGHT_M } from "@/game/track";
 
 /** SPEC §8-1 zone ends, in metres along the race. */
-export const CHUTE_END_M = 55;
-export const FIRST_STRAIGHT_END_M = 135.3;
-export const CORNER12_END_M = 179.3;
-export const BACK_STRAIGHT_END_M = 259.5;
-export const CORNER34_END_M = 303.5;
-export const FINISH_M = 357;
+export const CHUTE_END_M = CHUTE_M;
+export const FIRST_STRAIGHT_END_M = CHUTE_M + STRAIGHT_M;
+export const CORNER12_END_M = FIRST_STRAIGHT_END_M + BEND_M;
+export const BACK_STRAIGHT_END_M = CORNER12_END_M + STRAIGHT_M;
+export const CORNER34_END_M = BACK_STRAIGHT_END_M + BEND_M;
+export const FINISH_M = CORNER34_END_M + FINISH_HOME_FRACTION * STRAIGHT_M;
 
 export type LaneZone = "chute" | "firstStraight" | "corner12" | "backStraight" | "corner34" | "home";
 

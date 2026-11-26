@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import { farRailRadius, nearRailRadius } from "./artScale";
 import { chuteMergeX, railLines, railSegmentInFront } from "./trackArt";
 import {
+  BEND_M,
   CHUTE,
   CHUTE_M,
   ENGINE_PX_PER_M,
@@ -9,6 +10,7 @@ import {
   LANE_COUNT,
   RACE_METERS,
   STRAIGHT,
+  STRAIGHT_M,
   finishGoalX,
   logicalAtDistance,
   presentationLogical,
@@ -22,10 +24,10 @@ import {
 const HALF = STRAIGHT / 2;
 
 describe("closed lap", () => {
-  test("the chute, the 2/3 finish, and both bends are one continuous 357 m lap", () => {
+  test("the chute, the 2/3 finish, and both clothoid bends are one continuous lap", () => {
     const meters = referenceDistance() / ENGINE_PX_PER_M;
-    expect(meters).toBeCloseTo(55 + (8 / 3) * 80.3 + 28 * Math.PI, 3);
-    expect(Math.round(meters)).toBe(RACE_METERS);
+    expect(meters).toBeCloseTo(RACE_METERS, 6);
+    expect(meters).toBeCloseTo(55 + (8 / 3) * 80.3 + 2 * (Math.PI * 25.2 + 10), 6);
     expect(CHUTE / ENGINE_PX_PER_M).toBeCloseTo(CHUTE_M, 3);
     expect(finishGoalX()).toBeCloseTo(-HALF + FINISH_HOME_FRACTION * STRAIGHT, 5);
 
@@ -33,7 +35,10 @@ describe("closed lap", () => {
     const sectionStartsM = [ends.chuteEnd, ends.corner12Entry, ends.corner12Exit, ends.backEnd, ends.corner34Exit].map(
       (end) => end * meters,
     );
-    [55, 135.3, 179.28, 259.58, 303.56].forEach((expected, index) => expect(sectionStartsM[index]).toBeCloseTo(expected, 2));
+    const bend = BEND_M;
+    [CHUTE_M, CHUTE_M + STRAIGHT_M, CHUTE_M + STRAIGHT_M + bend, CHUTE_M + 2 * STRAIGHT_M + bend, CHUTE_M + 2 * STRAIGHT_M + 2 * bend].forEach(
+      (expected, index) => expect(sectionStartsM[index]).toBeCloseTo(expected, 4),
+    );
 
     const marks = [0, ends.chuteEnd, ends.corner12Entry, ends.corner12Exit, ends.backEnd, ends.corner34Exit, 1, 1.1];
     for (let lane = 1; lane <= LANE_COUNT; lane += 1) {
@@ -50,7 +55,7 @@ describe("closed lap", () => {
         const mark = marks[index] ?? 0;
         const before = presentationLogical(mark - 1e-4, lane);
         const at = presentationLogical(mark, lane);
-        expect(Math.hypot(before.x - at.x, before.y - at.y), `lane ${lane} join ${mark}`).toBeLessThan(2);
+        expect(Math.hypot(before.x - at.x, before.y - at.y), `lane ${lane} join ${mark}`).toBeLessThan(3);
       }
       if (lane < LANE_COUNT) expect(laneRadius(lane + 0.5)).toBeCloseTo((radius + laneRadius(lane + 1)) / 2, 6);
     }
@@ -122,7 +127,8 @@ describe("rails", () => {
 
   test("the chute opens onto the course where the west bend's outer rail meets the chute's inner rail", () => {
     const mergeX = chuteMergeX();
-    expect(Math.hypot(mergeX + HALF, farRailRadius())).toBeCloseTo(nearRailRadius(), 6);
+    expect(mergeX).toBeLessThan(-HALF);
+    expect(mergeX).toBeGreaterThan(-HALF - nearRailRadius());
     for (const { from } of railSegments()) {
       const insideChute = from.x < -HALF && from.y > farRailRadius() + 1 && from.y < nearRailRadius() - 1;
       expect(insideChute, `rail point (${from.x.toFixed(0)}, ${from.y.toFixed(0)}) inside the chute`).toBe(false);

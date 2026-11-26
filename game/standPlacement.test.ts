@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LOGICAL_PER_METER, STANDS_BEHIND_OUTER_M, nearRailRadius } from "./artScale";
 import { SCENERY, sceneryBoxes, sceneryFaces } from "./scenery";
 import { mainStandLine } from "./trackArt";
-import { CHUTE, STRAIGHT } from "./track";
+import { CHUTE, STRAIGHT, bendCenterX, clothoidShiftPx } from "./track";
 import type { Camera } from "./track";
 
 const HALF = STRAIGHT / 2;
@@ -10,8 +10,10 @@ const HALF = STRAIGHT / 2;
 /** Ground distance outside the outermost rail; negative inside it. */
 function outsideOuterRail(x: number, y: number) {
   const outer = nearRailRadius();
-  if (x > HALF) return Math.hypot(x - HALF, y) - outer;
-  if (x < -HALF) return Math.hypot(x + HALF, y) - outer;
+  const shift = clothoidShiftPx();
+  const center = bendCenterX();
+  if (x > HALF) return Math.hypot(x - center, y) + shift - outer;
+  if (x < -HALF) return Math.hypot(x + center, y) + shift - outer;
   return Math.abs(y) - outer;
 }
 

@@ -103,7 +103,7 @@ export const overlayLayout = {
     radius: 12,
     border: 3,
     padX: 15,
-    title: `경주 결과 · ${RACE_METERS}m`,
+    title: `경주 결과 · ${formatRaceMeters(RACE_METERS)}m`,
     titleCenterY: 33,
     titleSize: 32,
     rowsTop: 74,
@@ -236,9 +236,15 @@ export type RaceOverlaySnapshot = {
   finishBoard: FinishBoard | null;
 };
 
+/** One decimal, so 447.47 m reads as 447.5 and an integer stays an integer. */
+export function formatRaceMeters(meters: number) {
+  const rounded = Math.round(meters * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+}
+
 export function leadMeters(horses: OverlayHorse[]) {
   const lead = horses.reduce((max, horse) => Math.max(max, horse.progress), 0);
-  return Math.round(clamp01(lead) * RACE_METERS);
+  return Math.round(clamp01(lead) * RACE_METERS * 10) / 10;
 }
 
 export function clamp01(value: number) {
