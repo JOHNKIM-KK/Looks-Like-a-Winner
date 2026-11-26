@@ -12,6 +12,8 @@ import {
   contestGroups,
   clearOfLineCamera,
   finishCamera,
+  finishHorseScreenBox,
+  runOutScreen,
   finishCourseFrom,
   finishPlanFrom,
   gallopOut,
@@ -448,5 +450,29 @@ describe("gallop-out past the line", () => {
     expect(clearOfLineCamera(shown(0, 10), 1)).toBe(false);
     expect(clearOfLineCamera(shown(0, 12), 1)).toBe(true);
     expect(pastLineM(shown, 0, 14)).toBeGreaterThan(pastLineM(shown, 2, 14));
+  });
+
+  it("holds a fixed finish view only after the sprite box has left the wide screen", () => {
+    const shown = gallopOut([
+      { samples: samplesFor(10, 7.8), finishTime: 10 },
+      { samples: samplesFor(12, 7), finishTime: 12 },
+      { samples: samplesFor(14, 6.5), finishTime: 14 },
+    ]);
+    const screen = runOutScreen();
+    const misses = (box: { minX: number; maxX: number; minY: number; maxY: number }) =>
+      box.maxX < screen.minX || box.minX > screen.maxX || box.maxY < screen.minY || box.minY > screen.maxY;
+
+    for (const lane of [1, 12]) {
+      const crossing = finishHorseScreenBox(shown(0, 10), lane);
+      expect(crossing, `lane ${lane} at the line`).not.toBeNull();
+      expect(misses(crossing!), `lane ${lane} at the line`).toBe(false);
+      expect(clearOfLineCamera(shown(0, 10), lane)).toBe(false);
+
+      const held = shown(0, 14);
+      const box = finishHorseScreenBox(held, lane);
+      expect(box, `lane ${lane} run-out`).not.toBeNull();
+      expect(misses(box!), `lane ${lane} run-out`).toBe(true);
+      expect(clearOfLineCamera(held, lane)).toBe(true);
+    }
   });
 });

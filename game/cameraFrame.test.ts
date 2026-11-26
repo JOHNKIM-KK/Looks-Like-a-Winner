@@ -137,14 +137,17 @@ describe("storyboard camera", () => {
 });
 
 describe("corner viewpoint", () => {
-  test("the corner camera sits outside the bend", () => {
+  test("both bends sit outside the rail at the same relative azimuth", () => {
     const ends = segmentEnds();
-    const midIn = ends.backEnd + (ends.corner34Exit - ends.backEnd) * 0.25;
-    const midOut = ends.backEnd + (ends.corner34Exit - ends.backEnd) * 0.75;
-    for (const [name, progress, azimuth] of [
-      ["CORNER_IN", midIn, CORNER_IN_AZIMUTH],
-      ["CORNER_OUT", midOut, CORNER_OUT_AZIMUTH],
-    ] as const) {
+    const span12 = ends.corner12Exit - ends.corner12Entry;
+    const span34 = ends.corner34Exit - ends.backEnd;
+    const shots = [
+      ["CORNER_IN", ends.backEnd + span34 * 0.25, CORNER_IN_AZIMUTH, -1],
+      ["CORNER_OUT", ends.backEnd + span34 * 0.75, CORNER_OUT_AZIMUTH, -1],
+      ["CORNER_IN", ends.corner12Entry + span12 * 0.25, CORNER_IN_AZIMUTH + 180, 1],
+      ["CORNER_OUT", ends.corner12Entry + span12 * 0.75, CORNER_OUT_AZIMUTH + 180, 1],
+    ] as const;
+    for (const [name, progress, azimuth, side] of shots) {
       const horses = Array.from({ length: 12 }, (_, index) => presentationLogical(progress, index + 1));
       const packX = horses.reduce((sum, horse) => sum + horse.x, 0) / horses.length;
       const packY = horses.reduce((sum, horse) => sum + horse.y, 0) / horses.length;
@@ -154,16 +157,20 @@ describe("corner viewpoint", () => {
         packX,
         packY,
       );
-      expect(look.azimuth).toBe(azimuth);
+      expect(look.azimuth, name).toBe(azimuth);
+      expect(look.elevation).toBe(cameraConfig.states[name].elevation);
+      expect(look.focalLength).toBe(cameraConfig.states[name].focalLength);
+      expect(look.distance).toBe(cameraConfig.states[name].distance);
       const camera = cameraFromLook(look);
-      const packDx = packX + bendCenterX();
+      const center = side * bendCenterX();
+      const packDx = packX - center;
       const packDy = packY;
-      const camDx = camera.groundX + bendCenterX();
+      const camDx = camera.groundX - center;
       const camDy = camera.groundY;
-      expect(Math.hypot(camDx, camDy)).toBeGreaterThan(outerRailRadius());
-      expect(packDx * camDx + packDy * camDy).toBeGreaterThan(0);
+      expect(Math.hypot(camDx, camDy), name).toBeGreaterThan(outerRailRadius());
+      expect(packDx * camDx + packDy * camDy, name).toBeGreaterThan(0);
       console.log(
-        `${name} base sagitta=${cornerRailSagitta(camera).toFixed(1)}px grass=${(grassBelowRailFraction(camera) * 100).toFixed(1)}%`,
+        `${name} side=${side} base sagitta=${cornerRailSagitta(camera).toFixed(1)}px grass=${(grassBelowRailFraction(camera) * 100).toFixed(1)}%`,
       );
     }
   });
@@ -325,11 +332,13 @@ describe("horse framing", () => {
         stat.grass = Math.max(stat.grass, grassBelowRailFraction(camera));
         const settled = !pres.blend;
         const onLeftBend = leadProgress >= segmentEnds().backEnd && leadProgress < segmentEnds().corner34Exit;
-        if (settled && onLeftBend && (pres.state.name === "CORNER_IN" || pres.state.name === "CORNER_OUT")) {
-          stat.sagitta = Math.min(stat.sagitta, cornerRailSagitta(camera));
-          const camDx = camera.groundX + bendCenterX();
+        const onRightBend = leadProgress >= segmentEnds().corner12Entry && leadProgress < segmentEnds().corner12Exit;
+        if (settled && (onLeftBend || onRightBend) && (pres.state.name === "CORNER_IN" || pres.state.name === "CORNER_OUT")) {
+          if (onLeftBend) stat.sagitta = Math.min(stat.sagitta, cornerRailSagitta(camera));
+          const center = onLeftBend ? -bendCenterX() : bendCenterX();
+          const camDx = camera.groundX - center;
           const camDy = camera.groundY;
-          const packOnBend = packX < -bendCenterX();
+          const packOnBend = onLeftBend ? packX < -bendCenterX() : packX > bendCenterX();
           const railClear = Math.hypot(camDx, camDy) + clothoidShiftPx() > outerRailRadius();
           if (packOnBend && !railClear) stat.outsideFail += 1;
           if (packOnBend) expect(railClear, `${label} seed ${seed} t ${raceTime.toFixed(1)}`).toBe(true);

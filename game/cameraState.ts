@@ -112,6 +112,26 @@ export const CORNER_IN_AZIMUTH = cameraConfig.states.CORNER_IN.azimuth;
 /** Look inward from outside the exit of the left-hand bend. */
 export const CORNER_OUT_AZIMUTH = cameraConfig.states.CORNER_OUT.azimuth;
 
+/**
+ * Corners 3–4 use the authored azimuth, which stands outside the left bend.
+ * Corners 1–2 are that bend rotated 180°. The same azimuth stands in the
+ * infield once the bend center moved out from the straight's end (plan C).
+ * Adding 180° puts the rig outside the right bend. Distance, elevation, and
+ * focal length stay on the storyboard values.
+ */
+function cornerLook(
+  name: "CORNER_IN" | "CORNER_OUT",
+  lead: number,
+  packCenterX: number,
+  packCenterY: number,
+): CameraLook {
+  const look = lookAtPack(name, packCenterX, packCenterY);
+  const ends = segmentEnds();
+  const onFirstBend = lead >= ends.corner12Entry && lead < ends.corner12Exit;
+  if (!onFirstBend) return look;
+  return { ...look, azimuth: look.azimuth + 180 };
+}
+
 function lookAtPack(name: CameraConfigState, packCenterX: number, packCenterY: number): CameraLook {
   const spec = cameraConfig.states[name];
   return {
@@ -173,11 +193,10 @@ export function getCameraLookForState(
       return lookAtPack("STRAIGHT_EARLY", packCenterX, packCenterY);
 
     case "CORNER_IN":
-      // Outside the left-hand bend, lower than either straight.
-      return lookAtPack("CORNER_IN", packCenterX, packCenterY);
+      return cornerLook("CORNER_IN", snapshot.leadProgress, packCenterX, packCenterY);
 
     case "CORNER_OUT":
-      return lookAtPack("CORNER_OUT", packCenterX, packCenterY);
+      return cornerLook("CORNER_OUT", snapshot.leadProgress, packCenterX, packCenterY);
 
     case "CLOSEUP": {
       const horseIndex = state.closeupHorseIndex ?? 0;
