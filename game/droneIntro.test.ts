@@ -43,9 +43,10 @@ describe("drone intro timeline", () => {
     let previous = introCamera(0, countdown);
     for (let t = 0.01; t < INTRO_SKIP_TO; t += 0.01) {
       const camera = introCamera(t, countdown);
-      expect(Math.abs(camera.groundX - previous.groundX)).toBeLessThan(40);
-      expect(Math.abs(camera.groundY - previous.groundY)).toBeLessThan(40);
-      expect(Math.abs(camera.height - previous.height)).toBeLessThan(40);
+      // Shot 01 sits farther out with the taller oval, so the same blend covers more ground per step.
+      expect(Math.abs(camera.groundX - previous.groundX)).toBeLessThan(65);
+      expect(Math.abs(camera.groundY - previous.groundY)).toBeLessThan(65);
+      expect(Math.abs(camera.height - previous.height)).toBeLessThan(65);
       previous = camera;
     }
   });

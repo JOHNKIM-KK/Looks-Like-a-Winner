@@ -1,6 +1,6 @@
 import { cameraFromLook, type CameraLook } from "./cameraState";
 import { GATE_CENTER_Y, GATE_VIEWS, GATE_X } from "./gateViews";
-import { ENGINE_PX_PER_M, type Camera } from "./track";
+import { ENGINE_PX_PER_M, ovalHeightScale, type Camera } from "./track";
 
 const M = ENGINE_PX_PER_M;
 
@@ -22,7 +22,7 @@ function shot(scene: IntroShot["scene"], hold: IntroShot["hold"], look: CameraLo
 const DRONE_01: CameraLook = {
   targetX: GATE_X + 80 * M,
   targetY: GATE_CENTER_Y + 6.5 * M,
-  distance: 106 * M,
+  distance: 106 * ovalHeightScale() * M,
   azimuth: -2.2,
   elevation: 18.9,
   focalLength: 658,

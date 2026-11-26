@@ -2,23 +2,34 @@ import fs from "node:fs";
 import path from "node:path";
 import { ENGINE_PX_PER_M, referenceDistance } from "../game/track";
 import { fieldHorses } from "../lib/field";
-import { CHUTE_END_M, LANE_RULES, LANE_ZONES, zoneAt, type LaneZone } from "../lib/lanes";
+import {
+  BACK_STRAIGHT_END_M,
+  CHUTE_END_M,
+  CORNER12_END_M,
+  CORNER34_END_M,
+  FINISH_M,
+  FIRST_STRAIGHT_END_M,
+  LANE_RULES,
+  LANE_ZONES,
+  zoneAt,
+  type LaneZone,
+} from "../lib/lanes";
 import { mockHorses } from "../lib/mockHorses";
 import { SAMPLE_STEP, simulateRace, type RaceHorse } from "../lib/race";
 
 const SEEDS = Number(process.env.SEEDS ?? 2000);
 const OUT = process.env.OUT ?? "docs/stage2/captures/taskB/passes.md";
 const RACE_LENGTH_M = referenceDistance() / ENGINE_PX_PER_M;
-const HOME_FROM_M = 305;
-const HOME_TO_M = 350;
+const HOME_FROM_M = CORNER34_END_M + 1.5;
+const HOME_TO_M = FINISH_M - 7;
 
 const ZONE_LABEL: Record<LaneZone, string> = {
   chute: "슈트 (0~55m)",
   firstStraight: "첫 직선 (55~135.3m)",
-  corner12: "코너1 (1·2코너, 135.3~179.3m)",
-  backStraight: "백스트레치 (179.3~259.5m)",
-  corner34: "코너2 (3·4코너, 259.5~303.5m)",
-  home: "결승 직선 (303.5~357m)",
+  corner12: `코너1 (1·2코너, ${FIRST_STRAIGHT_END_M.toFixed(1)}~${CORNER12_END_M.toFixed(1)}m)`,
+  backStraight: `백스트레치 (${CORNER12_END_M.toFixed(1)}~${BACK_STRAIGHT_END_M.toFixed(1)}m)`,
+  corner34: `코너2 (3·4코너, ${BACK_STRAIGHT_END_M.toFixed(1)}~${CORNER34_END_M.toFixed(1)}m)`,
+  home: `결승 직선 (${CORNER34_END_M.toFixed(1)}~${FINISH_M.toFixed(1)}m)`,
 };
 const STRAIGHTS: LaneZone[] = ["firstStraight", "backStraight", "home"];
 const CORNERS: LaneZone[] = ["corner12", "corner34"];

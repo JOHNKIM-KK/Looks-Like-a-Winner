@@ -47,6 +47,8 @@ import {
 import {
   ENGINE_PX_PER_M,
   STRAIGHT,
+  bendCenterX,
+  clothoidShiftPx,
   finishPostLogical,
   innerRailRadius,
   outerRailRadius,
@@ -118,8 +120,8 @@ describe("storyboard camera", () => {
     const scenes = {
       START: { distance: 660, elevation: 13.4, focal: [1050, 1050] },
       STRAIGHT_EARLY: { distance: 596, elevation: 11.6, focal: [1275, 1575] },
-      CORNER_IN: { distance: 1352, elevation: 23.7, focal: [825, 825] },
-      CORNER_OUT: { distance: 715, elevation: 17, focal: [1350, 1350] },
+      CORNER_IN: { distance: 2063, elevation: 23.7, focal: [825, 825] },
+      CORNER_OUT: { distance: 1091, elevation: 17, focal: [1350, 1350] },
     } as const;
     for (const [name, scene] of Object.entries(scenes)) {
       const state = cameraConfig.states[name as keyof typeof scenes];
@@ -154,9 +156,9 @@ describe("corner viewpoint", () => {
       );
       expect(look.azimuth).toBe(azimuth);
       const camera = cameraFromLook(look);
-      const packDx = packX + HALF;
+      const packDx = packX + bendCenterX();
       const packDy = packY;
-      const camDx = camera.groundX + HALF;
+      const camDx = camera.groundX + bendCenterX();
       const camDy = camera.groundY;
       expect(Math.hypot(camDx, camDy)).toBeGreaterThan(outerRailRadius());
       expect(packDx * camDx + packDy * camDy).toBeGreaterThan(0);
@@ -325,10 +327,10 @@ describe("horse framing", () => {
         const onLeftBend = leadProgress >= segmentEnds().backEnd && leadProgress < segmentEnds().corner34Exit;
         if (settled && onLeftBend && (pres.state.name === "CORNER_IN" || pres.state.name === "CORNER_OUT")) {
           stat.sagitta = Math.min(stat.sagitta, cornerRailSagitta(camera));
-          const camDx = camera.groundX + HALF;
+          const camDx = camera.groundX + bendCenterX();
           const camDy = camera.groundY;
-          const packOnBend = packX < -HALF;
-          const railClear = Math.hypot(camDx, camDy) > outerRailRadius();
+          const packOnBend = packX < -bendCenterX();
+          const railClear = Math.hypot(camDx, camDy) + clothoidShiftPx() > outerRailRadius();
           if (packOnBend && !railClear) stat.outsideFail += 1;
           if (packOnBend) expect(railClear, `${label} seed ${seed} t ${raceTime.toFixed(1)}`).toBe(true);
         }

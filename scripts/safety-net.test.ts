@@ -1,7 +1,9 @@
 import { describe, expect, test } from "vitest";
 import {
+  BEND_M,
   CHUTE,
   CHUTE_M,
+  CLOTHOID_M,
   ENGINE_PX_PER_M,
   FINISH_HOME_FRACTION,
   RACE_METERS,
@@ -9,7 +11,6 @@ import {
   STRAIGHT_M,
   laneRadius,
   referenceDistance,
-  referenceRadius,
   segmentEnds,
 } from "../game/track";
 import { fieldHorses } from "../lib/field";
@@ -26,21 +27,21 @@ function mean(values: number[]) {
 }
 
 describe("race time", () => {
-  /** Lane blocking (SPEC §8-2) costs about 0.4 s on average, so slow fields such as seed 9 land near 62.2 s. */
-  test("mean finish time stays within 58–62.5 s on every one of 20 seeds", () => {
+  /** All-horse means on the 447.5 m lap. Winners land near 39 s; this check stays the field mean. */
+  test("mean finish time stays within 40.5–44 s on every one of 20 seeds", () => {
     const finishTimes: number[] = [];
     for (const seed of SEEDS) {
       const race = simulateRace(fieldHorses(mockHorses, seed), seed);
       const seedTimes = race.horses.map((horse) => horse.finishTime);
       finishTimes.push(...seedTimes);
-      expect(mean(seedTimes), `seed ${seed} mean finish`).toBeGreaterThanOrEqual(58);
-      expect(mean(seedTimes), `seed ${seed} mean finish`).toBeLessThanOrEqual(62.5);
+      expect(mean(seedTimes), `seed ${seed} mean finish`).toBeGreaterThanOrEqual(40.5);
+      expect(mean(seedTimes), `seed ${seed} mean finish`).toBeLessThanOrEqual(44);
     }
 
     const finishMean = mean(finishTimes);
     console.log(`20-seed mean finish ${finishMean.toFixed(3)}s over ${finishTimes.length} finishes`);
-    expect(finishMean).toBeGreaterThanOrEqual(59);
-    expect(finishMean).toBeLessThanOrEqual(61);
+    expect(finishMean).toBeGreaterThanOrEqual(41.2);
+    expect(finishMean).toBeLessThanOrEqual(42.8);
   });
 });
 
@@ -51,14 +52,15 @@ describe("lane-independent progress", () => {
 
     const distance = referenceDistance();
     const ends = segmentEnds();
-    const center = referenceRadius();
     expect(ends.chuteEnd * distance).toBeCloseTo(CHUTE, 5);
-    expect((ends.corner12Exit - ends.corner12Entry) * distance).toBeCloseTo(Math.PI * center, 4);
-    expect((ends.corner34Exit - ends.backEnd) * distance).toBeCloseTo(Math.PI * center, 4);
+    const bend = BEND_M * ENGINE_PX_PER_M;
+    expect((ends.corner12Exit - ends.corner12Entry) * distance).toBeCloseTo(bend, 4);
+    expect((ends.corner34Exit - ends.backEnd) * distance).toBeCloseTo(bend, 4);
+    expect(bend / ENGINE_PX_PER_M).toBeCloseTo(Math.PI * REFERENCE_RADIUS_M + CLOTHOID_M, 6);
     expect((ends.corner12Exit - ends.corner12Entry) * distance).not.toBeCloseTo(Math.PI * laneRadius(1), 0);
     expect((ends.corner12Exit - ends.corner12Entry) * distance).not.toBeCloseTo(Math.PI * laneRadius(12), 0);
     expect(ends.corner34Exit).toBeLessThan(1);
-    expect(Math.round(distance / ENGINE_PX_PER_M)).toBe(RACE_METERS);
+    expect(distance / ENGINE_PX_PER_M).toBeCloseTo(RACE_METERS, 6);
 
     for (const seed of SEEDS) {
       const race = simulateRace(fieldHorses(mockHorses, seed), seed);
@@ -83,15 +85,15 @@ describe("lane-independent progress", () => {
 });
 
 describe("section ratios", () => {
-  test("early, mid, and late follow the closed lap, and the lengths add to 357 m", () => {
+  test("early, mid, and late follow the closed lap, and the lengths add to the race", () => {
     const ends = segmentEnds();
     const early = ends.corner12Exit;
     const mid = ends.corner34Exit - ends.corner12Exit;
     const late = 1 - ends.corner34Exit;
-    const lapM = CHUTE_M + STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M + STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M + FINISH_HOME_FRACTION * STRAIGHT_M;
-    expect(Math.round(lapM)).toBe(RACE_METERS);
-    const earlyM = (CHUTE_M + STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M) / lapM;
-    const midM = (STRAIGHT_M + Math.PI * REFERENCE_RADIUS_M) / lapM;
+    const lapM = CHUTE_M + STRAIGHT_M + BEND_M + STRAIGHT_M + BEND_M + FINISH_HOME_FRACTION * STRAIGHT_M;
+    expect(lapM).toBeCloseTo(RACE_METERS, 6);
+    const earlyM = (CHUTE_M + STRAIGHT_M + BEND_M) / lapM;
+    const midM = (STRAIGHT_M + BEND_M) / lapM;
     const lateM = (FINISH_HOME_FRACTION * STRAIGHT_M) / lapM;
 
     console.log(

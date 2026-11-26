@@ -1,5 +1,5 @@
 import { LOGICAL_PER_METER, nearRailRadius } from "./artScale";
-import { STRAIGHT, type Camera } from "./track";
+import { bendCenterX, clothoidShiftPx, type Camera } from "./track";
 import { cameraSpaceDepth, projectHeight, propSpriteAccepted, type Vec2 } from "./trackArt";
 
 /** Where a structure stands: beside a straight (+y home, -y back) or around a bend (east +x, west -x, angle CCW from +x). */
@@ -45,10 +45,11 @@ function placement(at: SceneryAnchor, gapLu: number): { base: Vec2; outward: Vec
     const sign = at.side === "home" ? 1 : -1;
     return { base: { x: at.alongM * LOGICAL_PER_METER, y: sign * (rail + gapLu) }, outward: { x: 0, y: sign } };
   }
-  const cx = (at.bend === "east" ? 1 : -1) * (STRAIGHT / 2);
+  const cx = (at.bend === "east" ? 1 : -1) * bendCenterX();
   const angle = (at.angleDeg * Math.PI) / 180;
   const outward = { x: Math.cos(angle), y: Math.sin(angle) };
-  return { base: { x: cx + outward.x * (rail + gapLu), y: outward.y * (rail + gapLu) }, outward };
+  const circle = rail - clothoidShiftPx();
+  return { base: { x: cx + outward.x * (circle + gapLu), y: outward.y * (circle + gapLu) }, outward };
 }
 
 /** Each structure as boxes in logical units, front face toward the track. */

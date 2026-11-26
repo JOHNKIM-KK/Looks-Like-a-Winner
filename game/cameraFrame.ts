@@ -8,8 +8,11 @@ import { PROJECTION_CENTER, REFERENCE } from "./stage";
 import {
   LANE_COUNT,
   STRAIGHT,
+  bendCenterX,
+  clothoidShiftPx,
   outerRailRadius,
   projectWithCamera,
+  sampleLoopLogical,
   type Camera,
 } from "./track";
 
@@ -228,8 +231,10 @@ export function shiftLook(look: CameraLook, bias: number): CameraLook {
 }
 
 function radial(x: number, y: number) {
-  if (x > HALF) return Math.hypot(x - HALF, y);
-  if (x < -HALF) return Math.hypot(x + HALF, y);
+  const shift = clothoidShiftPx();
+  const center = bendCenterX();
+  if (x > HALF) return Math.hypot(x - center, y) + shift;
+  if (x < -HALF) return Math.hypot(x + center, y) + shift;
   return Math.abs(y);
 }
 
@@ -327,15 +332,10 @@ const LANE_CENTER_Y = (REFERENCE.height * (LANE_AREA_TOP + LANE_AREA_BOTTOM)) / 
 
 /** Screen-space bow of the left-hand outer rail that actually falls inside the view. */
 export function cornerRailSagitta(camera: Camera, lanes = LANE_COUNT) {
-  const radius = outerRailRadius(lanes);
   const points: Array<{ x: number; y: number }> = [];
-  const steps = 72;
-  for (let i = 0; i <= steps; i += 1) {
-    const angle = Math.PI / 2 + (i / steps) * Math.PI;
-    const pose = projectWithCamera(
-      { x: -HALF + Math.cos(angle) * radius, y: Math.sin(angle) * radius, tx: 0, ty: 0 },
-      camera,
-    );
+  for (const logical of sampleLoopLogical(outerRailRadius(lanes), 96)) {
+    if (logical.x > -HALF) continue;
+    const pose = projectWithCamera(logical, camera);
     if (pose.visible && pose.x >= 8 && pose.x <= REFERENCE.width - 8 && pose.y >= 8 && pose.y <= REFERENCE.height - 8) {
       points.push(pose);
     }

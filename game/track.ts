@@ -3,7 +3,8 @@ import { PROJECTION_CENTER } from "./stage";
 
 /**
  * One left-handed lap. The chute is a straight extension of the home straight
- * to the left. Both oval straights share one length so the semicircular ends close.
+ * to the left. Both oval straights share one length. Each bend is a circular
+ * arc of REFERENCE_RADIUS_M with a 10 m clothoid on the way in and the way out.
  * Engine scale stays 58/1.55 (37.42 px/m). Lane spacing is 1.2 m.
  */
 export const ENGINE_PX_PER_M = 58 / 1.55;
@@ -15,19 +16,90 @@ export const RAIL_SECTION_ORIGIN_M = 1.2;
 export const LANE1_Y_M = -0.3;
 export const TRACK_CENTER_Y_M = LANE1_Y_M + ((LANE_COUNT - 1) / 2) * LANE_GAP_M;
 
-export const RACE_METERS = 357;
 export const CHUTE_M = 55;
-export const REFERENCE_RADIUS_M = 14;
+/** Circular radius of the 12-lane centerline. Plan C, 1.8× the previous 14 m. */
+export const REFERENCE_RADIUS_M = 25.2;
+/** Clothoid length at each end of each bend. Curvature runs 0 → 1/R. */
+export const CLOTHOID_M = 10;
 /** Finish line, as a fraction of the home straight from its left end. */
 export const FINISH_HOME_FRACTION = 2 / 3;
-/** Oval straight, fixed by SPEC §8-1. Chute + lap to the 2/3 finish rounds to RACE_METERS. */
+/** Oval straight, fixed by SPEC §8-1. */
 export const STRAIGHT_M = 80.3;
+/** One bend along the reference line: entry clothoid + arc + exit clothoid = πR + Ls. */
+export const BEND_M = Math.PI * REFERENCE_RADIUS_M + CLOTHOID_M;
+/** Exact reference-line distance from the gate to the 2/3 finish. */
+export const RACE_METERS =
+  CHUTE_M + STRAIGHT_M + BEND_M + STRAIGHT_M + BEND_M + FINISH_HOME_FRACTION * STRAIGHT_M;
 
 export const CHUTE = CHUTE_M * ENGINE_PX_PER_M;
 export const STRAIGHT = STRAIGHT_M * ENGINE_PX_PER_M;
 /** Home and back straights are the same length. A stadium is what closes. */
 export const STRAIGHT_BACK = STRAIGHT;
-export const INNER_RADIUS = (REFERENCE_RADIUS_M - (TRACK_CENTER_Y_M - RAIL_SECTION_ORIGIN_M)) * ENGINE_PX_PER_M;
+
+const CLOTHOID = CLOTHOID_M * ENGINE_PX_PER_M;
+
+/** Fresnel C(z), S(z). z stays below 0.4 for this clothoid, so the power series is exact. */
+function fresnel(z: number) {
+  const halfPiSq = (Math.PI / 2) * (Math.PI / 2);
+  const z4 = z * z * z * z;
+  let cTerm = z;
+  let sTerm = ((Math.PI / 2) * z * z * z) / 3;
+  let c = cTerm;
+  let s = sTerm;
+  for (let n = 1; n <= 12; n += 1) {
+    const k = halfPiSq * z4;
+    cTerm *= ((-k) / ((2 * n - 1) * (2 * n))) * ((4 * n - 3) / (4 * n + 1));
+    sTerm *= ((-k) / ((2 * n) * (2 * n + 1))) * ((4 * n - 1) / (4 * n + 3));
+    c += cTerm;
+    s += sTerm;
+  }
+  return { c, s };
+}
+
+/** Clothoid integrals from the straight, curvature increasing toward +y. Lengths in metres. */
+function clothoidXY(radiusM: number, lengthM: number, distanceM: number) {
+  const scale = Math.sqrt(Math.PI * radiusM * lengthM);
+  const { c, s } = fresnel(distanceM / scale);
+  return { x: scale * c, y: scale * s };
+}
+
+const CLOTHOID_END = clothoidXY(REFERENCE_RADIUS_M, CLOTHOID_M, CLOTHOID_M);
+const CLOTHOID_TAU = CLOTHOID_M / (2 * REFERENCE_RADIUS_M);
+/** How far the circular arc sits in from the straight so the clothoid can meet it. */
+const SHIFT_M = CLOTHOID_END.y - REFERENCE_RADIUS_M * (1 - Math.cos(CLOTHOID_TAU));
+/** The bend center sits this far beyond the straight's tangent point. */
+const CENTER_SHIFT_M = CLOTHOID_END.x - REFERENCE_RADIUS_M * Math.sin(CLOTHOID_TAU);
+
+export function clothoidShiftM() {
+  return SHIFT_M;
+}
+
+export function clothoidShiftPx() {
+  return SHIFT_M * ENGINE_PX_PER_M;
+}
+
+/** Straight-line y of the reference centerline. The circular radius is REFERENCE_RADIUS_M. */
+export function referenceStraightY() {
+  return (REFERENCE_RADIUS_M + SHIFT_M) * ENGINE_PX_PER_M;
+}
+
+/** Right-bend circle center, on the x axis. The left bend is the negation. */
+export function bendCenterX() {
+  return STRAIGHT / 2 + CENTER_SHIFT_M * ENGINE_PX_PER_M;
+}
+
+/**
+ * Outer-rail height (home straight to back straight) divided by the previous
+ * 14 m track's 43.2 m. Drone 01 and the corner rigs pull back by this factor.
+ */
+export function ovalHeightScale() {
+  const outerBeyondReferenceM = 7.6;
+  const previousOuterStraightM = 21.6;
+  return (REFERENCE_RADIUS_M + outerBeyondReferenceM + SHIFT_M) / previousOuterStraightM;
+}
+
+export const INNER_RADIUS =
+  (REFERENCE_RADIUS_M + SHIFT_M - (TRACK_CENTER_Y_M - RAIL_SECTION_ORIGIN_M)) * ENGINE_PX_PER_M;
 export const COAST_END = 1.18;
 export const FAR_SCALE = 0.72;
 
@@ -86,24 +158,32 @@ export function laneRadius(lane: number) {
   return INNER_RADIUS + (artY - RAIL_SECTION_ORIGIN_M) * ENGINE_PX_PER_M;
 }
 
-/** Center of the twelve lanes. Corner length in the simulator uses this radius. */
+/** Circular radius of the twelve-lane centerline. Straights sit one clothoid shift outside this. */
 export function referenceRadius() {
   return REFERENCE_RADIUS_M * ENGINE_PX_PER_M;
 }
 
+function bendSpan() {
+  return BEND_M * ENGINE_PX_PER_M;
+}
+
+export function referenceLoopLength() {
+  return STRAIGHT * 2 + bendSpan() * 2;
+}
+
 export function referenceDistance() {
-  const corner = Math.PI * referenceRadius();
-  return CHUTE + STRAIGHT + corner + STRAIGHT + corner + FINISH_HOME_FRACTION * STRAIGHT;
+  const bend = bendSpan();
+  return CHUTE + STRAIGHT + bend + STRAIGHT + bend + FINISH_HOME_FRACTION * STRAIGHT;
 }
 
 export function segmentEnds(): SegmentEnds {
   const total = referenceDistance();
-  const corner = Math.PI * referenceRadius();
+  const bend = bendSpan();
   const chuteEnd = CHUTE / total;
   const corner12Entry = (CHUTE + STRAIGHT) / total;
-  const corner12Exit = corner12Entry + corner / total;
+  const corner12Exit = corner12Entry + bend / total;
   const backEnd = corner12Exit + STRAIGHT / total;
-  const corner34Exit = backEnd + corner / total;
+  const corner34Exit = backEnd + bend / total;
   return { chuteEnd, corner12Entry, corner12Exit, backEnd, corner34Exit };
 }
 
@@ -123,91 +203,154 @@ export function isHomeStretch(progress: number) {
   return progress >= ENDS.corner34Exit;
 }
 
-/** Closed oval, home straight first, then the right bend, the back straight, and the left bend. */
-function logicalFromLoop(loop: number, radius: number): Logical {
+type Pose = Logical;
+
+function withOffset(x: number, y: number, tx: number, ty: number, offset: number): Pose {
+  const length = Math.hypot(tx, ty) || 1;
+  const nx = tx / length;
+  const ny = ty / length;
+  return { x: x - ny * offset, y: y + nx * offset, tx: nx, ty: ny };
+}
+
+/** Reference clothoid, s measured in px from the straight. `entry` turns off the home straight. */
+function clothoidWorld(distance: number, end: "entry" | "exit"): Pose {
+  const radius = referenceRadius();
+  const alongM = distance / ENGINE_PX_PER_M;
+  const local = clothoidXY(REFERENCE_RADIUS_M, CLOTHOID_M, alongM);
+  const theta = (alongM * alongM) / (2 * REFERENCE_RADIUS_M * CLOTHOID_M);
   const half = STRAIGHT / 2;
-  const corner = Math.PI * radius;
-  const lap = STRAIGHT * 2 + corner * 2;
-  let cursor = ((loop % lap) + lap) % lap;
-  if (cursor <= STRAIGHT) {
-    return { x: -half + cursor, y: radius, tx: 1, ty: 0 };
-  }
-  cursor -= STRAIGHT;
-  if (cursor <= corner) {
-    const theta = Math.PI / 2 - cursor / radius;
+  const straight = referenceStraightY();
+  if (end === "entry") {
     return {
-      x: half + Math.cos(theta) * radius,
-      y: Math.sin(theta) * radius,
-      tx: Math.sin(theta),
-      ty: -Math.cos(theta),
+      x: half + local.x * ENGINE_PX_PER_M,
+      y: straight - local.y * ENGINE_PX_PER_M,
+      tx: Math.cos(-theta),
+      ty: Math.sin(-theta),
     };
   }
-  cursor -= corner;
-  if (cursor <= STRAIGHT) {
-    return { x: half - cursor, y: -radius, tx: -1, ty: 0 };
-  }
-  cursor -= STRAIGHT;
-  const phi = -Math.PI / 2 - cursor / radius;
+  const heading = theta - Math.PI;
   return {
-    x: -half + Math.cos(phi) * radius,
-    y: Math.sin(phi) * radius,
-    tx: Math.sin(phi),
-    ty: -Math.cos(phi),
+    x: half + local.x * ENGINE_PX_PER_M,
+    y: -straight + local.y * ENGINE_PX_PER_M,
+    tx: Math.cos(heading),
+    ty: Math.sin(heading),
   };
+}
+
+/** Right bend of the reference line, then a parallel offset. Positive offset is outward. */
+function rightBend(distance: number, offset: number): Pose {
+  const radius = referenceRadius();
+  const arc = Math.PI * radius - CLOTHOID;
+  let cursor = distance;
+  if (cursor <= CLOTHOID) {
+    const pose = clothoidWorld(cursor, "entry");
+    return withOffset(pose.x, pose.y, pose.tx, pose.ty, offset);
+  }
+  cursor -= CLOTHOID;
+  if (cursor <= arc) {
+    const psi = -CLOTHOID_TAU - cursor / radius;
+    const pose = {
+      x: bendCenterX() + radius * -Math.sin(psi),
+      y: radius * Math.cos(psi),
+      tx: Math.cos(psi),
+      ty: Math.sin(psi),
+    };
+    return withOffset(pose.x, pose.y, pose.tx, pose.ty, offset);
+  }
+  cursor -= arc;
+  const pose = clothoidWorld(Math.max(0, CLOTHOID - cursor), "exit");
+  return withOffset(pose.x, pose.y, pose.tx, pose.ty, offset);
+}
+
+function leftBend(distance: number, offset: number): Pose {
+  const right = rightBend(distance, offset);
+  return { x: -right.x, y: -right.y, tx: -right.tx, ty: -right.ty };
+}
+
+function straightPose(x: number, direction: 1 | -1, offset: number): Pose {
+  const y = referenceStraightY();
+  if (direction === 1) return withOffset(x, y, 1, 0, offset);
+  return withOffset(x, -y, -1, 0, offset);
+}
+
+/** Signed outward offset from the reference centerline, in px. */
+export function referenceOffset(x: number, y: number) {
+  const half = STRAIGHT / 2;
+  const straight = referenceStraightY();
+  if (x >= -half && x <= half) return (y >= 0 ? y : -y) - straight;
+  if (x < -half) return bendOffset(-x, -y);
+  return bendOffset(x, y);
+}
+
+function bendOffset(x: number, y: number) {
+  const radius = referenceRadius();
+  const center = bendCenterX();
+  const angle = Math.atan2(y, x - center);
+  const limit = Math.PI / 2 - CLOTHOID_TAU;
+  if (angle <= limit && angle >= -limit) return Math.hypot(x - center, y) - radius;
+  return clothoidOffset(x, y, y >= 0 ? "entry" : "exit");
+}
+
+function clothoidOffset(x: number, y: number, end: "entry" | "exit") {
+  let distance = CLOTHOID * 0.5;
+  let pose = clothoidWorld(distance, end);
+  for (let step = 0; step < 12; step += 1) {
+    const miss = (x - pose.x) * pose.tx + (y - pose.y) * pose.ty;
+    if (Math.abs(miss) < 1e-3) break;
+    const probe = Math.min(CLOTHOID, Math.max(0, distance + 8));
+    const next = clothoidWorld(probe, end);
+    const nextMiss = (x - next.x) * next.tx + (y - next.y) * next.ty;
+    const slope = (nextMiss - miss) / (probe - distance || 8);
+    if (Math.abs(slope) < 1e-9) break;
+    distance = Math.min(CLOTHOID, Math.max(0, distance - miss / slope));
+    pose = clothoidWorld(distance, end);
+  }
+  return (x - pose.x) * -pose.ty + (y - pose.y) * pose.tx;
+}
+
+/** Closed oval, home straight first, then the right bend, the back straight, and the left bend. */
+function logicalFromLoop(loop: number, straightY: number): Logical {
+  const half = STRAIGHT / 2;
+  const bend = bendSpan();
+  const lap = referenceLoopLength();
+  const offset = straightY - referenceStraightY();
+  let cursor = ((loop % lap) + lap) % lap;
+  if (cursor <= STRAIGHT) return straightPose(-half + cursor, 1, offset);
+  cursor -= STRAIGHT;
+  if (cursor <= bend) return rightBend(cursor, offset);
+  cursor -= bend;
+  if (cursor <= STRAIGHT) return straightPose(half - cursor, -1, offset);
+  cursor -= STRAIGHT;
+  return leftBend(cursor, offset);
 }
 
 /**
  * Race path for every lane. Progress is a fraction of the reference lap, so the
- * simulator and the picture share one shape. The passed radius only sets how
- * far the lane sits from the infield.
+ * simulator and the picture share one shape. The passed straight y only sets how
+ * far the lane sits from the infield. Lanes are parallel offsets of one clothoid.
  */
-function pointOnTrack(progress: number, radius: number): Logical {
+function pointOnTrack(progress: number, straightY: number): Logical {
   const half = STRAIGHT / 2;
-  const cornerRef = Math.PI * referenceRadius();
+  const bend = bendSpan();
+  const offset = straightY - referenceStraightY();
   let cursor = Math.max(0, progress) * referenceDistance();
 
   const opening = CHUTE + STRAIGHT;
-  if (cursor <= opening) {
-    return { x: -half - CHUTE + cursor, y: radius, tx: 1, ty: 0 };
-  }
+  if (cursor <= opening) return straightPose(-half - CHUTE + cursor, 1, offset);
   cursor -= opening;
 
-  if (cursor <= cornerRef) {
-    const theta = Math.PI / 2 - (cursor / cornerRef) * Math.PI;
-    return {
-      x: half + Math.cos(theta) * radius,
-      y: Math.sin(theta) * radius,
-      tx: Math.sin(theta),
-      ty: -Math.cos(theta),
-    };
-  }
-  cursor -= cornerRef;
+  if (cursor <= bend) return rightBend(cursor, offset);
+  cursor -= bend;
 
-  if (cursor <= STRAIGHT) {
-    return { x: half - cursor, y: -radius, tx: -1, ty: 0 };
-  }
+  if (cursor <= STRAIGHT) return straightPose(half - cursor, -1, offset);
   cursor -= STRAIGHT;
 
-  if (cursor <= cornerRef) {
-    const phi = -Math.PI / 2 - (cursor / cornerRef) * Math.PI;
-    return {
-      x: -half + Math.cos(phi) * radius,
-      y: Math.sin(phi) * radius,
-      tx: Math.sin(phi),
-      ty: -Math.cos(phi),
-    };
-  }
-  cursor -= cornerRef;
+  if (cursor <= bend) return leftBend(cursor, offset);
+  cursor -= bend;
 
   const x = -half + cursor;
-  if (x <= half) return { x, y: radius, tx: 1, ty: 0 };
-  const theta = Math.PI / 2 - (x - half) / Math.max(radius, 1);
-  return {
-    x: half + Math.cos(theta) * radius,
-    y: Math.sin(theta) * radius,
-    tx: Math.sin(theta),
-    ty: -Math.cos(theta),
-  };
+  if (x <= half) return straightPose(x, 1, offset);
+  return rightBend(x - half, offset);
 }
 
 export function logicalAtDistance(distance: number, radius: number): Logical {
@@ -354,7 +497,7 @@ export function cutLength(fromProgress: number, toProgress: number, lane: number
 }
 
 export function sampleRadius(radius: number, steps: number) {
-  const total = STRAIGHT * 2 + Math.PI * radius * 2;
+  const total = referenceLoopLength();
   const poses: TrackPose[] = [];
   for (let index = 0; index <= steps; index += 1) {
     poses.push(project(logicalFromLoop((index / steps) * total, radius)));
@@ -393,7 +536,7 @@ type LogicalPoint = {
 };
 
 export function sampleRadiusLogical(radius: number, steps: number): LogicalPoint[] {
-  const total = STRAIGHT * 2 + Math.PI * radius * 2;
+  const total = referenceLoopLength();
   const points: LogicalPoint[] = [];
   for (let index = 0; index <= steps; index += 1) {
     const logical = logicalFromLoop((index / steps) * total, radius);
@@ -484,7 +627,7 @@ export function presentationOnRadius(progress: number, radius: number): TrackLog
 
 /** Closed oval samples, evenly spaced. The first point is not repeated at the end. */
 export function sampleLoopLogical(radius: number, steps: number): TrackLogical[] {
-  const total = STRAIGHT * 2 + Math.PI * radius * 2;
+  const total = referenceLoopLength();
   const count = Math.max(3, Math.floor(steps));
   const points: TrackLogical[] = [];
   for (let index = 0; index < count; index += 1) {

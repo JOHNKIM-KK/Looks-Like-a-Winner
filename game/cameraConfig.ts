@@ -86,8 +86,9 @@ export const cameraConfig = {
   states: {
     START: { distance: 660, azimuth: 32, elevation: 13.4, focalLength: 1050, targetXOffset: 0, targetYOffset: -100 },
     STRAIGHT_EARLY: { distance: 600, azimuth: 0, elevation: 11.6, focalLength: 1575, targetXOffset: 0, targetYOffset: 0 },
-    CORNER_IN: { distance: 1352, azimuth: 45, elevation: 23.7, focalLength: 825, targetXOffset: 0, targetYOffset: 0 },
-    CORNER_OUT: { distance: 715, azimuth: 135, elevation: 17, focalLength: 1350, targetXOffset: 0, targetYOffset: 0 },
+    // Distances × ovalHeightScale() (1.526): the oval is 52.6% taller, same azimuth and elevation.
+    CORNER_IN: { distance: 2063, azimuth: 45, elevation: 23.7, focalLength: 825, targetXOffset: 0, targetYOffset: 0 },
+    CORNER_OUT: { distance: 1091, azimuth: 135, elevation: 17, focalLength: 1350, targetXOffset: 0, targetYOffset: 0 },
     CLOSEUP: { distance: 180, azimuth: 0, elevation: 18, focalLength: 1400, targetXOffset: 0, targetYOffset: 0 },
   },
 } as const;

@@ -12,8 +12,11 @@ import { REFERENCE } from "./stage";
 import {
   CHUTE,
   STRAIGHT,
+  bendCenterX,
   finishGoalX,
   projectWithCamera,
+  referenceOffset,
+  referenceStraightY,
   sampleLoopLogical,
   type Camera,
   type TrackPose,
@@ -28,16 +31,10 @@ export function isDirt(x: number, y: number) {
   const near = nearRailRadius();
   const gateX = -HALF - CHUTE;
   if (x >= gateX - 1 && x <= -HALF && y >= far && y <= near) return true;
-  if (x < -HALF) {
-    const dist = Math.hypot(x + HALF, y);
-    return dist >= far && dist <= near;
-  }
-  if (x > HALF) {
-    const dist = Math.hypot(x - HALF, y);
-    return dist >= far && dist <= near;
-  }
-  const across = Math.abs(y);
-  return across >= far && across <= near;
+  if (x >= -HALF && x <= HALF) return Math.abs(y) >= far && Math.abs(y) <= near;
+  const offset = referenceOffset(x, y);
+  const center = referenceStraightY();
+  return offset >= far - center && offset <= near - center;
 }
 
 export function groundUv(x: number, y: number) {
@@ -81,14 +78,15 @@ export function cameraSpaceDepth(camera: Camera, x: number, y: number, z = 0) {
 
 /** Outward from the oval. Straights point ±Y; bends point away from the bend center. */
 export function outwardFromTrack(point: Vec2): Vec2 {
+  const center = bendCenterX();
   if (point.x < -HALF) {
-    const dx = point.x + HALF;
+    const dx = point.x + center;
     const dy = point.y;
     const len = Math.hypot(dx, dy) || 1;
     return { x: dx / len, y: dy / len };
   }
   if (point.x > HALF) {
-    const dx = point.x - HALF;
+    const dx = point.x - center;
     const dy = point.y;
     const len = Math.hypot(dx, dy) || 1;
     return { x: dx / len, y: dy / len };
@@ -172,9 +170,20 @@ export type RailLine = { kind: RailKind; points: Vec2[]; closed: boolean };
 
 /** Where the west bend's outer rail meets the chute's inner rail. Between here and the bend, the chute opens onto the course. */
 export function chuteMergeX() {
-  const inner = farRailRadius();
-  const outer = nearRailRadius();
-  return -HALF - Math.sqrt(outer * outer - inner * inner);
+  const innerY = farRailRadius();
+  const points = ovalPolyline(nearRailRadius());
+  let mergeX = Number.NEGATIVE_INFINITY;
+  for (let index = 0; index < points.length; index += 1) {
+    const from = points[index]!;
+    const to = points[(index + 1) % points.length]!;
+    const span = to.y - from.y;
+    if (span === 0 || (from.y < innerY) === (to.y < innerY)) continue;
+    const t = (innerY - from.y) / span;
+    if (t < 0 || t > 1) continue;
+    const x = from.x + (to.x - from.x) * t;
+    if (x < -HALF && (from.y + to.y) / 2 > 0 && x > mergeX) mergeX = x;
+  }
+  return Number.isFinite(mergeX) ? mergeX : -HALF;
 }
 
 /**
@@ -195,17 +204,15 @@ export function railLines(): RailLine[] {
 }
 
 function cameraInInfield(camera: Camera) {
-  const inner = farRailRadius();
-  const alongSpine = Math.max(-HALF, Math.min(HALF, camera.groundX));
-  if (Math.hypot(camera.groundX - alongSpine, camera.groundY) < inner) return true;
-  return camera.groundX < -HALF && Math.abs(camera.groundY) < inner;
+  return referenceOffset(camera.groundX, camera.groundY) < farRailRadius() - referenceStraightY();
 }
 
 /** True when this rail segment stands between the camera and the horses, so it draws over them. */
 export function railSegmentInFront(kind: RailKind, from: Vec2, to: Vec2, camera: Camera) {
   const mid = { x: (from.x + to.x) / 2, y: (from.y + to.y) / 2 };
   const length = Math.hypot(to.x - from.x, to.y - from.y) || 1;
-  const spineX = Math.max(-HALF, Math.min(HALF, mid.x));
+  const center = bendCenterX();
+  const spineX = mid.x > HALF ? center : mid.x < -HALF ? -center : mid.x;
   let normal = { x: (to.y - from.y) / length, y: -(to.x - from.x) / length };
   if (normal.x * (mid.x - spineX) + normal.y * mid.y < 0) normal = { x: -normal.x, y: -normal.y };
   const cameraOutside = (camera.groundX - mid.x) * normal.x + (camera.groundY - mid.y) * normal.y > 0;

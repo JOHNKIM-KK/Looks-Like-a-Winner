@@ -1,5 +1,5 @@
 import { payoffWord } from "@/game/skillShow";
-import { COAST_END, ENGINE_PX_PER_M, cutLength, poseAt, segmentAt, segmentEnds, referenceDistance } from "@/game/track";
+import { COAST_END, ENGINE_PX_PER_M, RACE_METERS, cutLength, poseAt, segmentAt, segmentEnds, referenceDistance } from "@/game/track";
 import { laneRunner, stepLanes, type LaneRunner } from "./lanes";
 import { skillById, type SkillId, type SkillKind } from "./skills";
 
@@ -113,11 +113,16 @@ export type RaceResult = {
 const STAT_KEYS = ["start", "accel", "stamina", "corner", "mental", "luck"] as const;
 const NEUTRAL_BIASES: HorseStats = { start: 0, accel: 0, stamina: 0, corner: 0, mental: 0, luck: 0 };
 /**
- * Neutral progress per second. 357 m at the SPEC §8 pace (×1.99) finishes near 60 s.
- * 59.0 rather than 60.0: stats and skills cost ~3% over neutral, the spurt wins back ~1.4%.
+ * Neutral progress per second. The 357 m track used 1/59.
+ * Plan C is longer, and the global pace is about 1.8× in m/s so a win lands near 39 s.
+ * 41.07 keeps the old 59-vs-60 stat margin: progress rate ×1.436, distance ×447.47/357.10.
  */
-const BASE_SPEED = 1 / 59.0;
-/** SPEC §8-3: +12% from the home straight entry (303.5 m) to the finish. */
+const PREVIOUS_BASE_SPEED = 1 / 59.0;
+const PREVIOUS_RACE_M = 357.1;
+const BASE_SPEED = 1 / 41.07;
+/** Gallop sheet rate versus the previous track, so the stride matches the faster ground speed. */
+export const GALLOP_PLAYBACK = (BASE_SPEED / PREVIOUS_BASE_SPEED) * (RACE_METERS / PREVIOUS_RACE_M);
+/** SPEC §8-3: +12% from the home straight entry to the finish. */
 const FINAL_SPURT = 1.12;
 const ENDS = segmentEnds();
 /** Start skills still land in the chute, not across the whole early section. */

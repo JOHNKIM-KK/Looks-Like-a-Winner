@@ -240,7 +240,8 @@ describe("continuity", () => {
         continue;
       }
       expect(azimuthStep).toBeLessThan(8);
-      expect(distanceStep).toBeLessThan(45);
+      // Corner distances are 1.526× the 14 m oval, so the same blend covers more pixels per frame.
+      expect(distanceStep).toBeLessThan(45 * 1.526);
       expect(Math.abs(curr.elevation - prev.elevation)).toBeLessThan(2);
       expect(Math.abs(curr.focalLength - prev.focalLength)).toBeLessThan(50);
       expect(Math.abs(curr.targetX - prev.targetX)).toBeLessThan(20);
