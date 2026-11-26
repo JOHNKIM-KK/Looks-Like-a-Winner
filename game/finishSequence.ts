@@ -1,8 +1,9 @@
 import { HORSE_LENGTH_M } from "@/lib/lanes";
 import { progressAt } from "@/lib/race";
-import { HORSE_PX_PER_M, LOGICAL_PER_METER, nearRailRadius } from "./artScale";
+import { HORSE_PX_PER_M, horseSpriteScale, nearRailRadius } from "./artScale";
 import { smoothstep } from "./droneIntro";
-import { PROJECTION_CENTER, REFERENCE } from "./stage";
+import { HORSE_ANGLES } from "./horseVisual";
+import { PROJECTION_CENTER, REFERENCE, stageFor, type Rect } from "./stage";
 import {
   ENGINE_PX_PER_M,
   finishGoalX,
@@ -666,13 +667,85 @@ export function gallopOut(ranking: readonly Finisher[]) {
 }
 
 /**
- * The whole horse is outside the fixed finish side frame.
- * One length of padding covers the sprite around the ground anchor.
+ * Side-on sheet extent around the ground anchor, in sheet pixels.
+ * The tail sits behind the anchor, so a one-length pad on the anchor alone
+ * leaves it inside a frame that is wider than 1600×900.
+ */
+function sideSpritePad() {
+  let halfX = 0;
+  let above = 0;
+  let below = 0;
+  for (const angle of HORSE_ANGLES.straight) {
+    halfX = Math.max(halfX, angle.anchorX, angle.frameW - angle.anchorX);
+    above = Math.max(above, angle.anchorY);
+    below = Math.max(below, angle.frameH - angle.anchorY);
+  }
+  return { halfX, above, below };
+}
+
+const SIDE_SPRITE = sideSpritePad();
+
+/** Desktop 16:9, phone landscape, a 21:9 desktop, and a 32:9 desktop. */
+export const RUN_OUT_VIEWPORTS = [
+  { width: 1600, height: 900 },
+  { width: 844, height: 390 },
+  { width: 2560, height: 1080 },
+  { width: 3840, height: 1080 },
+] as const;
+
+const RUN_OUT_INSETS = { top: 0, right: 0, bottom: 0, left: 0 };
+/** Reference px past the widest bleed, so the tail is not flush with the edge. */
+const RUN_OUT_SLACK = 160;
+
+export type ScreenBox = { minX: number; maxX: number; minY: number; maxY: number };
+
+/** Union of the landscape bleeds the run-out has to clear. */
+export function runOutScreen(): ScreenBox {
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (const viewport of RUN_OUT_VIEWPORTS) {
+    const stage = stageFor({ viewport, insets: RUN_OUT_INSETS, pixelRatio: 1, touchPortrait: false });
+    if (stage.kind !== "landscape") continue;
+    const bleed: Rect = stage.bleed;
+    minX = Math.min(minX, bleed.x);
+    maxX = Math.max(maxX, bleed.x + bleed.width);
+    minY = Math.min(minY, bleed.y);
+    maxY = Math.max(maxY, bleed.y + bleed.height);
+  }
+  return { minX, maxX, minY, maxY };
+}
+
+/** Sprite box of a horse on the fixed finish camera. Null when it is behind the camera. */
+export function finishHorseScreenBox(progress: number, lane: number): ScreenBox | null {
+  const pose = projectWithCamera(presentationLogical(progress, lane), lookCamera(LINE_SHOT));
+  if (!pose.visible) return null;
+  const drawn = horseSpriteScale(pose.scale);
+  return {
+    minX: pose.x - SIDE_SPRITE.halfX * drawn,
+    maxX: pose.x + SIDE_SPRITE.halfX * drawn,
+    minY: pose.y - SIDE_SPRITE.above * drawn,
+    maxY: pose.y + SIDE_SPRITE.below * drawn,
+  };
+}
+
+function boxOutside(box: ScreenBox, screen: ScreenBox, slack: number) {
+  return (
+    box.maxX < screen.minX - slack ||
+    box.minX > screen.maxX + slack ||
+    box.maxY < screen.minY - slack ||
+    box.minY > screen.maxY + slack
+  );
+}
+
+/**
+ * The whole sprite, tail included, is outside the finish camera on the
+ * reference frame, the phone landscape, and wider bleeds.
  */
 export function clearOfLineCamera(progress: number, lane: number) {
   if (!(progress >= 1)) return false;
-  const pose = projectWithCamera(presentationLogical(progress, lane), lookCamera(LINE_SHOT));
-  if (!pose.visible) return true;
-  const pad = HORSE_LENGTH_M * pose.scale * LOGICAL_PER_METER;
-  return pose.x - pad > REFERENCE.width || pose.x + pad < 0;
+  const box = finishHorseScreenBox(progress, lane);
+  if (!box) return true;
+  return boxOutside(box, runOutScreen(), RUN_OUT_SLACK);
 }
