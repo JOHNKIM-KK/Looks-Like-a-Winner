@@ -1,9 +1,29 @@
 import { describe, expect, it } from "vitest";
-import { LOGICAL_PER_METER, STANDS_BEHIND_OUTER_M, nearRailRadius } from "./artScale";
+import { LOGICAL_PER_METER, STANDS_BEHIND_OUTER_M, farRailRadius, nearRailRadius } from "./artScale";
+import { GATE_X } from "./gateViews";
 import { SCENERY, sceneryBoxes, sceneryFaces } from "./scenery";
 import { mainStandLine } from "./trackArt";
 import { CHUTE, STRAIGHT, bendCenterX, clothoidShiftPx } from "./track";
 import type { Camera } from "./track";
+
+type Rect = { minX: number; maxX: number; minY: number; maxY: number };
+
+/** Open rectangle. Touching an edge is not an overlap. */
+function intersects(a: Rect, b: Rect) {
+  return a.maxX > b.minX && a.minX < b.maxX && a.maxY > b.minY && a.minY < b.maxY;
+}
+
+function boxFootprint(box: { center: { x: number; y: number }; along: { x: number; y: number }; outward: { x: number; y: number }; width: number; depth: number }): Rect {
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (const along of [-1, 1]) {
+    for (const outward of [-1, 1]) {
+      xs.push(box.center.x + box.along.x * along * box.width / 2 + box.outward.x * outward * box.depth / 2);
+      ys.push(box.center.y + box.along.y * along * box.width / 2 + box.outward.y * outward * box.depth / 2);
+    }
+  }
+  return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+}
 
 const HALF = STRAIGHT / 2;
 
@@ -57,6 +77,34 @@ describe("small stands and buildings", () => {
         }
       }
     }
+  });
+
+  it("keeps every stand and building off the gate and the chute", () => {
+    const gate: Rect = {
+      minX: GATE_X - 4 * LOGICAL_PER_METER,
+      maxX: GATE_X,
+      minY: farRailRadius(),
+      maxY: nearRailRadius(),
+    };
+    const chute: Rect = {
+      minX: GATE_X,
+      maxX: -HALF,
+      minY: farRailRadius(),
+      maxY: nearRailRadius(),
+    };
+    const stand = mainStandLine();
+    const standBox: Rect = {
+      minX: Math.min(...stand.map((point) => point.x)),
+      maxX: Math.max(...stand.map((point) => point.x)),
+      minY: Math.min(...stand.map((point) => point.y)),
+      maxY: Math.max(...stand.map((point) => point.y)),
+    };
+    const objects = [...sceneryBoxes().map(boxFootprint), standBox];
+    for (const footprint of objects) {
+      expect(intersects(footprint, gate)).toBe(false);
+      expect(intersects(footprint, chute)).toBe(false);
+    }
+    expect(SCENERY.some((item) => "bend" in item.at && item.at.bend === "west" && item.at.angleDeg === 174)).toBe(true);
   });
 
   it("a drone camera above the back straight sees them, and a camera behind a building drops it", () => {

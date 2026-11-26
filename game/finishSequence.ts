@@ -1,6 +1,6 @@
 import { HORSE_LENGTH_M } from "@/lib/lanes";
 import { progressAt } from "@/lib/race";
-import { HORSE_PX_PER_M, LOGICAL_PER_METER } from "./artScale";
+import { HORSE_PX_PER_M, LOGICAL_PER_METER, nearRailRadius } from "./artScale";
 import { smoothstep } from "./droneIntro";
 import { PROJECTION_CENTER, REFERENCE } from "./stage";
 import {
@@ -557,8 +557,23 @@ export function captionText(cue: CaptionCue, live: readonly string[], podium: re
 type Vec3 = { x: number; y: number; z: number };
 type Shot = { cam: Vec3; target: Vec3; mm: number };
 
-/** Tracking rig on the outer rail (v3 f02/f04). v4 parks it on the finish line and leaves x alone. */
-const RIG = { camY: 22.7, camZ: 1.35, targetY: 8.6, targetZ: 1.05, mm: 45 } as const;
+/**
+ * Tracking rig on the outer rail (v3 f02/f04). v4 parks it on the finish line and leaves x alone.
+ * y is a gap from the drawn outer rail, not a world constant. On the 14 m oval that rail sat at
+ * 21.90 m, so the storyboard's 22.7 / 8.6 is 0.80 m outside the rail, looking 13.30 m in across
+ * the lanes. Plan C moved the rail out to ~33 m and left these y values behind, so the rig stood
+ * on the dirt and the 45 mm lens filled the frame with the inner rail.
+ */
+const OUTER_RAIL_M = nearRailRadius() / ENGINE_PX_PER_M;
+const CAM_BEYOND_RAIL_M = 0.8;
+const TARGET_INSIDE_RAIL_M = 13.3;
+const RIG = {
+  camY: OUTER_RAIL_M + CAM_BEYOND_RAIL_M,
+  camZ: 1.35,
+  targetY: OUTER_RAIL_M - TARGET_INSIDE_RAIL_M,
+  targetZ: 1.05,
+  mm: 45,
+} as const;
 
 const LINE_SHOT: Shot = {
   cam: { x: FINISH_X_M, y: RIG.camY, z: RIG.camZ },

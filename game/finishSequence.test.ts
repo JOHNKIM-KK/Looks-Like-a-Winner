@@ -26,7 +26,9 @@ import {
   type FinishPlan,
   type FinishState,
 } from "./finishSequence";
-import { ENGINE_PX_PER_M, finishGoalX, presentationLogical, referenceDistance, segmentEnds, type Camera } from "./track";
+import { nearRailRadius } from "./artScale";
+import { REFERENCE } from "./stage";
+import { ENGINE_PX_PER_M, finishGoalX, finishPostLogical, presentationLogical, projectWithCamera, referenceDistance, segmentEnds, type Camera } from "./track";
 
 const DT = 1 / 240;
 const COURSE_M = referenceDistance() / ENGINE_PX_PER_M;
@@ -311,6 +313,32 @@ describe("finish camera", () => {
       expect(shot?.pitch).toBeCloseTo(shots[0]?.pitch ?? NaN, 6);
       expect(shot?.yaw).toBeCloseTo(shots[0]?.yaw ?? NaN, 6);
     }
+  });
+
+  it("stands just outside the outer rail and drops the straight's zoom", () => {
+    const zoomed: Camera = { ...enteredFrom, focalLength: 4200, groundY: nearRailRadius() * 0.4 };
+    const shot = finishCamera({ ...FINISH_START, cameraAge: FINISH_TIMELINE.cameraBlendSec }, { enteredFrom: zoomed });
+    expect(shot).toBeTruthy();
+    const rail = nearRailRadius();
+    expect(shot!.groundY).toBeGreaterThan(rail);
+    expect(shot!.groundY).not.toBeCloseTo(zoomed.groundY, 0);
+    expect((shot!.groundY - rail) / ENGINE_PX_PER_M).toBeCloseTo(0.8, 2);
+    expect(shot!.focalLength).toBeCloseTo((45 / 36) * REFERENCE.width, 4);
+    expect(shot!.focalLength).toBeLessThan(zoomed.focalLength);
+    for (const lane of [1, 6]) {
+      const pose = projectWithCamera(presentationLogical(1, lane), shot!);
+      expect(pose.visible, `lane ${lane}`).toBe(true);
+      expect(pose.x).toBeGreaterThan(REFERENCE.width * 0.2);
+      expect(pose.x).toBeLessThan(REFERENCE.width * 0.8);
+      expect(pose.y).toBeGreaterThan(REFERENCE.height * 0.3);
+      expect(pose.y).toBeLessThan(REFERENCE.height * 0.9);
+    }
+    const post = projectWithCamera({ ...finishPostLogical(), tx: 0, ty: 0 }, shot!);
+    expect(post.visible).toBe(true);
+    expect(post.x).toBeGreaterThan(REFERENCE.width * 0.3);
+    expect(post.x).toBeLessThan(REFERENCE.width * 0.7);
+    expect(post.y).toBeGreaterThan(REFERENCE.height * 0.4);
+    expect(post.y).toBeLessThan(REFERENCE.height * 0.85);
   });
 });
 

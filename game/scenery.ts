@@ -15,12 +15,16 @@ export type SceneryStructure = {
   heightM: number;
 };
 
-/** Scene 01 layout: small roofed stands around the bends and the gate, flat-roofed buildings behind the back straight. */
+/**
+ * Scene 01 layout: small roofed stands around the bends, flat-roofed buildings behind the back straight.
+ * The west home-side stand was at 145°. On the 25.2 m bend that ray lands on the chute, against the gate.
+ * 174° keeps the same stand just north of due west, outside the rail and clear of the gate.
+ */
 export const SCENERY: readonly SceneryStructure[] = [
   { kind: "stand", at: { bend: "east", angleDeg: 55 }, outM: 16, widthM: 11, depthM: 5, heightM: 4.6 },
   { kind: "stand", at: { bend: "east", angleDeg: 25 }, outM: 18, widthM: 11, depthM: 5, heightM: 4.6 },
   { kind: "stand", at: { bend: "east", angleDeg: -25 }, outM: 20, widthM: 12, depthM: 5, heightM: 4.6 },
-  { kind: "stand", at: { bend: "west", angleDeg: 145 }, outM: 18, widthM: 10, depthM: 5, heightM: 4.6 },
+  { kind: "stand", at: { bend: "west", angleDeg: 174 }, outM: 18, widthM: 10, depthM: 5, heightM: 4.6 },
   { kind: "stand", at: { bend: "west", angleDeg: 215 }, outM: 16, widthM: 8, depthM: 5, heightM: 5.2 },
   { kind: "building", at: { side: "back", alongM: 22 }, outM: 26, widthM: 18, depthM: 11, heightM: 5.5 },
   { kind: "building", at: { side: "back", alongM: 0 }, outM: 26, widthM: 18, depthM: 11, heightM: 5.5 },
