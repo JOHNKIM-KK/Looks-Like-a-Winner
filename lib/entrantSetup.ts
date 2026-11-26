@@ -121,6 +121,14 @@ export function withName(session: EntrantSession, index: number, value: string):
   return { ...session, names };
 }
 
+/** Drop one slot. Two entrants is the floor, so the ends of the stepper stay put. */
+export function removeEntrant(session: EntrantSession, index: number): EntrantSession {
+  if (session.phase !== "setup") return session;
+  if (session.names.length <= MIN_ENTRANTS) return session;
+  if (!Number.isInteger(index) || index < 0 || index >= session.names.length) return session;
+  return { ...session, names: session.names.filter((_, slot) => slot !== index) };
+}
+
 export function withNames(session: EntrantSession, names: readonly string[]): EntrantSession {
   if (session.phase !== "setup") return session;
   const clamped = names.map((name) => clampEntrantName(name));

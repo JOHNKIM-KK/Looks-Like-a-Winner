@@ -21,14 +21,14 @@ type Props = {
   names: readonly string[];
   issue: string | null;
   notice: string | null;
+  recent: readonly string[] | null;
   horses: readonly HorseInput[];
   onOpenSetup: () => void;
   onStep: (delta: number) => void;
   onName: (index: number, value: string) => void;
+  onRemove: (index: number) => void;
   onLoadRecent: () => void;
-  onShuffleSetup: () => void;
   onConfirmSetup: () => void;
-  onShuffleLineup: () => void;
   onStartRace: () => void;
   onComplete: () => void;
   onRematch: () => void;
@@ -48,20 +48,21 @@ export function RaceGame({
   names,
   issue,
   notice,
+  recent,
   horses,
   onOpenSetup,
   onStep,
   onName,
+  onRemove,
   onLoadRecent,
-  onShuffleSetup,
   onConfirmSetup,
-  onShuffleLineup,
   onStartRace,
   onComplete,
   onRematch,
   onChangeSettings,
 }: Props) {
   const live = phase === "racing" || phase === "done";
+  const openedPortrait = useRef(false);
   const shellRef = useRef<HTMLDivElement>(null);
   const hostRef = useRef<HTMLDivElement>(null);
   const gameRef = useRef<RaceGameHandle | null>(null);
@@ -87,6 +88,12 @@ export function RaceGame({
     stageRef.current = stage;
     if (stage) gameRef.current?.setStage(stage);
   }, [stage]);
+
+  useLayoutEffect(() => {
+    if (openedPortrait.current || !ready || stage?.kind !== "portrait" || phase !== "title") return;
+    openedPortrait.current = true;
+    onOpenSetup();
+  }, [ready, stage, phase, onOpenSetup]);
 
   useEffect(() => {
     startedRef.current = live;
@@ -126,22 +133,20 @@ export function RaceGame({
       <div ref={hostRef} className="absolute inset-0" />
       {!ready ? <StageLoading progress={loaded} /> : null}
       {ready && stage?.kind === "landscape" && phase === "title" ? <TitleScreen stage={stage} onStart={onOpenSetup} /> : null}
-      {ready && stage?.kind === "landscape" && phase === "setup" ? (
+      {ready && phase === "setup" ? (
         <SetupScreen
-          stage={stage}
           names={names}
           issue={issue}
           notice={notice}
+          recent={recent}
           onStep={onStep}
           onName={onName}
+          onRemove={onRemove}
           onLoadRecent={onLoadRecent}
-          onShuffle={onShuffleSetup}
           onStart={onConfirmSetup}
         />
       ) : null}
-      {ready && stage?.kind === "landscape" && phase === "lineup" ? (
-        <LineupScreen stage={stage} horses={horses} onShuffle={onShuffleLineup} onStart={onStartRace} />
-      ) : null}
+      {ready && phase === "lineup" ? <LineupScreen horses={horses} onStart={onStartRace} /> : null}
       {ready && stage?.kind === "landscape" && live ? (
         <RaceOverlay
           stage={stage}
@@ -152,7 +157,7 @@ export function RaceGame({
           onChangeSettings={onChangeSettings}
         />
       ) : null}
-      {stage?.kind === "portrait" ? <RotatePrompt /> : null}
+      {stage?.kind === "portrait" && live ? <RotatePrompt /> : null}
     </div>
   );
 }

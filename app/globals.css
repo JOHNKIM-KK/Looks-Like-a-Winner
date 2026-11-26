@@ -83,3 +83,485 @@ body::before {
     opacity: 1;
   }
 }
+
+/* WINNING POST UI v3 — pre-race screens. Scoped so the race HUD keeps its own chrome. */
+.night-root {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  justify-content: center;
+  overflow: hidden;
+  background: #111110;
+  color: #f3f0ea;
+}
+
+.night-root.is-loading {
+  z-index: 50;
+}
+
+.night {
+  --night-bg: #111110;
+  --night-text: #f3f0ea;
+  --night-muted: #8a8680;
+  --night-line: #2a2927;
+  --night-accent: #ff6a1a;
+  --night-cta: #14110e;
+  --night-surface: #1c1c1b;
+  --night-sheet: #1a1a18;
+  --night-disabled: #5e5c58;
+  --night-handle: #3a3936;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 390px);
+  height: 100%;
+  overflow: hidden;
+  background: var(--night-bg);
+  color: var(--night-text);
+  font-family: Pretendard, -apple-system, "Apple SD Gothic Neo", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  animation: night-fade 200ms ease-out;
+}
+
+.night button,
+.night input {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  border-radius: 0;
+  appearance: none;
+}
+
+.night button {
+  cursor: pointer;
+}
+
+.night button:disabled {
+  cursor: default;
+}
+
+.night input {
+  outline: none;
+  caret-color: var(--night-accent);
+}
+
+.night input::placeholder {
+  color: var(--night-muted);
+  font-weight: 500;
+  opacity: 1;
+}
+
+.night .body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: max(56px, env(safe-area-inset-top)) 22px 0;
+}
+
+.night .foot {
+  flex: 0 0 auto;
+  padding: 12px 22px max(28px, env(safe-area-inset-bottom));
+}
+
+.night .cta {
+  width: 100%;
+  height: 54px;
+  border-radius: 12px;
+  background: var(--night-accent);
+  color: var(--night-cta);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  transition: transform 80ms linear;
+}
+
+.night .cta:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.night .cta:disabled {
+  opacity: 0.4;
+}
+
+.night .kicker {
+  display: flex;
+  align-items: center;
+  height: 20px;
+  color: var(--night-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.night .hero-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 64px;
+  margin-top: 4px;
+}
+
+.night .count {
+  font-size: 64px;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.night .stepper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.night .stepper button {
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  background: var(--night-surface);
+  color: var(--night-text);
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.night .stepper button:disabled {
+  color: var(--night-disabled);
+}
+
+.night .list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 16px;
+  overflow: hidden;
+}
+
+.night .row,
+.night .add-row {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 12px;
+  height: 52px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--night-line);
+}
+
+.night.compact .row {
+  height: 44px;
+}
+
+.night .row.is-add {
+  animation: night-row 150ms linear;
+}
+
+.night.compact .row.is-add {
+  animation-name: night-row-compact;
+}
+
+.night .row.is-del {
+  height: 0;
+  border-bottom-color: transparent;
+  transition: height 150ms linear;
+}
+
+.night .idx {
+  flex: 0 0 18px;
+  width: 18px;
+  color: var(--night-muted);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.night .row:focus-within .idx {
+  color: var(--night-accent);
+}
+
+.night .name {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.night .del {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  color: var(--night-muted);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+}
+
+.night .del:disabled {
+  color: var(--night-muted);
+  opacity: 1;
+}
+
+.night .add-row {
+  min-height: 44px;
+  height: 44px;
+  border-bottom: 0;
+  color: var(--night-muted);
+  font-size: 16px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.night .recent-link {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: auto;
+  color: var(--night-accent);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.night .issue {
+  margin: 8px 0 0;
+  color: var(--night-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.night .lu-head {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.night .lu-head h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.night .lu-list {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  margin-top: 16px;
+}
+
+.night .stall {
+  display: flex;
+  flex: 0 0 56px;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  border-bottom: 1px solid var(--night-line);
+}
+
+.night.n-mid .stall {
+  flex-basis: 52px;
+  height: 52px;
+}
+
+.night.n-full .stall {
+  flex-basis: 44px;
+  height: 44px;
+}
+
+.night .stall:last-child {
+  border-bottom: 0;
+}
+
+.night .nm {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.night.loading {
+  align-items: center;
+  justify-content: center;
+  animation: none;
+}
+
+.night.loading .logo {
+  display: block;
+  width: 220px;
+  height: auto;
+  pointer-events: none;
+}
+
+.night .bar {
+  position: absolute;
+  right: 85px;
+  bottom: 120px;
+  left: 85px;
+  height: 2px;
+  overflow: hidden;
+  background: var(--night-line);
+}
+
+.night .bar > i {
+  display: block;
+  height: 100%;
+  background: var(--night-accent);
+  transition: width 200ms linear;
+}
+
+.night .dim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: rgba(0, 0, 0, 0.55);
+  animation: night-fade 200ms ease-out;
+  cursor: pointer;
+}
+
+.night .sheet {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 3;
+  padding: 8px 22px max(28px, env(safe-area-inset-bottom));
+  border-radius: 16px 16px 0 0;
+  background: var(--night-sheet);
+  animation: night-sheet-in 280ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.night .dim.is-out {
+  animation: night-fade-out 200ms ease-in forwards;
+}
+
+.night .sheet.is-out {
+  animation: night-sheet-out 200ms ease-in forwards;
+}
+
+.night .handle {
+  width: 36px;
+  height: 4px;
+  margin: 8px auto 16px;
+  border-radius: 2px;
+  background: var(--night-handle);
+  touch-action: none;
+}
+
+.night .sheet h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.night .sheet-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
+  min-height: 68px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--night-line);
+  text-align: left;
+  cursor: pointer;
+}
+
+.night .sheet-empty {
+  display: flex;
+  align-items: center;
+  min-height: 68px;
+  color: var(--night-muted);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.night .when {
+  color: var(--night-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.night .sheet-item.on .when {
+  color: var(--night-accent);
+}
+
+.night .who {
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+@keyframes night-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes night-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes night-sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes night-sheet-out {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes night-row {
+  from {
+    height: 0;
+  }
+  to {
+    height: 52px;
+  }
+}
+
+@keyframes night-row-compact {
+  from {
+    height: 0;
+  }
+  to {
+    height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .night,
+  .night .dim,
+  .night .sheet,
+  .night .row,
+  .night .bar > i,
+  .night .cta {
+    animation: none;
+    transition: none;
+  }
+}

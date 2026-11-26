@@ -10,10 +10,10 @@ import {
   loadRecentEntrants,
   openSetup,
   presentLineup,
+  removeEntrant,
   reshuffleToLineup,
   returnToSetup,
   saveRecentEntrants,
-  shuffleSetup,
   startRacing,
   withCount,
   withName,
@@ -25,7 +25,6 @@ import { mockHorses } from "@/lib/mockHorses";
 import { simulateRace, type RaceResult as RaceData } from "@/lib/race";
 
 const EMPTY_RECENT = "불러올 최근 참가자가 없습니다.";
-const SHUFFLED = "레인을 다시 배정했습니다. 라인업에서 확인할 수 있습니다.";
 
 function nextSeed() {
   return Math.floor(Math.random() * 1_000_000_000) + 1;
@@ -74,6 +73,11 @@ export function RaceSession() {
         setNotice(null);
         setSession((current) => withName(current, index, value));
       }}
+      onRemove={(index) => {
+        setNotice(null);
+        setSession((current) => removeEntrant(current, index));
+      }}
+      recent={typeof window === "undefined" ? null : loadRecentEntrants(window.localStorage)}
       onLoadRecent={() => {
         const names = loadRecentEntrants(window.localStorage);
         if (!names) {
@@ -83,19 +87,12 @@ export function RaceSession() {
         setNotice(null);
         setSession((current) => withNames(current, names));
       }}
-      onShuffleSetup={() => {
-        const next = shuffleSetup(session, nextSeed());
-        if (next === session) return;
-        setNotice(SHUFFLED);
-        setSession(next);
-      }}
       onConfirmSetup={() => {
         const next = presentLineup(session);
         if (next === session) return;
         setNotice(null);
         setSession(next);
       }}
-      onShuffleLineup={() => setSession((current) => reshuffleToLineup(current, nextSeed()))}
       onStartRace={() => {
         const next = startRacing(session);
         if (next === session) return;

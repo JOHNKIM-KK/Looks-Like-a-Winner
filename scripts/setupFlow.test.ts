@@ -1,10 +1,10 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { LineupScreen } from "../components/LineupScreen";
+import { lineupDensity, lineupRowHeight, LineupScreen } from "../components/LineupScreen";
+import { setupRowHeight, SetupScreen } from "../components/SetupScreen";
 import { RaceResult } from "../components/RaceResult";
-import { SetupScreen } from "../components/SetupScreen";
-import type { LandscapeStage } from "../game/stage";
+import type { HorseInput } from "../lib/race";
 import { entrantField, graphemeLength, reshuffleStalls } from "../lib/field";
 import {
   RECENT_ENTRANTS_KEY,
@@ -16,6 +16,7 @@ import {
   loadRecentEntrants,
   openSetup,
   presentLineup,
+  removeEntrant,
   reshuffleToLineup,
   resizeEntrantNames,
   returnToSetup,
@@ -27,16 +28,6 @@ import {
   type EntrantStorage,
 } from "../lib/entrantSetup";
 import { MAX_HORSES, simulateRace } from "../lib/race";
-
-const stage = {
-  kind: "landscape",
-  viewport: { width: 1600, height: 900 },
-  frame: { x: 0, y: 0, width: 1600, height: 900 },
-  scale: 1,
-  bleed: { x: 0, y: 0, width: 1600, height: 900 },
-  hud: { x: 0, y: 0, width: 1600, height: 900 },
-  backing: { width: 1600, height: 900, zoom: 1 },
-} satisfies LandscapeStage;
 
 function memoryStore(initial?: string): EntrantStorage & { raw: () => string | null } {
   let value = initial ?? null;
@@ -206,79 +197,170 @@ describe("setup flow", () => {
   });
 });
 
+function renderSetup(
+  names: readonly string[],
+  extra?: { issue?: string | null; notice?: string | null; recent?: readonly string[] | null },
+) {
+  return renderToStaticMarkup(
+    createElement(SetupScreen, {
+      names,
+      issue: extra?.issue ?? null,
+      notice: extra?.notice ?? null,
+      recent: extra?.recent ?? null,
+      onStep() {},
+      onName() {},
+      onRemove() {},
+      onLoadRecent() {},
+      onStart() {},
+    }),
+  );
+}
+
+function namedHorse(id: string, name: string, stall?: number): HorseInput {
+  return {
+    id,
+    name,
+    title: "t",
+    color: "#fff",
+    skillId: "start-dash",
+    biases: { start: 0, accel: 0, stamina: 0, corner: 0, mental: 0, luck: 0 },
+    reasons: ["a", "b"],
+    stall,
+  };
+}
+
+function renderLineup(horses: readonly HorseInput[]) {
+  return renderToStaticMarkup(createElement(LineupScreen, { horses, onStart() {} }));
+}
+
+function badgeTag(html: string, lane: number) {
+  return html.match(new RegExp(`<span\\b(?=[^>]*data-testid="lane-badge")(?=[^>]*data-lane="${lane}")[^>]*>`))?.[0] ?? "";
+}
+
 describe("setup and result screens", () => {
   it("renders the setup form, blocks a bad start, and stops the stepper at the ends", () => {
-    const open = renderToStaticMarkup(
-      createElement(SetupScreen, {
-        stage,
-        names: ["철수", ""],
-        issue: null,
-        notice: null,
-        onStep() {},
-        onName() {},
-        onLoadRecent() {},
-        onShuffle() {},
-        onStart() {},
-      }),
-    );
-    expect(open).toContain("출전 설정");
-    expect(open).toContain("비우면 기본 이름");
-    expect(open).toContain("최근 참가자 불러오기");
-    expect(open).toContain("레인 섞기");
-    expect(open).toContain("경주 시작");
+    const open = renderSetup(["철수", ""]);
+    expect(open).toContain("참가자");
+    expect(open).toContain('placeholder="이름"');
+    expect(open).toContain("최근 명단 불러오기");
+    expect(open).toContain("라인업 보기");
+    expect(open).toContain("+ 추가");
+    expect(open).not.toContain("레인 섞기");
+    expect(open).not.toContain("경주 시작");
     expect(open).toContain('data-testid="entrant-count"');
     expect(open).toContain(">2<");
+    expect(open).toContain('data-row-height="52"');
     expect(buttonTag(open, "setup-start")).not.toContain("disabled");
     expect(buttonTag(open, "setup-start")).toContain('type="submit"');
     expect(open.match(/data-testid="entrant-name-/g)).toHaveLength(2);
-    expect(buttonTag(open, "참가자 줄이기") || open.match(/<button\b(?=[^>]*참가자 줄이기)[^>]*>/)?.[0]).toContain("disabled");
+    expect(buttonTag(open, "setup-minus")).toContain("disabled");
+    expect(buttonTag(open, "setup-minus")).toContain("#5E5C58");
+    expect(buttonTag(open, "setup-plus")).not.toContain("disabled");
 
-    const blocked = renderToStaticMarkup(
-      createElement(SetupScreen, {
-        stage,
-        names: ["철수", "철수"],
-        issue: "이름이 겹칩니다.",
-        notice: "레인을 다시 배정했습니다. 라인업에서 확인할 수 있습니다.",
-        onStep() {},
-        onName() {},
-        onLoadRecent() {},
-        onShuffle() {},
-        onStart() {},
-      }),
-    );
+    const blocked = renderSetup(["철수", "철수"], {
+      issue: "이름이 겹칩니다.",
+      notice: "레인을 다시 배정했습니다. 라인업에서 확인할 수 있습니다.",
+    });
     expect(buttonTag(blocked, "setup-start")).toContain("disabled");
     expect(blocked).toContain("이름이 겹칩니다.");
     expect(blocked).not.toContain("레인을 다시 배정했습니다");
 
-    const full = renderToStaticMarkup(
-      createElement(SetupScreen, {
-        stage,
-        names: Array.from({ length: MAX_HORSES }, () => ""),
-        issue: null,
-        notice: null,
-        onStep() {},
-        onName() {},
-        onLoadRecent() {},
-        onShuffle() {},
-        onStart() {},
-      }),
-    );
+    const full = renderSetup(Array.from({ length: MAX_HORSES }, () => ""));
     expect(full.match(/data-testid="entrant-name-/g)).toHaveLength(MAX_HORSES);
-    expect(full.match(/<button\b(?=[^>]*참가자 늘리기)[^>]*>/)?.[0]).toContain("disabled");
+    expect(full).toContain('data-row-height="44"');
+    expect(full).toContain("compact");
+    expect(full).not.toContain("+ 추가");
+    expect(buttonTag(full, "setup-plus")).toContain("disabled");
+    expect(buttonTag(full, "setup-plus")).toContain("#5E5C58");
+    expect(buttonTag(full, "setup-minus")).not.toContain("disabled");
+  });
+
+  it("keeps the stepper active between the 2 and 12 ends", () => {
+    expect(setupRowHeight(11)).toBe(52);
+    expect(setupRowHeight(MAX_HORSES)).toBe(44);
+    const three = renderSetup(["가", "나", "다"]);
+    expect(buttonTag(three, "setup-minus")).not.toContain("disabled");
+    expect(buttonTag(three, "setup-plus")).not.toContain("disabled");
+    expect(three).toContain('data-row-height="52"');
+    const eleven = renderSetup(Array.from({ length: 11 }, (_, index) => `말${index}`));
+    expect(buttonTag(eleven, "setup-plus")).not.toContain("disabled");
+    expect(buttonTag(eleven, "setup-minus")).not.toContain("disabled");
+    expect(eleven).toContain("+ 추가");
+  });
+
+  it("drops a middle slot and will not go under two entrants", () => {
+    const session = setupWith(["가", "나", "다"]);
+    expect(removeEntrant(session, 1).names).toEqual(["가", "다"]);
+    const pair = setupWith(["가", "나"]);
+    expect(removeEntrant(pair, 0)).toBe(pair);
+    expect(removeEntrant(pair, 3)).toBe(pair);
   });
 
   it("lists assigned gates in stall order and leaves unused gates off the lineup", () => {
     const horses = entrantField(["가", "나", "다"], 8);
-    const html = renderToStaticMarkup(
-      createElement(LineupScreen, { stage, horses, onShuffle() {}, onStart() {} }),
-    );
+    const html = renderLineup(horses);
     const shown = [...html.matchAll(/data-testid="lineup-gate-(\d+)"/g)].map((match) => Number(match[1]));
     expect(shown).toEqual(lineupRows(horses).map((row) => row.stall));
     expect(shown).toHaveLength(3);
-    expect(html).toContain("게이트는 무작위로 배정되었습니다");
-    expect(html).toContain("레인 다시 섞기");
-    expect(html).toContain("경주 시작");
+    expect(html).toContain('data-align="start"');
+    expect(html).toContain("라인업");
+    expect(html).toContain("출발");
+    expect(html).not.toContain("다시 섞기");
+    expect(html).not.toContain("경주 시작");
     for (const horse of horses) expect(html).toContain(horse.name);
+  });
+
+  it("sorts lineup rows to the top and skips empty lanes", () => {
+    const html = renderLineup([
+      namedHorse("gap", "빈칸"),
+      namedHorse("late", "뒤", 12),
+      namedHorse("early", "앞", 1),
+    ]);
+    const shown = [...html.matchAll(/data-testid="lineup-gate-(\d+)"/g)].map((match) => Number(match[1]));
+    expect(shown).toEqual([1, 12]);
+    expect(html).not.toContain("빈칸");
+    expect(html).not.toContain("lineup-gate-2");
+    expect(html).toContain('data-align="start"');
+    expect(html).toContain('data-count="2"');
+    expect(html.match(/data-testid="lineup-name"/g)).toHaveLength(2);
+  });
+
+  it("uses 56, 52, and 44 pixel rows for 2–6, 7–9, and 10–12 horses", () => {
+    for (const count of [2, 6, 7, 9, 10, 12]) {
+      const expected = count >= 10 ? 44 : count >= 7 ? 52 : 56;
+      const density = count >= 10 ? "n-full" : count >= 7 ? "n-mid" : "";
+      expect(lineupRowHeight(count)).toBe(expected);
+      expect(lineupDensity(count)).toBe(density);
+      const horses = Array.from({ length: count }, (_, index) => namedHorse(`h${index}`, `말${index}`, count - index));
+      const html = renderLineup(horses);
+      expect(html.match(/data-testid="lineup-gate-/g)).toHaveLength(count);
+      expect(html).toContain(`data-row-height="${expected}"`);
+      expect(html).toContain(`height:${expected}px`);
+      if (density) expect(html).toContain(density);
+      else expect(html).not.toMatch(/n-mid|n-full/);
+      const shown = [...html.matchAll(/data-testid="lineup-gate-(\d+)"/g)].map((match) => Number(match[1]));
+      expect(shown).toEqual(Array.from({ length: count }, (_, index) => index + 1));
+    }
+  });
+
+  it("paints night lane badges at 22px, with dark ink on 3, 10, and 12 and edges on 8 and 10", () => {
+    const html = renderLineup(Array.from({ length: 12 }, (_, index) => namedHorse(`h${index}`, `말${index}`, index + 1)));
+    for (const lane of [1, 3, 8, 10, 12]) {
+      const tag = badgeTag(html, lane);
+      expect(tag).toContain("width:22px");
+      expect(tag).toContain("height:22px");
+      expect(tag).toContain("font-size:11px");
+    }
+    expect(badgeTag(html, 3)).toContain("#14181F");
+    expect(badgeTag(html, 10)).toContain("#14181F");
+    expect(badgeTag(html, 12)).toContain("#14181F");
+    expect(badgeTag(html, 8)).toContain('data-edge="#E8E4DC"');
+    expect(badgeTag(html, 8)).toContain("inset 0 0 0 1.5px #E8E4DC");
+    expect(badgeTag(html, 10)).toContain('data-edge="#B8B2A6"');
+    expect(badgeTag(html, 10)).toContain("inset 0 0 0 1.5px #B8B2A6");
+    expect(badgeTag(html, 1)).toContain('data-edge=""');
+    expect(badgeTag(html, 3)).toContain('data-edge=""');
+    expect(badgeTag(html, 1)).not.toContain("box-shadow");
   });
 
   it("keeps the v4 winner banner and result buttons, and withholds them until the board is complete", () => {

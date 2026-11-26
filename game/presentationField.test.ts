@@ -141,7 +141,7 @@ describe.each([2, 4, 8, 12])("field of %i", (count) => {
 
   it("lists each assigned stall, not the roster index", () => {
     const html = renderToStaticMarkup(
-      createElement(LineupScreen, { stage, horses: lineup(stalls), onShuffle() {}, onStart() {} }),
+      createElement(LineupScreen, { horses: lineup(stalls), onStart() {} }),
     );
     const shown = [...html.matchAll(/data-testid="lineup-gate-(\d+)"/g)].map((match) => Number(match[1]));
     expect(shown).toEqual([...stalls].sort((a, b) => a - b));
