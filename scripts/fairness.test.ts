@@ -13,7 +13,7 @@ describe("stall fairness", () => {
     () => {
       const wins = Array.from({ length: 12 }, () => 0);
       for (let seed = 1; seed <= SEEDS; seed += 1) {
-        const race = simulateRace(fieldHorses(mockHorses, seed), seed);
+        const race = simulateRace(fieldHorses(mockHorses, seed), seed, { incidents: false });
         const winner = race.horses.find((horse) => horse.rank === 1);
         const stall = (winner?.number ?? 0) - 1;
         if (stall >= 0 && stall < wins.length) wins[stall] = (wins[stall] ?? 0) + 1;

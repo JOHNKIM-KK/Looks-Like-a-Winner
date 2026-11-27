@@ -88,6 +88,17 @@ export function footSpeedFactor(mode: FootMode, sinceDismount: number) {
   return T.bikeFrom + (T.bikeTo - T.bikeFrom) * smoothstep(rolling / T.bikeRampS);
 }
 
+/** Debug URL override: `?incident=collision|titan|graze&mode=run|super|bike`. Unknown values are dropped. */
+export function parseForcedIncident(search: string): ForcedIncident | null {
+  const params = new URLSearchParams(search);
+  const cause = params.get("incident");
+  const mode = params.get("mode");
+  const forced: ForcedIncident = {};
+  if (cause === "collision" || cause === "titan" || cause === "graze") forced.cause = cause;
+  if (mode === "run" || mode === "super" || mode === "bike") forced.mode = mode;
+  return forced.cause || forced.mode ? forced : null;
+}
+
 export function rollMode(random: () => number, progress: number, forced?: FootMode): FootMode {
   if (forced) return forced;
   const weights = { ...T.modeWeights };

@@ -157,3 +157,13 @@ describe("ranking", () => {
     }
   });
 });
+
+describe("debug URL override", () => {
+  it("parses cause and mode and drops junk", async () => {
+    const { parseForcedIncident } = await import("./incidents");
+    expect(parseForcedIncident("?incident=titan&mode=bike")).toEqual({ cause: "titan", mode: "bike" });
+    expect(parseForcedIncident("?mode=super")).toEqual({ mode: "super" });
+    expect(parseForcedIncident("?incident=nope&mode=x")).toBeNull();
+    expect(parseForcedIncident("")).toBeNull();
+  });
+});
