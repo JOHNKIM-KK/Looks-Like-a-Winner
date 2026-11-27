@@ -7,7 +7,7 @@ const SEEDS = [1, 7, 42, 1234, 99999, 123456789];
 
 describe("race features off", () => {
   test("flags are off", () => {
-    expect(RACE_FEATURES).toEqual({ horseStats: false, skills: false });
+    expect(RACE_FEATURES).toEqual({ horseStats: false, skills: false, incidents: true });
   });
 
   test.each(SEEDS)("seed %i runs with no skill cut-ins or hits", (seed) => {
