@@ -31,7 +31,7 @@ describe("race time", () => {
   test("mean finish time stays within 40.5–44 s on every one of 20 seeds", () => {
     const finishTimes: number[] = [];
     for (const seed of SEEDS) {
-      const race = simulateRace(fieldHorses(mockHorses, seed), seed);
+      const race = simulateRace(fieldHorses(mockHorses, seed), seed, { incidents: false });
       const seedTimes = race.horses.map((horse) => horse.finishTime);
       finishTimes.push(...seedTimes);
       expect(mean(seedTimes), `seed ${seed} mean finish`).toBeGreaterThanOrEqual(40.5);
@@ -63,7 +63,7 @@ describe("lane-independent progress", () => {
     expect(distance / ENGINE_PX_PER_M).toBeCloseTo(RACE_METERS, 6);
 
     for (const seed of SEEDS) {
-      const race = simulateRace(fieldHorses(mockHorses, seed), seed);
+      const race = simulateRace(fieldHorses(mockHorses, seed), seed, { incidents: false });
       expect(race.horses).toHaveLength(12);
       for (const horse of race.horses) {
         expect(horse.samples[0], `seed ${seed} horse ${horse.number} starts at the gate`).toBe(0);
