@@ -74,34 +74,57 @@ export type LaneRunner = {
   mode: LaneMode;
   /** Finished or moved by a skill: holds its lane and is no obstacle. */
   frozen: boolean;
+  /** A body that stays where it fell. Never steered, always an obstacle. */
+  fixed: boolean;
 };
 
 export function laneRunner(lane: number): LaneRunner {
-  return { meters: 0, speed: 0, lane, laneVel: 0, mode: { kind: "settle" }, frozen: false };
+  return { meters: 0, speed: 0, lane, laneVel: 0, mode: { kind: "settle" }, frozen: false, fixed: false };
 }
+
+/** A downed horse. Every runner but its own jockey must steer around it. */
+export type LaneObstacle = { body: LaneRunner; owner: LaneRunner };
+
+export function laneObstacle(meters: number, lane: number, owner: LaneRunner): LaneObstacle {
+  return { body: { ...laneRunner(lane), meters, fixed: true }, owner };
+}
+
+/** Seconds of travel a runner looks ahead for a fixed body, enough to change a lane before reaching it. */
+const OBSTACLE_LOOKAHEAD_S = 4;
+/** A runner that neighbours keep from clearing a fixed body crawls at this share of its pace instead of stopping, so a jam cannot deadlock. */
+const OBSTACLE_CRAWL = 0.3;
 
 /**
  * One simulator step. Front runners resolve first, so a follower sees the
  * lane and speed its leader actually takes this step. Mutates lane, laneVel,
  * mode and speed (natural in, allowed out).
  */
-export function stepLanes(field: LaneRunner[], dt: number) {
+export function stepLanes(field: LaneRunner[], dt: number, obstacles: readonly LaneObstacle[] = []) {
   const order = field.filter((runner) => !runner.frozen).sort((a, b) => b.meters - a.meters);
   const advanced = new Map<LaneRunner, number>();
   for (const me of order) {
-    steer(me, order, dt);
-    me.speed = allowedSpeed(me, order, advanced, dt);
+    const seen = obstacles.length === 0 ? order : [...order, ...obstacles.filter((obstacle) => obstacle.owner !== me).map((obstacle) => obstacle.body)];
+    steer(me, seen, dt);
+    me.speed = allowedSpeed(me, seen, advanced, dt);
     advanced.set(me, me.meters + me.speed * dt);
   }
+}
+
+/** How far ahead `me` must react to `other`. A fixed body needs room for a lane change at speed. */
+function reach(me: LaneRunner, other: LaneRunner) {
+  const lengths = BLOCK_AHEAD_LENGTHS * HORSE_LENGTH_M;
+  return other.fixed ? Math.max(lengths, me.speed * OBSTACLE_LOOKAHEAD_S) : lengths;
 }
 
 function steer(me: LaneRunner, field: LaneRunner[], dt: number) {
   const rule = LANE_RULES[zoneAt(me.meters)];
   const next = LANE_RULES[zoneAt(me.meters + me.speed * ZONE_LOOKAHEAD_S)];
-  const outCap = Math.min(MAX_LATERAL_RATE, rule.outRate, next.outRate);
-  const inCap = Math.min(MAX_LATERAL_RATE, rule.railPull, next.railPull);
-
   me.mode = nextMode(me, field, rule);
+  // A fixed body cannot wait for a zone that allows lane changes.
+  const dodging = me.mode.kind === "pass" && me.mode.rival.fixed;
+  const outCap = dodging ? MAX_LATERAL_RATE : Math.min(MAX_LATERAL_RATE, rule.outRate, next.outRate);
+  const inCap = dodging ? MAX_LATERAL_RATE : Math.min(MAX_LATERAL_RATE, rule.railPull, next.railPull);
+
   const target = me.mode.kind === "pass" ? me.mode.target : RAIL_LANE;
   const gap = target - me.lane;
   const want = Math.sign(gap) * Math.min(gap > 0 ? outCap : inCap, stoppable(Math.abs(gap), dt));
@@ -131,19 +154,19 @@ function nextMode(me: LaneRunner, field: LaneRunner[], rule: LaneRule): LaneMode
     const rival = mode.rival;
     const gap = rival.meters - me.meters;
     const cleared = gap <= -HORSE_LENGTH_M;
-    const lost = gap > 2 * BLOCK_AHEAD_LENGTHS * HORSE_LENGTH_M || (gap > 0 && me.speed <= rival.speed);
+    const lost = gap > 2 * reach(me, rival) || (gap > 0 && me.speed <= rival.speed && !rival.fixed);
     const outward = mode.target > me.lane;
-    if (rival.frozen || cleared || lost || (outward && rule.outRate === 0)) return { kind: "settle" };
+    if (rival.frozen || cleared || lost || (outward && rule.outRate === 0 && !rival.fixed)) return { kind: "settle" };
     return mode;
   }
   const front = blocker(me, field);
   if (!front || me.speed <= front.speed + EPS) return mode;
   const inside = front.lane - LATERAL_OVERLAP;
-  if (rule.railGap && inside >= RAIL_LANE && sideRoom(me, field, -1) >= me.lane - inside - EPS) {
+  if ((rule.railGap || front.fixed) && inside >= RAIL_LANE && sideRoom(me, field, -1) >= me.lane - inside - EPS) {
     return { kind: "pass", rival: front, target: inside };
   }
   const outside = front.lane + LATERAL_OVERLAP;
-  if (rule.outRate > 0 && outside <= OUTER_LANE && sideRoom(me, field, 1) >= outside - me.lane - EPS) {
+  if ((rule.outRate > 0 || front.fixed) && outside <= OUTER_LANE && sideRoom(me, field, 1) >= outside - me.lane - EPS) {
     return { kind: "pass", rival: front, target: outside };
   }
   return mode;
@@ -154,7 +177,7 @@ function blocker(me: LaneRunner, field: LaneRunner[]) {
   let best: LaneRunner | undefined;
   for (const other of field) {
     const ahead = other.meters - me.meters;
-    if (other === me || ahead <= 0 || ahead > BLOCK_AHEAD_LENGTHS * HORSE_LENGTH_M) continue;
+    if (other === me || ahead <= 0 || ahead > reach(me, other)) continue;
     if (Math.abs(other.lane - me.lane) >= LATERAL_OVERLAP) continue;
     if (!best || ahead < best.meters - me.meters) best = other;
   }
@@ -171,7 +194,8 @@ function sideRoom(me: LaneRunner, field: LaneRunner[], side: number) {
   for (const other of field) {
     if (other === me) continue;
     const across = (other.lane - me.lane) * side;
-    if (across <= 0) continue;
+    // A fixed body only stops me drifting into its lane. Crossing out of an overlap is how I get around it.
+    if (across <= 0 || (other.fixed && across < LATERAL_OVERLAP)) continue;
     const ahead = other.meters - me.meters;
     if (ahead <= EPS - HORSE_LENGTH_M || ahead > BLOCK_AHEAD_LENGTHS * HORSE_LENGTH_M) continue;
     room = Math.min(room, across - LATERAL_OVERLAP);
@@ -179,10 +203,20 @@ function sideRoom(me: LaneRunner, field: LaneRunner[], side: number) {
   return Math.max(0, room);
 }
 
+function boxedIn(me: LaneRunner, field: LaneRunner[], body: LaneRunner) {
+  const out = body.lane + LATERAL_OVERLAP - me.lane;
+  const inward = me.lane - (body.lane - LATERAL_OVERLAP);
+  return sideRoom(me, field, 1) < out - EPS && sideRoom(me, field, -1) < inward - EPS;
+}
+
 function allowedSpeed(me: LaneRunner, field: LaneRunner[], advanced: Map<LaneRunner, number>, dt: number) {
   let speed = me.speed;
   const front = blocker(me, field);
   if (front && advanced.has(front)) speed = Math.min(speed, front.speed);
+  for (const other of field) {
+    if (!other.fixed || other.meters <= me.meters || Math.abs(other.lane - me.lane) >= LATERAL_OVERLAP - 1e-3) continue;
+    speed = Math.min(speed, Math.max(boxedIn(me, field, other) ? me.speed * OBSTACLE_CRAWL : 0, (other.meters - HORSE_LENGTH_M - me.meters) / dt));
+  }
   for (const [other, reached] of advanced) {
     if (Math.abs(other.lane - me.lane) >= LATERAL_OVERLAP) continue;
     speed = Math.min(speed, (reached - HORSE_LENGTH_M - me.meters) / dt);

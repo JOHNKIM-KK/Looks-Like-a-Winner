@@ -1,6 +1,6 @@
 import { payoffWord } from "@/game/skillShow";
 import { COAST_END, ENGINE_PX_PER_M, RACE_METERS, cutLength, poseAt, segmentAt, segmentEnds, referenceDistance } from "@/game/track";
-import { laneRunner, stepLanes, type LaneRunner } from "./lanes";
+import { laneObstacle, laneRunner, stepLanes, type LaneObstacle, type LaneRunner } from "./lanes";
 import { mulberry32, mixSeed } from "./rng";
 import {
   createDirector,
@@ -424,6 +424,7 @@ function stepSpeed(runner: Runner, time: number) {
 function simulate(runners: Runner[], director: IncidentDirector | null) {
   const finishAt = 70;
   const steps = Math.round(finishAt / SAMPLE_STEP);
+  const obstacles: LaneObstacle[] = [];
   for (let index = 0; index <= steps; index += 1) {
     const time = Number((index * SAMPLE_STEP).toFixed(1));
     for (const runner of runners) {
@@ -443,6 +444,8 @@ function simulate(runners: Runner[], director: IncidentDirector | null) {
       for (const born of director.step(time, field)) {
         const runner = runners.find((candidate) => candidate.input.id === born.id);
         if (runner) runner.dismount = born.dismount;
+        const fate = director.plan().fates.get(born.id);
+        if (runner && fate?.kind === "down") obstacles.push(laneObstacle(fate.at.progress * RACE_LENGTH_M, fate.at.lane, runner.laneState));
       }
     }
     const running: Runner[] = [];
@@ -481,7 +484,7 @@ function simulate(runners: Runner[], director: IncidentDirector | null) {
       });
       running.push(runner);
     }
-    stepLanes(runners.map((runner) => runner.laneState), SAMPLE_STEP);
+    stepLanes(runners.map((runner) => runner.laneState), SAMPLE_STEP, obstacles);
     for (const runner of runners) runner.laneSamples.push(runner.laneState.lane);
     for (const runner of running) {
       const delta = (runner.laneState.speed / RACE_LENGTH_M) * SAMPLE_STEP;

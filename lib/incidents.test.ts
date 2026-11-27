@@ -1,3 +1,4 @@
+import { FINISH_M } from "./lanes";
 import { describe, expect, it } from "vitest";
 import { fieldHorses } from "./field";
 import { INCIDENT_TUNING, footSpeedFactor, planIncidents, rollMode, type FootMode } from "./incidents";
@@ -165,5 +166,41 @@ describe("debug URL override", () => {
     expect(parseForcedIncident("?mode=super")).toEqual({ mode: "super" });
     expect(parseForcedIncident("?incident=nope&mode=x")).toBeNull();
     expect(parseForcedIncident("")).toBeNull();
+  });
+});
+
+describe("downed horse", () => {
+  const RACE_M = FINISH_M;
+  const overlaps = (seed: number) => {
+    const result = race(seed, { force: { cause: "collision", mode: "run" } });
+    const down = result.horses.find((horse) => horse.fate?.kind === "down");
+    if (!down || down.fate?.kind !== "down") return null;
+    const spot = down.fate.at;
+    const found: { id: string; time: number }[] = [];
+    for (const horse of result.horses) {
+      if (horse === down || horse.id === down.dismount?.partnerId) continue;
+      horse.samples.forEach((progress, index) => {
+        if (index * 0.1 < (down.dismount?.time ?? 0)) return;
+        const closeM = Math.abs(progress - spot.progress) * RACE_M < 1.2;
+        const closeLane = Math.abs((horse.lanes[index] ?? 0) - spot.lane) < 0.8;
+        if (closeM && closeLane) found.push({ id: horse.id, time: index * 0.1 });
+      });
+    }
+    return found;
+  };
+
+  it("is steered around by nearly every runner, and nobody is left stuck behind it", () => {
+    let races = 0;
+    let crossed = 0;
+    for (const seed of SEEDS.slice(0, 100)) {
+      const found = overlaps(seed);
+      if (!found) continue;
+      races += 1;
+      if (found.length > 0) crossed += 1;
+      const result = race(seed, { force: { cause: "collision", mode: "run" } });
+      for (const horse of result.horses) expect(horse.finishTime, `seed ${seed} ${horse.id}`).toBeLessThan(70);
+    }
+    expect(races).toBeGreaterThan(50);
+    expect(crossed / races).toBeLessThan(0.1);
   });
 });
