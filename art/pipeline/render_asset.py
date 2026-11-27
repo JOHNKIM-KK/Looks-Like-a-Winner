@@ -23,8 +23,11 @@ cam = lib.make_camera(cs['elev'], cs['yaws'][a.angle], mod.ground_anchor(S), W, 
 if not a.mask: lib.make_light(cam)
 else:
     w = bpy.data.worlds.new('W'); w.use_nodes = True; w.node_tree.nodes['Background'].inputs[1].default_value = 0; bpy.context.scene.world = w
+pts = []
 for i in range(a.n):
     mod.pose(S, i, a.n, a.clip) if a.clip else mod.pose(S, i, a.n)
     bpy.context.view_layer.update()
     lib.render_to(os.path.join(a.out, f'f{i:03d}.png'))
-json.dump(dict(W=W, H=H, target=[W / 2, H / 2]), open(os.path.join(a.out, 'meta.json'), 'w'))
+    if hasattr(mod, 'frame_points'):
+        pts.append({k: [round(c, 2) for c in lib.project_px(cam, v, W, H)] for k, v in mod.frame_points(S).items()})
+json.dump(dict(W=W, H=H, target=[W / 2, H / 2], points=pts), open(os.path.join(a.out, 'meta.json'), 'w'))

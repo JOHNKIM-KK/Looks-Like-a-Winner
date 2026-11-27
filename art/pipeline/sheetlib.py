@@ -4,12 +4,13 @@ import numpy as np
 from PIL import Image
 
 MAX_W = 4096
+PAD = 14  # empty pixels kept around the union of all frames
 
 def load(path):
     return np.asarray(Image.open(path).convert('RGBA'))
 
 def build_sheet(color_dir, mask_dir, n, out_color, out_mask, anchor_px, per_frame_anchor_px=None,
-                alpha_cut=8, margin=1, quality=85, mask_ok=True):
+                alpha_cut=8, margin=PAD, quality=85, mask_ok=True):
     """Crop all frames to the union bbox (anchor_px = target in canvas px), write color(+mask) webp.
     Returns dict(frame_w, frame_h, anchor, per_frame, plate_per_frame)."""
     cols = [load(f'{color_dir}/f{i:03d}.png') for i in range(n)]
@@ -17,6 +18,8 @@ def build_sheet(color_dir, mask_dir, n, out_color, out_mask, anchor_px, per_fram
     al = np.stack([c[..., 3] for c in cols]).max(0) > alpha_cut
     ys, xs = np.where(al)
     H, W = al.shape
+    if xs.min() == 0 or ys.min() == 0 or xs.max() == W - 1 or ys.max() == H - 1:
+        raise SystemExit('figure touches the render canvas edge: enlarge the canvas')
     x0, x1 = max(0, xs.min() - margin), min(W, xs.max() + 1 + margin)
     y0, y1 = max(0, ys.min() - margin), min(H, ys.max() + 1 + margin)
     if (x1 - x0) * n > MAX_W:  # shave the margin before giving up
@@ -43,7 +46,7 @@ def build_sheet(color_dir, mask_dir, n, out_color, out_mask, anchor_px, per_fram
     Image.fromarray(sheet, 'RGBA').save(out_color, 'WEBP', quality=quality, method=6, exact=True)
     if masks: Image.fromarray(msheet, 'RGBA').convert('RGB').save(out_mask, 'WEBP', lossless=True, method=6)
     ax, ay = anchor_px[0] - x0, anchor_px[1] - y0
-    out = dict(frame_w=int(fw), frame_h=int(fh), anchor=[round(ax, 2), round(ay, 2)])
+    out = dict(frame_w=int(fw), frame_h=int(fh), anchor=[round(ax, 2), round(ay, 2)], crop_origin=[int(x0), int(y0)])
     if per_frame_anchor_px is not None:
         out['per_frame_anchor'] = [[round(p[0] - x0, 2), round(p[1] - y0, 2)] for p in per_frame_anchor_px]
     if masks: out['plate_per_frame'] = plates
