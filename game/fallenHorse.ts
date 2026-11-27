@@ -53,3 +53,41 @@ export function stampWord(dismount: Dismount, since: number) {
   if (dismount.mode === "bike" && moving < 4) return "오토바이";
   return "";
 }
+
+/** Logical px outside the track the titan starts from. */
+export const TITAN_START_PX = 1100;
+export const TITAN_HOLD_S = 0.6;
+export const TITAN_LEAVE_S = 1.2;
+
+/**
+ * Titan ground position: runs in from outside the rail so it meets the horse at `grabAt`,
+ * holds while it lifts the horse, then walks back out. Null when it is not on screen.
+ */
+export function titanAt(enterAt: number, grabAt: number, time: number, target: Heading): { at: Heading; moving: boolean } | null {
+  const nx = -target.ty;
+  const ny = target.tx;
+  const place = (out: number) => ({ x: target.x + nx * out, y: target.y + ny * out, tx: -nx, ty: -ny });
+  if (time < enterAt) return null;
+  if (time < grabAt) {
+    const p = (time - enterAt) / Math.max(1e-6, grabAt - enterAt);
+    return { at: place(TITAN_START_PX * (1 - p)), moving: true };
+  }
+  const since = time - grabAt;
+  if (since < TITAN_HOLD_S) return { at: place(0), moving: false };
+  const leave = (since - TITAN_HOLD_S) / TITAN_LEAVE_S;
+  if (leave >= 1) return null;
+  return { at: place(TITAN_START_PX * leave * leave), moving: true };
+}
+
+export type HitStop = { time: number; shake: boolean };
+
+/** Moments that slow the presentation clock: each collision (with a shake) and the titan grab. */
+export function hitStops(horses: readonly { dismount: Dismount | null }[]): HitStop[] {
+  const stops: HitStop[] = [];
+  for (const horse of horses) {
+    const dismount = horse.dismount;
+    if (dismount?.cause === "collision") stops.push({ time: dismount.time, shake: true });
+    if (dismount?.cause === "titan") stops.push({ time: dismount.time, shake: false });
+  }
+  return stops.sort((a, b) => a.time - b.time);
+}

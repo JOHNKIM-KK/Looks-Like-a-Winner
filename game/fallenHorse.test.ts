@@ -40,3 +40,14 @@ describe("stamp word", () => {
     expect(stampWord(dismount("super"), 9)).toBe("");
   });
 });
+
+describe("titan", () => {
+  const target = { x: 100, y: 1000, tx: 1, ty: 0 };
+  it("runs in from outside the rail and meets the horse at the grab", async () => {
+    const { titanAt, TITAN_START_PX } = await import("./fallenHorse");
+    expect(titanAt(5, 7.5, 4.9, target)).toBeNull();
+    expect(titanAt(5, 7.5, 5, target)?.at.y).toBeCloseTo(1000 + TITAN_START_PX, 3);
+    expect(titanAt(5, 7.5, 7.5, target)?.at).toMatchObject({ x: 100, y: 1000 });
+    expect(titanAt(5, 7.5, 12, target)).toBeNull();
+  });
+});
