@@ -112,7 +112,9 @@ def pose_blend(arm, items, prefix='AnimalArmature|'):
     acc = {}
     tot = sum(w for _, _, w in items)
     for name, t, w in items:
-        set_action(arm, prefix + name); pose_at(t)
+        for pb in arm.pose.bones:   # bones without fcurves in this clip must start from rest
+            pb.location = (0, 0, 0); pb.rotation_quaternion = (1, 0, 0, 0); pb.scale = (1, 1, 1)
+        set_action(arm, prefix + name); bpy.context.scene.frame_set(int(t) + 7); pose_at(t)  # frame_set to another frame first, or Blender keeps the hand-edited pose
         for pb in arm.pose.bones:
             a = acc.setdefault(pb.name, [Vector((0, 0, 0)), None, Vector((0, 0, 0))])
             a[0] += pb.location * (w / tot); a[2] += pb.scale * (w / tot)
