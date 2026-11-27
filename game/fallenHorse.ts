@@ -7,12 +7,19 @@ export type Heading = { x: number; y: number; tx: number; ty: number };
 export type BodyPlacement = {
   at: Heading;
   pose: "down" | "walk" | "graze" | "lifted";
-  /** 0 on the ground, 1 fully raised by the titan. */
+  /** Seconds since the jockey left the saddle (since the grab for a lifted horse). */
+  since: number;
+  /** Logical px walked so far. Drives the walk loop, so the feet follow the ground. */
+  travel: number;
+  /** Lifted horse only: 0 while the hand closes on it, 1 when the hand is at the mouth. */
   lift: number;
   alpha: number;
 };
 
-export const EAT_LIFT_S = 0.8;
+/** The giant's grab sheet is 10 frames at 10 fps: the hand closes at frame 4, lifts to the mouth by frame 8, and bites. */
+export const TITAN_GRAB_S = 1.0;
+export const GRAB_CLOSE_S = 0.4;
+export const GRAB_BITE_S = 0.8;
 
 function smoothstep(value: number) {
   const x = Math.min(1, Math.max(0, value));
@@ -26,27 +33,35 @@ export function bodyAt(
   logical: (progress: number, lane: number) => Heading,
 ): BodyPlacement | null {
   if (time < dismount.time) return null;
-  if (fate.kind === "down") return { at: logical(fate.at.progress, fate.at.lane), pose: "down", lift: 0, alpha: 1 };
+  const since = time - dismount.time;
+  if (fate.kind === "down") return { at: logical(fate.at.progress, fate.at.lane), pose: "down", since, travel: 0, lift: 0, alpha: 1 };
   if (fate.kind === "eaten") {
-    const lift = Math.min(1, (time - fate.grabAt) / EAT_LIFT_S);
-    if (lift >= 1) return null;
-    return { at: logical(fate.at.progress, fate.at.lane), pose: "lifted", lift, alpha: 1 - lift };
+    const grab = time - fate.grabAt;
+    if (grab >= TITAN_GRAB_S) return null;
+    const lift = smoothstep((grab - GRAB_CLOSE_S) / (GRAB_BITE_S - GRAB_CLOSE_S));
+    const alpha = grab < GRAB_BITE_S ? 1 : 1 - (grab - GRAB_BITE_S) / (TITAN_GRAB_S - GRAB_BITE_S);
+    return { at: logical(fate.at.progress, fate.at.lane), pose: "lifted", since: grab, travel: 0, lift, alpha };
   }
   const from = logical(fate.from.progress, fate.from.lane);
   const dx = fate.spot.x - from.x;
   const dy = fate.spot.y - from.y;
   const length = Math.hypot(dx, dy) || 1;
-  const k = smoothstep((time - dismount.time) / Math.max(1e-6, fate.walkUntil - dismount.time));
+  const k = smoothstep(since / Math.max(1e-6, fate.walkUntil - dismount.time));
   const at = { x: from.x + dx * k, y: from.y + dy * k, tx: dx / length, ty: dy / length };
-  return { at, pose: k >= 1 ? "graze" : "walk", lift: 0, alpha: 1 };
+  const grazing = since >= fate.walkUntil - dismount.time;
+  return { at, pose: grazing ? "graze" : "walk", since: grazing ? since - (fate.walkUntil - dismount.time) : since, travel: length * k, lift: 0, alpha: 1 };
 }
 
 /** Seconds from the dismount before the jockey is on his feet and the stamp can change. */
 export const FOOT_START_S = INCIDENT_TUNING.fallS + INCIDENT_TUNING.getUpS;
 
+/** The stamp that would sit under the giant while it grabs stays hidden until the giant has left. */
+const TITAN_CLEAR_S = TITAN_GRAB_S + 1.2;
+
 /** Stamp word over a dismounted jockey. Empty when none applies. */
 export function stampWord(dismount: Dismount, since: number) {
   if (since < 0) return "";
+  if (dismount.cause === "titan" && since < TITAN_CLEAR_S) return "";
   if (since < FOOT_START_S + 0.4) return "낙마";
   const moving = since - FOOT_START_S;
   if (dismount.mode === "super" && moving < 3) return "초인";
@@ -56,27 +71,29 @@ export function stampWord(dismount: Dismount, since: number) {
 
 /** Logical px outside the track the titan starts from. */
 export const TITAN_START_PX = 1100;
-export const TITAN_HOLD_S = 0.6;
 export const TITAN_LEAVE_S = 1.2;
+
+export type TitanPhase = "run" | "grab" | "leave";
 
 /**
  * Titan ground position: runs in from outside the rail so it meets the horse at `grabAt`,
- * holds while it lifts the horse, then walks back out. Null when it is not on screen.
+ * stands through the grab, then walks back out facing away. Null when it is not on screen.
+ * `since` counts seconds into the phase.
  */
-export function titanAt(enterAt: number, grabAt: number, time: number, target: Heading): { at: Heading; moving: boolean } | null {
+export function titanAt(enterAt: number, grabAt: number, time: number, target: Heading): { at: Heading; phase: TitanPhase; since: number } | null {
   const nx = -target.ty;
   const ny = target.tx;
-  const place = (out: number) => ({ x: target.x + nx * out, y: target.y + ny * out, tx: -nx, ty: -ny });
+  const place = (out: number, face: number) => ({ x: target.x + nx * out, y: target.y + ny * out, tx: nx * face, ty: ny * face });
   if (time < enterAt) return null;
   if (time < grabAt) {
     const p = (time - enterAt) / Math.max(1e-6, grabAt - enterAt);
-    return { at: place(TITAN_START_PX * (1 - p)), moving: true };
+    return { at: place(TITAN_START_PX * (1 - p), -1), phase: "run", since: time - enterAt };
   }
   const since = time - grabAt;
-  if (since < TITAN_HOLD_S) return { at: place(0), moving: false };
-  const leave = (since - TITAN_HOLD_S) / TITAN_LEAVE_S;
+  if (since < TITAN_GRAB_S) return { at: place(0, -1), phase: "grab", since };
+  const leave = (since - TITAN_GRAB_S) / TITAN_LEAVE_S;
   if (leave >= 1) return null;
-  return { at: place(TITAN_START_PX * leave * leave), moving: true };
+  return { at: place(TITAN_START_PX * leave * leave, 1), phase: "leave", since: since - TITAN_GRAB_S };
 }
 
 export type HitStop = { time: number; shake: boolean };

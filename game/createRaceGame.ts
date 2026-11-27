@@ -89,14 +89,17 @@ import {
 } from "@/game/mountedPair";
 import { RIDE_ANGLES, ridePose } from "@/game/jockeyRide";
 import { paintGallop } from "@/game/spriteFrames";
-import { bodyAt, hitStops, stampWord, titanAt, FOOT_START_S } from "@/game/fallenHorse";
+import { bodyAt, hitStops, stampWord, titanAt, FOOT_START_S, GRAB_CLOSE_S } from "@/game/fallenHorse";
+import { sheetsNeeded, type EventSheetId, type EventSheets } from "@/game/eventSheets";
+import { eventTextureBytes, loadEventSheets, removeEventTextures } from "@/game/eventLoader";
 import {
-  bikeBlendAt,
   buildIncidentTextures,
   createRig,
   footAnimRate,
+  grabHandDelta,
+  paintBodyClip,
   paintJockey,
-  paintTitanSprite,
+  paintTitan,
   preloadFootSheets,
   trailTimes,
   type IncidentRig,
@@ -267,6 +270,12 @@ declare global {
     __headingFlipMismatch?: number;
     /** Dev-only: who falls, when, and why. Lets capture scripts wait for the event. */
     __raceIncidents?: { number: number; time: number; cause: string; mode: string }[];
+    /** Dev-only: GPU bytes (w x h x 4) each event sheet added once loaded. */
+    __eventSheetBytes?: Partial<Record<EventSheetId, number>>;
+    /** Dev-only: page position of the actor the incident is happening to, so captures can crop to it. */
+    __raceEventFocus?: { x: number; y: number; bodyX: number; bodyY: number };
+    /** Dev-only: scales the frame time so captures can land between slow headless frames. */
+    __raceTimeScale?: number;
   }
 }
 
@@ -381,6 +390,11 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
   /** Wall-clock end of the slow-mo at a collision or titan grab. Race time slows, results do not change. */
   let hitUntil = -1;
   let titanSprite: Phaser.GameObjects.Sprite | null = null;
+  /** Event sheets this race needs, loaded while the intro plays. The intro holds until they are in. */
+  let eventSheets: EventSheets = {};
+  let eventsReady = sheetsNeeded(race).length === 0;
+  let titanNow: { phase: "run" | "grab" | "leave"; since: number; at: Heading; picked: PickedAngle; drawn: number } | null = null;
+  let titanPicked: PickedAngle | undefined;
   let photoLine: Phaser.GameObjects.Graphics | null = null;
   let photoLabel: Phaser.GameObjects.Text | null = null;
   let winnerSheet: string | null = null;
@@ -490,6 +504,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
     }
 
     create() {
+      this.load.off("progress", hooks.onLoadProgress);
       this.cameras.main.setBackgroundColor(BACKDROP);
       buildIncidentTextures(this);
       coats = createHorseCoatLibrary(this);
@@ -542,7 +557,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
           })
           .setOrigin(0.5);
         const container = this.add.container(0, 0);
-        const rig = createRig(this, "horse-color-straight-2");
+        const rig = createRig(this, "horse-color-straight-2", horse.dismount?.mode === "bike");
         container.add([dust, lines, body, sprite, marks, rider, silks, fadeLayers.sprite, fadeLayers.marks, fadeLayers.rider, fadeLayers.silks, ...rig.display, number, stamp]);
         const mount = createMountedSlots();
         const actor: Actor = {
@@ -578,6 +593,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       }
       this.paintFxTextures();
       if (race.titan) titanSprite = this.add.sprite(0, 0, "horse-color-straight-2").setVisible(false);
+      this.loadEventArt();
 
       for (let index = 0; index < 6; index += 1) {
         ghosts.push(this.add.image(0, 0, "horse-color-straight-2").setVisible(false).setDepth(3400));
@@ -670,16 +686,30 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       });
     }
 
+    /** Loads the sheets this race's incidents draw. A race without incidents requests nothing. */
+    loadEventArt() {
+      const needed = sheetsNeeded(race);
+      if (needed.length === 0) return;
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => removeEventTextures(this, eventSheets));
+      void loadEventSheets(this, needed).then((sheets) => {
+        eventSheets = sheets;
+        if (process.env.NODE_ENV !== "production") {
+          window.__eventSheetBytes = Object.fromEntries(Object.values(sheets).map((sheet) => [sheet.id, eventTextureBytes(this, sheet)]));
+        }
+        eventsReady = true;
+      });
+    }
+
     update(_time: number, delta: number) {
       if (waitingForLandscape) return;
       if (DEBUG_ENABLED && cameraDebugHost().__cameraFreeze) {
         if (cameraDebugHost().__raceDebugVisible === false) this.paintDebugOverlay();
         return;
       }
-      const wall = Math.min(delta, 40) / 1000;
+      const wall = (Math.min(delta, 40) / 1000) * (process.env.NODE_ENV !== "production" ? (window.__raceTimeScale ?? 1) : 1);
       frameDt = wall;
       if (introClock < INTRO_END) {
-        if (armed) introClock = Math.min(INTRO_END, introClock + wall);
+        if (armed && eventsReady) introClock = Math.min(INTRO_END, introClock + wall);
         const intro = introClock < INTRO_END;
         raceTime = 0;
         this.placeHorses();
@@ -899,6 +929,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         enteredFrom: finishEnteredFrom ?? raceCamera,
       }) ?? raceCamera;
       const intro = introGateSwap(introClock);
+      this.solveTitan();
 
       for (const actor of actors) {
         const liveLane = laneAt(actor.horse.lanes, raceTime);
@@ -943,6 +974,13 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
         const dismounted = dismount != null && dismountedFor >= 0;
         if (dismounted && actor.mount.rideEnabled) actor.mount = disableRideLayer(actor.mount);
         this.placeBody(actor, dismounted);
+        if (process.env.NODE_ENV !== "production" && dismounted && actor.container.visible) {
+          const rect = this.game.canvas.getBoundingClientRect();
+          const body = actor.rig.body.container;
+          const toPageX = (value: number) => rect.left + (value * rect.width) / this.scale.width;
+          const toPageY = (value: number) => rect.top + (value * rect.height) / this.scale.height;
+          window.__raceEventFocus = { x: toPageX(pose.x), y: toPageY(pose.y), bodyX: toPageX(body.x), bodyY: toPageY(body.y) };
+        }
         const coasting = finishedHorse && actor.runOutAt == null;
         const ahead = !started ? 0 : coasting || actor.progress < 1 ? 1 : trackProgress(actor.horse, raceTime + 0.2) - actor.progress;
         const braking = actor.progress >= 1 && !coasting;
@@ -1128,9 +1166,9 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
               laneColor: laneColorValue(actor.horse.number),
               shade: farShade(pose.scale),
               trail,
+              ride: eventSheets.ride,
             },
             actor.rig.runAnim,
-            bikeBlendAt(dismount, dismountedFor),
           );
           if (placed) actor.number.setPosition(0, -placed.topPx - 16).setVisible(clearOfStall(heading.x));
         }
@@ -1171,7 +1209,7 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       });
     }
 
-    /** The riderless horse after its jockey has left: lying, walking off, grazing, or lifted by the titan. */
+    /** The riderless horse after its jockey has left: down, walking off, grazing, or held in the giant's hand. */
     placeBody(actor: Actor, dismounted: boolean) {
       const { dismount, fate, number } = actor.horse;
       const rig = actor.rig;
@@ -1193,39 +1231,73 @@ export function createRaceGame(parent: HTMLElement, race: RaceResult, hooks: Hoo
       if (!angle) return;
       const drawn = horseSpriteScale(pose.scale);
       const metrePx = drawn * HORSE_PX_PER_M;
-      const walking = placement.pose === "walk";
-      rig.bodyAnim += frameDt * playback * (walking ? 0.5 * GALLOP_PLAYBACK : 0);
-      const frame = walking ? gallopFrame(number, rig.bodyAnim) : IDLE_FRAME;
-      // Tilt about the body centre, not the hooves, so the horse lies on the ground instead of swinging below it.
-      const down = placement.pose === "down";
-      const pivot = down ? 0.7 * metrePx : 0;
-      const lowered = pivot;
-      const raised = placement.pose === "lifted" ? placement.lift * 4 * metrePx : 0;
-      paintMount(actor, rig.body.layers, angle, picked, frame, drawn, true, 0, lowered - raised);
-      const lean = picked.flip ? -1 : 1;
-      container.setPosition(pose.x, pose.y - (down ? pivot - 0.3 * metrePx : 0));
-      container.setAngle(placement.pose === "down" ? 70 * lean : placement.pose === "lifted" ? 20 * lean * placement.lift : 0);
-      container.setDepth(clearOfStall(heading.x) ? 3001 + pose.y / 10 : pose.y);
+      const lifted = placement.pose === "lifted";
+      let shownX = pose.x;
+      let shownY = pose.y;
+      if (lifted) {
+        // The horse stays put while the hand closes, then follows the hand.
+        const hand = titanNow && placement.since >= GRAB_CLOSE_S ? grabHandDelta(eventSheets, titanNow.picked, titanNow.drawn, placement.since) : null;
+        shownX += hand?.x ?? 0;
+        shownY += (hand?.y ?? 0) + 0.35 * metrePx * placement.lift;
+        const lean = picked.flip ? -1 : 1;
+        paintMount(actor, rig.body.layers, angle, picked, IDLE_FRAME, drawn, true, 0, 0);
+        container.setAngle(20 * lean * placement.lift);
+      } else {
+        if (!paintBodyClip(rig.body.layers, eventSheets, placement, picked, drawn)) {
+          container.setVisible(false);
+          return;
+        }
+        container.setAngle(0);
+      }
+      container.setPosition(shownX, shownY);
+      // One below the actors, so a jockey falling off or standing beside the horse draws over it.
+      container.setDepth((clearOfStall(heading.x) ? 3001 + pose.y / 10 : pose.y) - 1);
       tintMount(rig.body.layers, number, farShade(pose.scale), Phaser.TintModes.MULTIPLY);
       rig.body.layers.sprite.setAlpha(placement.alpha);
       rig.body.layers.marks.setAlpha(placement.alpha);
     }
 
-    paintTitan() {
+    /** The giant's place on the path and the view it is drawn from, shared by the giant and the horse in its hand. */
+    solveTitan() {
       const plan = race.titan;
-      if (!plan || !titanSprite) return;
-      const fate = race.horses.find((horse) => horse.id === plan.targetId)?.fate;
+      const fate = plan ? race.horses.find((horse) => horse.id === plan.targetId)?.fate : undefined;
       const placed =
-        started && fate?.kind === "eaten"
+        plan && started && fate?.kind === "eaten"
           ? titanAt(plan.enterAt, fate.grabAt, raceTime, getLogicalAt(fate.at.progress, fate.at.lane))
           : null;
       const pose = placed ? projectWithCamera(placed.at, currentCamera) : null;
-      titanSprite.setVisible(Boolean(pose?.visible));
-      if (!placed || !pose?.visible) return;
-      const metrePx = horseSpriteScale(pose.scale) * HORSE_PX_PER_M;
-      paintTitanSprite(titanSprite, pose.x, pose.y, metrePx, placed.moving ? wallClock : 0);
-      const shade = farShade(pose.scale);
-      titanSprite.setTint(shade).setTintMode(Phaser.TintModes.MULTIPLY).setDepth(pose.y + 20);
+      if (!placed || !pose?.visible) {
+        titanNow = null;
+        return;
+      }
+      const toCamX = currentCamera.groundX - placed.at.x;
+      const toCamY = currentCamera.groundY - placed.at.y;
+      titanPicked = pickHorseAngle(
+        headingView(placed.at.tx, placed.at.ty, toCamX, toCamY),
+        cameraElevationDeg(currentCamera.height, toCamX, toCamY),
+        titanPicked,
+      );
+      titanNow = { phase: placed.phase, since: placed.since, at: placed.at, picked: titanPicked, drawn: horseSpriteScale(pose.scale) };
+    }
+
+    paintTitan() {
+      if (!titanSprite) return;
+      const now = titanNow;
+      const pose = now ? projectWithCamera(now.at, currentCamera) : null;
+      if (!now || !pose?.visible) {
+        titanSprite.setVisible(false);
+        return;
+      }
+      paintTitan(titanSprite, eventSheets, {
+        phase: now.phase,
+        since: now.since,
+        x: pose.x,
+        y: pose.y,
+        drawn: now.drawn,
+        picked: now.picked,
+        shade: farShade(pose.scale),
+        depthAt: (groundY) => (clearOfStall(now.at.x) ? 3001 + groundY / 10 : groundY),
+      });
     }
 
     paintShortcut() {

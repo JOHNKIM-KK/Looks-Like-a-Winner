@@ -27,3 +27,11 @@ export function paintGallop(
   sprite.setScale(scale);
   sprite.setFlipX(flip);
 }
+
+/** Names the frames of a single-row sheet "0".."n-1", so every sheet draws through `paintGallop`. */
+export function addRowFrames(texture: Phaser.Textures.Texture | undefined, frames: number, frameW: number, frameH: number) {
+  if (!texture || texture.key === "__MISSING") return;
+  for (let index = 0; index < frames; index += 1) {
+    if (!texture.has(String(index))) texture.add(String(index), 0, index * frameW, 0, frameW, frameH);
+  }
+}
