@@ -88,6 +88,7 @@ import {
   type SpriteSheetRef,
 } from "@/game/mountedPair";
 import { RIDE_ANGLES, ridePose } from "@/game/jockeyRide";
+import { paintGallop } from "@/game/spriteFrames";
 import { createTrackRenderer, trackViewFor } from "@/game/trackRenderer";
 import { INTRO_END, INTRO_SKIP_TO, introCamera, introGateSwap, introLine, introShowsStands } from "@/game/droneIntro";
 import { createGatePlate, preloadGatePlates } from "@/game/gatePlate";
@@ -248,12 +249,6 @@ function fadeInCanvas(canvas: HTMLCanvasElement) {
   requestAnimationFrame(step);
 }
 
-function frameName(texture: Phaser.Textures.Texture, frame: number) {
-  const named = String(frame);
-  if (texture.has(named)) return named;
-  return "__BASE";
-}
-
 type Heading = { x: number; y: number; tx: number; ty: number };
 
 declare global {
@@ -270,28 +265,6 @@ function blendLogical(from: Heading, to: Heading, blend: number): Heading {
     tx: from.tx + (to.tx - from.tx) * blend,
     ty: from.ty + (to.ty - from.ty) * blend,
   };
-}
-
-function paintGallop(
-  sprite: Phaser.GameObjects.Sprite,
-  key: string,
-  frame: number,
-  anchorX: number,
-  anchorY: number,
-  frameW: number,
-  frameH: number,
-  scale: number,
-  flip: boolean,
-) {
-  const texture = sprite.scene.textures.get(key);
-  if (!texture || texture.key === "__MISSING") return;
-  sprite.setTexture(key, frameName(texture, frame));
-  const safeW = frameW || 1;
-  const safeH = frameH || 1;
-  // Phaser mirrors flipX about the frame center, not the origin. The mirrored origin keeps the anchor pixel on the sprite position.
-  sprite.setOrigin((flip ? safeW - anchorX : anchorX) / safeW, anchorY / safeH);
-  sprite.setScale(scale);
-  sprite.setFlipX(flip);
 }
 
 function getLogicalAt(progress: number, lane: number) {
