@@ -1,0 +1,746 @@
+{
+ "px_per_m": 96.9697,
+ "fps": 4,
+ "frames": 8,
+ "loop": true,
+ "note": "8 frames spanning the 144-frame Eating clip; standing still",
+ "facing": "right (+screen x). Mirror horizontally for horses seen from the inside of the bend (corner).",
+ "mask": {
+  "R": "coat (do not tint)",
+  "G": "saddle cloth only -> lane color",
+  "B": "number plate -> lane color panel"
+ },
+ "riderless": true,
+ "sets": {
+  "straight": {
+   "camera_elevation_deg": 24,
+   "angles": [
+    {
+     "index": 0,
+     "yaw_deg": -30,
+     "color": "graze_straight_color_a0.webp",
+     "mask": "graze_straight_mask_a0.webp",
+     "sheet": "8 frames in one row",
+     "frame_w": 249,
+     "frame_h": 193,
+     "anchor": [
+      107.0,
+      169.7
+     ],
+     "per_frame_anchor": [
+      [
+       107.06,
+       170.01
+      ],
+      [
+       107.06,
+       170.01
+      ],
+      [
+       107.06,
+       170.01
+      ],
+      [
+       106.63,
+       169.91
+      ],
+      [
+       105.47,
+       169.64
+      ],
+      [
+       107.0,
+       170.0
+      ],
+      [
+       107.06,
+       170.01
+      ],
+      [
+       107.06,
+       170.01
+      ]
+     ],
+     "plate_per_frame": [
+      {
+       "cx": 95.01,
+       "cy": 78.37,
+       "h": 30.0
+      },
+      {
+       "cx": 94.77,
+       "cy": 78.28,
+       "h": 29.0
+      },
+      {
+       "cx": 94.39,
+       "cy": 79.07,
+       "h": 30.0
+      },
+      {
+       "cx": 94.36,
+       "cy": 78.85,
+       "h": 30.0
+      },
+      {
+       "cx": 94.44,
+       "cy": 77.32,
+       "h": 30.0
+      },
+      {
+       "cx": 94.29,
+       "cy": 79.2,
+       "h": 30.0
+      },
+      {
+       "cx": 94.58,
+       "cy": 78.9,
+       "h": 30.0
+      },
+      {
+       "cx": 94.93,
+       "cy": 78.43,
+       "h": 29.0
+      }
+     ],
+     "anchor_note": "ground point under the rig origin; per_frame_anchor = ground point under the Body bone each frame"
+    },
+    {
+     "index": 1,
+     "yaw_deg": -15,
+     "color": "graze_straight_color_a1.webp",
+     "mask": "graze_straight_mask_a1.webp",
+     "sheet": "8 frames in one row",
+     "frame_w": 260,
+     "frame_h": 199,
+     "anchor": [
+      105.0,
+      181.7
+     ],
+     "per_frame_anchor": [
+      [
+       105.07,
+       182.01
+      ],
+      [
+       105.07,
+       182.01
+      ],
+      [
+       105.07,
+       182.01
+      ],
+      [
+       104.59,
+       181.96
+      ],
+      [
+       103.29,
+       181.81
+      ],
+      [
+       105.0,
+       182.0
+      ],
+      [
+       105.07,
+       182.01
+      ],
+      [
+       105.07,
+       182.01
+      ]
+     ],
+     "plate_per_frame": [
+      {
+       "cx": 98.86,
+       "cy": 91.58,
+       "h": 29.0
+      },
+      {
+       "cx": 98.7,
+       "cy": 91.75,
+       "h": 29.0
+      },
+      {
+       "cx": 98.13,
+       "cy": 92.17,
+       "h": 29.0
+      },
+      {
+       "cx": 98.08,
+       "cy": 91.92,
+       "h": 29.0
+      },
+      {
+       "cx": 98.53,
+       "cy": 90.83,
+       "h": 29.0
+      },
+      {
+       "cx": 98.01,
+       "cy": 92.24,
+       "h": 29.0
+      },
+      {
+       "cx": 98.39,
+       "cy": 91.92,
+       "h": 28.0
+      },
+      {
+       "cx": 98.8,
+       "cy": 91.65,
+       "h": 29.0
+      }
+     ],
+     "anchor_note": "ground point under the rig origin; per_frame_anchor = ground point under the Body bone each frame"
+    },
+    {
+     "index": 2,
+     "yaw_deg": 0,
+     "color": "graze_straight_color_a2.webp",
+     "mask": "graze_straight_mask_a2.webp",
+     "sheet": "8 frames in one row",
+     "frame_w": 256,
+     "frame_h": 205,
+     "anchor": [
+      98.0,
+      193.7
+     ],
+     "per_frame_anchor": [
+      [
+       98.08,
+       194.0
+      ],
+      [
+       98.08,
+       194.0
+      ],
+      [
+       98.07,
+       194.0
+      ],
+      [
+       97.58,
+       194.0
+      ],
+      [
+       96.23,
+       194.0
+      ],
+      [
+       98.0,
+       194.0
+      ],
+      [
+       98.07,
+       194.0
+      ],
+      [
+       98.08,
+       194.0
+      ]
+     ],
+     "plate_per_frame": [
+      {
+       "cx": 97.98,
+       "cy": 103.82,
+       "h": 28.0
+      },
+      {
+       "cx": 97.98,
+       "cy": 104.22,
+       "h": 28.0
+      },
+      {
+       "cx": 97.48,
+       "cy": 104.74,
+       "h": 28.0
+      },
+      {
+       "cx": 97.42,
+       "cy": 104.56,
+       "h": 27.0
+      },
+      {
+       "cx": 97.59,
+       "cy": 103.3,
+       "h": 28.0
+      },
+      {
+       "cx": 97.19,
+       "cy": 104.64,
+       "h": 28.0
+      },
+      {
+       "cx": 97.97,
+       "cy": 104.44,
+       "h": 27.0
+      },
+      {
+       "cx": 97.97,
+       "cy": 103.97,
+       "h": 28.0
+      }
+     ],
+     "anchor_note": "ground point under the rig origin; per_frame_anchor = ground point under the Body bone each frame"
+    },
+    {
+     "index": 3,
+     "yaw_deg": 15,
+     "color": "graze_straight_color_a3.webp",
+     "mask": "graze_straight_mask_a3.webp",
+     "sheet": "8 frames in one row",
+     "frame_w": 261,
+     "frame_h": 225,
+     "anchor": [
+      106.0,
+      205.7
+     ],
+     "per_frame_anchor": [
+      [
+       106.07,
+       205.99
+      ],
+      [
+       106.07,
+       205.99
+      ],
+      [
+       106.07,
+       205.99
+      ],
+      [
+       105.59,
+       206.05
+      ],
+      [
+       104.29,
+       206.19
+      ],
+      [
+       106.0,
+       206.0
+      ],
+      [
+       106.07,
+       205.99
+      ],
+      [
+       106.07,
+       205.99
+      ]
+     ],
+     "plate_per_frame": [
+      {
+       "cx": 112.47,
+       "cy": 115.56,
+       "h": 29.0
+      },
+      {
+       "cx": 112.2,
+       "cy": 115.98,
+       "h": 29.0
+      },
+      {
+       "cx": 111.7,
+       "cy": 116.32,
+       "h": 29.0
+      },
+      {
+       "cx": 111.68,
+       "cy": 116.02,
+       "h": 29.0
+      },
+      {
+       "cx": 111.86,
+       "cy": 115.13,
+       "h": 28.0
+      },
+      {
+       "cx": 111.57,
+       "cy": 116.46,
+       "h": 29.0
+      },
+      {
+       "cx": 111.99,
+       "cy": 116.25,
+       "h": 29.0
+      },
+      {
+       "cx": 112.37,
+       "cy": 115.78,
+       "h": 29.0
+      }
+     ],
+     "anchor_note": "ground point under the rig origin; per_frame_anchor = ground point under the Body bone each frame"
+    },
+    {
+     "index": 4,
+     "yaw_deg": 30,
+     "color": "graze_straight_color_a4.webp",
+     "mask": "graze_straight_mask_a4.webp",
+     "sheet": "8 frames in one row",
+     "frame_w": 250,
+     "frame_h": 242,
+     "anchor": [
+      108.0,
+      216.7
+     ],
+     "per_frame_anchor": [
+      [
+       108.07,
+       216.99
+      ],
+      [
+       108.07,
+       216.99
+      ],
+      [
+       108.06,
+       216.99
+      ],
+      [
+       107.64,
+       217.09
+      ],
+      [
+       106.47,
+       217.36
+      ],
+      [
+       108.0,
+       217.0
+      ],
+      [
+       108.06,
+       216.99
+      ],
+      [
+       108.07,
+       216.99
+      ]
+     ],
+     "plate_per_frame": [
+      {
+       "cx": 120.22,
+       "cy": 125.62,
+       "h": 31.0
+      },
+      {
+       "cx": 120.14,
+       "cy": 125.81,
+       "h": 31.0
+      },
+      {
+       "cx": 119.59,
+       "cy": 126.57,
+       "h": 31.0
+      },
+      {
+       "cx": 119.59,
+       "cy": 126.27,
+       "h": 31.0
+      },
+      {
+       "cx": 119.83,
+       "cy": 125.06,
+       "h": 30.0
+      },
+      {
+       "cx": 119.35,
+       "cy": 126.66,
+       "h": 31.0
+      },
+      {
+       "cx": 119.89,
+       "cy": 126.32,
+       "h": 31.0
+      },
+      {
+       "cx": 120.18,
+       "cy": 125.69,
+       "h": 31.0
+      }
+     ],
+     "anchor_note": "ground point under the rig origin; per_frame_anchor = ground point under the Body bone each frame"
+    }
+   ]
+  },
+  "corner": {
+   "camera_elevation_deg": 9,
+   "angles": [
+    {
+     "index": 0,
+     "yaw_deg": 0,
+     "color": "graze_corner_color_a0.webp",
+     "mask": "graze_corner_mask_a0.webp",
+     "sheet": "8 frames in one row",
+     "frame_w": 256,
+     "frame_h": 212,
+     "anchor": [
+      98.0,
+      205.7
+     ],
+     "per_frame_anchor": [
+      [
+       98.08,
+       206.0
+      ],
+      [
+       98.08,
+       206.0
+      ],
+      [
+       98.07,
+       206.0
+      ],
+      [
+       97.58,
+       206.0
+      ],
+      [
+       96.23,
+       206.0
+      ],
+      [
+       98.0,
+       206.0
+      ],
+      [
+       98.07,
+       206.0
+      ],
+      [
+       98.08,
+       206.0
+      ]
+     ],
+     "plate_per_frame": [
+      {
+       "cx": 97.96,
+       "cy": 102.41,
+       "h": 31.0
+      },
+      {
+       "cx": 97.92,
+       "cy": 102.7,
+       "h": 32.0
+      },
+      {
+       "cx": 97.48,
+       "cy": 103.0,
+       "h": 32.0
+      },
+      {
+       "cx": 97.37,
+       "cy": 102.96,
+       "h": 32.0
+      },
+      {
+       "cx": 97.57,
+       "cy": 101.63,
+       "h": 32.0
+      },
+      {
+       "cx": 97.24,
+       "cy": 103.15,
+       "h": 32.0
+      },
+      {
+       "cx": 97.9,
+       "cy": 102.76,
+       "h": 32.0
+      },
+      {
+       "cx": 97.96,
+       "cy": 102.54,
+       "h": 32.0
+      }
+     ],
+     "anchor_note": "ground point under the rig origin; per_frame_anchor = ground point under the Body bone each frame"
+    },
+    {
+     "index": 1,
+     "yaw_deg": 20,
+     "color": "graze_corner_color_a1.webp",
+     "mask": "graze_corner_mask_a1.webp",
+     "sheet": "8 frames in one row",
+     "frame_w": 259,
+     "frame_h": 221,
+     "anchor": [
+      107.0,
+      211.7
+     ],
+     "per_frame_anchor": [
+      [
+       107.07,
+       212.0
+      ],
+      [
+       107.07,
+       212.0
+      ],
+      [
+       107.07,
+       212.0
+      ],
+      [
+       106.6,
+       212.02
+      ],
+      [
+       105.34,
+       212.09
+      ],
+      [
+       107.0,
+       212.0
+      ],
+      [
+       107.07,
+       212.0
+      ],
+      [
+       107.07,
+       212.0
+      ]
+     ],
+     "plate_per_frame": [
+      {
+       "cx": 115.53,
+       "cy": 108.12,
+       "h": 32.0
+      },
+      {
+       "cx": 115.05,
+       "cy": 108.43,
+       "h": 33.0
+      },
+      {
+       "cx": 114.8,
+       "cy": 108.99,
+       "h": 32.0
+      },
+      {
+       "cx": 114.72,
+       "cy": 108.71,
+       "h": 33.0
+      },
+      {
+       "cx": 114.73,
+       "cy": 107.59,
+       "h": 33.0
+      },
+      {
+       "cx": 114.71,
+       "cy": 109.09,
+       "h": 32.0
+      },
+      {
+       "cx": 114.85,
+       "cy": 108.75,
+       "h": 32.0
+      },
+      {
+       "cx": 115.25,
+       "cy": 108.31,
+       "h": 33.0
+      }
+     ],
+     "anchor_note": "ground point under the rig origin; per_frame_anchor = ground point under the Body bone each frame"
+    },
+    {
+     "index": 2,
+     "yaw_deg": 40,
+     "color": "graze_corner_color_a2.webp",
+     "mask": "graze_corner_mask_a2.webp",
+     "sheet": "8 frames in one row",
+     "frame_w": 234,
+     "frame_h": 229,
+     "anchor": [
+      106.0,
+      216.7
+     ],
+     "per_frame_anchor": [
+      [
+       106.06,
+       216.99
+      ],
+      [
+       106.06,
+       216.99
+      ],
+      [
+       106.06,
+       216.99
+      ],
+      [
+       105.68,
+       217.04
+      ],
+      [
+       104.65,
+       217.18
+      ],
+      [
+       106.0,
+       217.0
+      ],
+      [
+       106.06,
+       216.99
+      ],
+      [
+       106.06,
+       216.99
+      ]
+     ],
+     "plate_per_frame": [
+      {
+       "cx": 121.58,
+       "cy": 112.62,
+       "h": 33.0
+      },
+      {
+       "cx": 121.44,
+       "cy": 112.68,
+       "h": 34.0
+      },
+      {
+       "cx": 121.01,
+       "cy": 113.44,
+       "h": 33.0
+      },
+      {
+       "cx": 120.96,
+       "cy": 113.22,
+       "h": 34.0
+      },
+      {
+       "cx": 121.1,
+       "cy": 111.78,
+       "h": 34.0
+      },
+      {
+       "cx": 120.9,
+       "cy": 113.61,
+       "h": 33.0
+      },
+      {
+       "cx": 121.14,
+       "cy": 113.28,
+       "h": 33.0
+      },
+      {
+       "cx": 121.57,
+       "cy": 112.61,
+       "h": 33.0
+      }
+     ],
+     "anchor_note": "ground point under the rig origin; per_frame_anchor = ground point under the Body bone each frame"
+    }
+   ]
+  }
+ }
+}

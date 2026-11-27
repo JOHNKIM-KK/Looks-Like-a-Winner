@@ -1,0 +1,75 @@
+{
+ "px_per_m": 24.242425,
+ "world_px_per_m": 96.9697,
+ "scale_up": 4.0,
+ "fps": 10,
+ "frames": 10,
+ "loop": false,
+ "note": "original giant; sheets are rendered at px_per_m/4 - draw them at 4x scale (scale_up)",
+ "facing": "right (+screen x). Mirror horizontally for the inside of the bend.",
+ "mask": null,
+ "sets": {
+  "straight": {
+   "camera_elevation_deg": 24,
+   "angles": [
+    {
+     "index": 1,
+     "yaw_deg": -15,
+     "color": "grab_straight_color_a1.webp",
+     "sheet": "10 frames in one row",
+     "frame_w": 219,
+     "frame_h": 502,
+     "anchor": [
+      24.0,
+      372.0
+     ],
+     "anchor_note": "ground point under the asset origin (frame pixels)"
+    },
+    {
+     "index": 2,
+     "yaw_deg": 0,
+     "color": "grab_straight_color_a2.webp",
+     "sheet": "10 frames in one row",
+     "frame_w": 220,
+     "frame_h": 505,
+     "anchor": [
+      19.0,
+      374.0
+     ],
+     "anchor_note": "ground point under the asset origin (frame pixels)"
+    },
+    {
+     "index": 3,
+     "yaw_deg": 15,
+     "color": "grab_straight_color_a3.webp",
+     "sheet": "10 frames in one row",
+     "frame_w": 221,
+     "frame_h": 509,
+     "anchor": [
+      26.0,
+      376.0
+     ],
+     "anchor_note": "ground point under the asset origin (frame pixels)"
+    }
+   ]
+  },
+  "corner": {
+   "camera_elevation_deg": 9,
+   "angles": [
+    {
+     "index": 1,
+     "yaw_deg": 20,
+     "color": "grab_corner_color_a1.webp",
+     "sheet": "10 frames in one row",
+     "frame_w": 217,
+     "frame_h": 534,
+     "anchor": [
+      27.0,
+      400.0
+     ],
+     "anchor_note": "ground point under the asset origin (frame pixels)"
+    }
+   ]
+  }
+ }
+}

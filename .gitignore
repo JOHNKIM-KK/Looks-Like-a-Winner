@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# art pipeline scratch
+/art/sources/**/*.blend1
+/art/sources/_raw/
+__pycache__/
