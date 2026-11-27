@@ -51,6 +51,10 @@ def main():
                 cn = f'{name}_{sname}_color_a{ai}.webp'; mn = f'{name}_{sname}_mask_a{ai}.webp'
                 info = sheetlib.build_sheet(d['color'], d['mask'] if cfg['mask'] else None, n, os.path.join(out, cn), os.path.join(out, mn) if cfg['mask'] else None, tuple(m['target']))
                 info.pop('plate_per_frame', None)
+                ox, oy = info.pop('crop_origin')
+                for key in ('hand_px', 'ground_px'):
+                    if m.get('points') and key in m['points'][0] and (key != 'hand_px' or clip == 'grab'):
+                        info[key] = [[round(pt[key][0] - ox, 1), round(pt[key][1] - oy, 1)] for pt in m['points']]
                 angs.append(dict(index=ai, yaw_deg=cs['yaws'][ai], color=cn, **({'mask': mn} if cfg['mask'] else {}), sheet=f'{n} frames in one row', **info,
                                  anchor_note='ground point under the asset origin (frame pixels)'))
             if angs: meta['sets'][sname] = dict(camera_elevation_deg=cs['elev'], angles=angs)
