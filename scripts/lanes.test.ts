@@ -22,9 +22,10 @@ const SEEDS = 200;
 const RACE_LENGTH_M = referenceDistance() / ENGINE_PX_PER_M;
 const EPS = 1e-6;
 
+// Lane zone caps are the base rules. A runner dodging a downed horse may exceed them, so these races have no incidents.
 const races: RaceResult[] = Array.from({ length: SEEDS }, (_, index) => {
   const seed = index + 1;
-  return simulateRace(fieldHorses(mockHorses, seed), seed);
+  return simulateRace(fieldHorses(mockHorses, seed), seed, { incidents: false });
 });
 
 const natural = new WeakMap<LaneRunner, number>();

@@ -196,6 +196,8 @@ function gainByte(gain: number) {
   return Math.round(255 * Math.min(1, Math.max(0, gain)));
 }
 
+export type OverlayPaint = (color: Uint8ClampedArray, mask: Uint8ClampedArray, out: Uint8ClampedArray) => void;
+
 /**
  * One overlay per angle, shared by every lane: RGB is the shading gain, alpha the mask coverage.
  * Drawn over the bay color sheet with a lane-color tint, it gives coat × (1 − m) + lane × gain × m.

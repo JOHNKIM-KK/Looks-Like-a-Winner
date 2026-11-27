@@ -1,0 +1,139 @@
+{
+ "px_per_m": 96.9697,
+ "world_px_per_m": 96.9697,
+ "scale_up": 1.0,
+ "fps": 12,
+ "frames": 6,
+ "loop": true,
+ "note": "motorcycle + helmeted rider, heading right; anchor = ground point under the bike centre; color sheet shades the silks in neutral grey like jockey/*",
+ "facing": "right (+screen x). Mirror horizontally for the inside of the bend.",
+ "mask": {
+  "G": "G = rider silks (shirt + helmet) -> lane color; everything else 0",
+  "R": "unused (0)",
+  "B": "unused (0)"
+ },
+ "sets": {
+  "straight": {
+   "camera_elevation_deg": 24,
+   "angles": [
+    {
+     "index": 0,
+     "yaw_deg": -30,
+     "color": "ride_straight_color_a0.webp",
+     "mask": "ride_straight_mask_a0.webp",
+     "sheet": "6 frames in one row",
+     "frame_w": 184,
+     "frame_h": 173,
+     "anchor": [
+      97.0,
+      155.0
+     ],
+     "anchor_note": "ground point under the asset origin (frame pixels)"
+    },
+    {
+     "index": 1,
+     "yaw_deg": -15,
+     "color": "ride_straight_color_a1.webp",
+     "mask": "ride_straight_mask_a1.webp",
+     "sheet": "6 frames in one row",
+     "frame_w": 201,
+     "frame_h": 164,
+     "anchor": [
+      106.0,
+      153.0
+     ],
+     "anchor_note": "ground point under the asset origin (frame pixels)"
+    },
+    {
+     "index": 2,
+     "yaw_deg": 0,
+     "color": "ride_straight_color_a2.webp",
+     "mask": "ride_straight_mask_a2.webp",
+     "sheet": "6 frames in one row",
+     "frame_w": 205,
+     "frame_h": 155,
+     "anchor": [
+      107.0,
+      151.0
+     ],
+     "anchor_note": "ground point under the asset origin (frame pixels)"
+    },
+    {
+     "index": 3,
+     "yaw_deg": 15,
+     "color": "ride_straight_color_a3.webp",
+     "mask": "ride_straight_mask_a3.webp",
+     "sheet": "6 frames in one row",
+     "frame_w": 201,
+     "frame_h": 160,
+     "anchor": [
+      106.0,
+      149.0
+     ],
+     "anchor_note": "ground point under the asset origin (frame pixels)"
+    },
+    {
+     "index": 4,
+     "yaw_deg": 30,
+     "color": "ride_straight_color_a4.webp",
+     "mask": "ride_straight_mask_a4.webp",
+     "sheet": "6 frames in one row",
+     "frame_w": 185,
+     "frame_h": 165,
+     "anchor": [
+      98.0,
+      147.0
+     ],
+     "anchor_note": "ground point under the asset origin (frame pixels)"
+    }
+   ]
+  },
+  "corner": {
+   "camera_elevation_deg": 9,
+   "angles": [
+    {
+     "index": 0,
+     "yaw_deg": 0,
+     "color": "ride_corner_color_a0.webp",
+     "mask": "ride_corner_mask_a0.webp",
+     "sheet": "6 frames in one row",
+     "frame_w": 205,
+     "frame_h": 167,
+     "anchor": [
+      107.0,
+      163.0
+     ],
+     "anchor_note": "ground point under the asset origin (frame pixels)"
+    },
+    {
+     "index": 1,
+     "yaw_deg": 20,
+     "color": "ride_corner_color_a1.webp",
+     "mask": "ride_corner_mask_a1.webp",
+     "sheet": "6 frames in one row",
+     "frame_w": 197,
+     "frame_h": 170,
+     "anchor": [
+      104.0,
+      162.0
+     ],
+     "anchor_note": "ground point under the asset origin (frame pixels)"
+    },
+    {
+     "index": 2,
+     "yaw_deg": 40,
+     "color": "ride_corner_color_a2.webp",
+     "mask": "ride_corner_mask_a2.webp",
+     "sheet": "6 frames in one row",
+     "frame_w": 167,
+     "frame_h": 172,
+     "anchor": [
+      88.0,
+      161.0
+     ],
+     "anchor_note": "ground point under the asset origin (frame pixels)"
+    }
+   ]
+  }
+ }
+}

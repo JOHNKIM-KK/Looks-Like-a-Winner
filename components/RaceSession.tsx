@@ -22,6 +22,7 @@ import {
 } from "@/lib/entrantSetup";
 import { fieldHorses } from "@/lib/field";
 import { mockHorses } from "@/lib/mockHorses";
+import { parseForcedIncident } from "@/lib/incidents";
 import { simulateRace, type RaceResult as RaceData } from "@/lib/race";
 
 const EMPTY_RECENT = "불러올 최근 참가자가 없습니다.";
@@ -39,10 +40,15 @@ function seedFromSearch() {
   return seed > 0 ? seed : null;
 }
 
+function raceFor(horses: Parameters<typeof simulateRace>[0], seed: number) {
+  const force = parseForcedIncident(window.location.search) ?? undefined;
+  return simulateRace(horses, seed, { force });
+}
+
 /** Idle track behind the title. The race a player starts is the lineup field. */
 function newRace() {
   const seed = seedFromSearch() ?? nextSeed();
-  return simulateRace(fieldHorses(mockHorses, seed), seed);
+  return raceFor(fieldHorses(mockHorses, seed), seed);
 }
 
 /** Client-only: seeds come from the URL and `Math.random`, so this must never prerender. */
@@ -98,7 +104,7 @@ export function RaceSession() {
         if (next === session) return;
         primeStartSound();
         const seed = seedFromSearch() ?? nextSeed();
-        const nextRace = simulateRace(session.horses, seed);
+        const nextRace = raceFor(session.horses, seed);
         saveRecentEntrants(window.localStorage, session.names);
         setRace(nextRace);
         setSession(next);

@@ -11,7 +11,7 @@ import snapshot from "./finishRanking.snapshot.json";
 describe("simulated ranking snapshot", () => {
   it("keeps finishTime and rank for seeds 1 through 20", () => {
     for (let seed = 1; seed <= 20; seed += 1) {
-      const race = simulateRace(fieldHorses(mockHorses, seed), seed);
+      const race = simulateRace(fieldHorses(mockHorses, seed), seed, { incidents: false });
       const frozen = snapshot[String(seed) as keyof typeof snapshot];
       expect(race.ranking.map((horse) => horse.id)).toEqual(frozen.map((horse) => horse.id));
       race.ranking.forEach((horse, index) => {

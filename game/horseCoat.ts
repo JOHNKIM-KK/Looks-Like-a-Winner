@@ -8,14 +8,52 @@ import {
   shadowLayout,
   silksOverlayPixels,
   type AngleSetName,
+  type OverlayPaint,
 } from "./horseVisual";
 import { RIDE_ANGLES } from "./jockeyRide";
+import { addRowFrames } from "./spriteFrames";
 
 type SheetPixels = {
   color: Uint8ClampedArray;
   width: number;
   height: number;
 };
+
+export type OverlaySpec = {
+  key: string;
+  colorKey: string;
+  maskKey: string;
+  frames: number;
+  frameW: number;
+  frameH: number;
+  paint: OverlayPaint;
+  cachedColor?: Uint8ClampedArray;
+};
+
+/**
+ * One lane-tintable overlay for a row sheet: RGB is the shading gain, alpha the mask coverage.
+ * Built once from the color and mask sheets, so the lane color stays a sprite tint and texture memory does not grow with the field.
+ */
+export function bakeOverlay(scene: Phaser.Scene, spec: OverlaySpec) {
+  const { key, colorKey, maskKey, frames, frameW, frameH, paint } = spec;
+  if (scene.textures.exists(key)) return key;
+  if (!scene.textures.exists(colorKey) || !scene.textures.exists(maskKey)) return key;
+  const width = frameW * frames;
+  const height = frameH;
+  const color = spec.cachedColor ?? readPixels(scene.textures.get(colorKey).getSourceImage() as CanvasImageSource, width, height);
+  const mask = readPixels(scene.textures.get(maskKey).getSourceImage() as CanvasImageSource, width, height);
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) return key;
+  const out = new Uint8ClampedArray(color.length);
+  paint(color, mask, out);
+  context.putImageData(new ImageData(out, width, height), 0, 0);
+  const texture = scene.textures.addCanvas(key, canvas);
+  addRowFrames(texture ?? undefined, frames, frameW, frameH);
+  return key;
+}
 
 /** Lane colors come from a sprite tint over a shared overlay, so texture memory must not grow with the field. */
 export type HorseCoatLibrary = {
@@ -34,15 +72,8 @@ export type HorseCoatLibrary = {
 export function createHorseCoatLibrary(scene: Phaser.Scene): HorseCoatLibrary {
   const sheets = new Map<string, SheetPixels>();
 
-  function addFrames(texture: Phaser.Textures.Texture, frameW: number, frameH: number) {
-    if (texture.has("0")) return;
-    for (let frame = 0; frame < HORSE_FRAMES; frame += 1) {
-      texture.add(frame, 0, frame * frameW, 0, frameW, frameH);
-    }
-  }
-
   function framedKey(key: string, frameW: number, frameH: number) {
-    if (scene.textures.exists(key)) addFrames(scene.textures.get(key), frameW, frameH);
+    if (scene.textures.exists(key)) addRowFrames(scene.textures.get(key), HORSE_FRAMES, frameW, frameH);
     return key;
   }
 
@@ -52,26 +83,10 @@ export function createHorseCoatLibrary(scene: Phaser.Scene): HorseCoatLibrary {
     maskKey: string,
     frameW: number,
     frameH: number,
-    paint: (color: Uint8ClampedArray, mask: Uint8ClampedArray, out: Uint8ClampedArray) => void,
+    paint: OverlayPaint,
     cachedColor?: Uint8ClampedArray,
   ) {
-    if (scene.textures.exists(key)) return key;
-    if (!scene.textures.exists(colorKey) || !scene.textures.exists(maskKey)) return key;
-    const width = frameW * HORSE_FRAMES;
-    const height = frameH;
-    const color = cachedColor ?? readPixels(scene.textures.get(colorKey).getSourceImage() as CanvasImageSource, width, height);
-    const mask = readPixels(scene.textures.get(maskKey).getSourceImage() as CanvasImageSource, width, height);
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
-    const context = canvas.getContext("2d");
-    if (!context) return key;
-    const out = new Uint8ClampedArray(color.length);
-    paint(color, mask, out);
-    context.putImageData(new ImageData(out, width, height), 0, 0);
-    const texture = scene.textures.addCanvas(key, canvas);
-    if (texture) addFrames(texture, frameW, frameH);
-    return key;
+    return bakeOverlay(scene, { key, colorKey, maskKey, frames: HORSE_FRAMES, frameW, frameH, paint, cachedColor });
   }
 
   function pixelsFor(set: AngleSetName, index: number): SheetPixels | null {

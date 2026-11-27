@@ -1,6 +1,18 @@
 import { payoffWord } from "@/game/skillShow";
 import { COAST_END, ENGINE_PX_PER_M, RACE_METERS, cutLength, poseAt, segmentAt, segmentEnds, referenceDistance } from "@/game/track";
-import { laneRunner, stepLanes, type LaneRunner } from "./lanes";
+import { laneObstacle, laneRunner, stepLanes, type LaneObstacle, type LaneRunner } from "./lanes";
+import { mulberry32, mixSeed } from "./rng";
+import {
+  createDirector,
+  footSpeedFactor,
+  planIncidents,
+  type Dismount,
+  type FieldEntry,
+  type ForcedIncident,
+  type HorseFate,
+  type IncidentDirector,
+  type TitanPlan,
+} from "./incidents";
 import { skillById, type SkillId, type SkillKind } from "./skills";
 
 export { segmentAt, COAST_END };
@@ -18,9 +30,17 @@ export const SKILL_SLOW = 1 / 1.35;
 export const MIN_SKILL_GAP = 1.2;
 export const BRAKE_TIME = 1.5;
 
-export const RACE_FEATURES: { readonly horseStats: boolean; readonly skills: boolean } = {
+export const RACE_FEATURES: { readonly horseStats: boolean; readonly skills: boolean; readonly incidents: boolean } = {
   horseStats: false,
   skills: false,
+  incidents: true,
+};
+
+export type SimOptions = {
+  /** Defaults to `RACE_FEATURES.incidents`. */
+  incidents?: boolean;
+  /** Debug: force one incident cause and/or on-foot mode. */
+  force?: ForcedIncident;
 };
 
 function brakeFor(arrive: number) {
@@ -100,6 +120,13 @@ export type RaceHorse = HorseInput & {
   cutFrom: number;
   cutTo: number;
   cutUntil: number;
+  /**
+   * Set once the jockey leaves the saddle. From then on `samples` and `lanes`
+   * describe the jockey on foot, and the ranking is the jockey crossing the line.
+   */
+  dismount: Dismount | null;
+  /** What the horse body does after `dismount`. */
+  fate: HorseFate | null;
 };
 
 export type RaceResult = {
@@ -108,6 +135,8 @@ export type RaceResult = {
   horses: RaceHorse[];
   ranking: RaceHorse[];
   events: RaceEvent[];
+  /** Titan run-in, when one crashes the race. */
+  titan: TitanPlan | null;
 };
 
 const STAT_KEYS = ["start", "accel", "stamina", "corner", "mental", "luck"] as const;
@@ -158,21 +187,8 @@ type Runner = {
   cutFrom: number;
   cutTo: number;
   cutUntil: number;
+  dismount: Dismount | null;
 };
-
-function mulberry32(seed: number) {
-  let state = seed >>> 0;
-  return () => {
-    state = (state + 0x6d2b79f5) | 0;
-    let value = Math.imul(state ^ (state >>> 15), 1 | state);
-    value = (value + Math.imul(value ^ (value >>> 7), 61 | value)) ^ value;
-    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function mixSeed(seed: number, index: number) {
-  return (Math.imul(seed ^ Math.imul(index + 1, 0x9e3779b1), 0x85ebca6b) >>> 0) || 1;
-}
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
@@ -401,18 +417,35 @@ function stepSpeed(runner: Runner, time: number) {
   if (time < runner.buffUntil) multiplier *= runner.buffMul;
   if (time < runner.slowUntil) multiplier *= runner.slowMul;
   if (time < runner.footUntil) multiplier *= FOOT_RATE;
+  if (runner.dismount) multiplier *= footSpeedFactor(runner.dismount.mode, time - runner.dismount.time);
   return speedAt(runner.stats, runner.progress) * multiplier;
 }
 
-function simulate(runners: Runner[]) {
+function simulate(runners: Runner[], director: IncidentDirector | null) {
   const finishAt = 70;
   const steps = Math.round(finishAt / SAMPLE_STEP);
+  const obstacles: LaneObstacle[] = [];
   for (let index = 0; index <= steps; index += 1) {
     const time = Number((index * SAMPLE_STEP).toFixed(1));
     for (const runner of runners) {
       if (!runner.skillUsed && time + 0.0001 >= runner.skillTime && skillReady(runner)) {
         if (time > runner.skillTime + 0.001) runner.skillTime = time;
         applySkill(runners, runner);
+      }
+    }
+    if (director && index > 0) {
+      const field: FieldEntry[] = runners.map((runner) => ({
+        id: runner.input.id,
+        progress: runner.progress,
+        lane: runner.laneState.lane,
+        mounted: runner.dismount === null,
+        racing: runner.finishTime === 0 && !(runner.cutUntil > runner.skillTime && time < runner.cutUntil),
+      }));
+      for (const born of director.step(time, field)) {
+        const runner = runners.find((candidate) => candidate.input.id === born.id);
+        if (runner) runner.dismount = born.dismount;
+        const fate = director.plan().fates.get(born.id);
+        if (runner && fate?.kind === "down") obstacles.push(laneObstacle(fate.at.progress * RACE_LENGTH_M, fate.at.lane, runner.laneState));
       }
     }
     const running: Runner[] = [];
@@ -451,7 +484,7 @@ function simulate(runners: Runner[]) {
       });
       running.push(runner);
     }
-    stepLanes(runners.map((runner) => runner.laneState), SAMPLE_STEP);
+    stepLanes(runners.map((runner) => runner.laneState), SAMPLE_STEP, obstacles);
     for (const runner of runners) runner.laneSamples.push(runner.laneState.lane);
     for (const runner of running) {
       const delta = (runner.laneState.speed / RACE_LENGTH_M) * SAMPLE_STEP;
@@ -475,7 +508,36 @@ function simulate(runners: Runner[]) {
   }
 }
 
-function buildEvents(horses: RaceHorse[]): RaceEvent[] {
+const MODE_REVEAL = {
+  super: "기수, 초인 질주!",
+  bike: "기수, 오토바이 소환!",
+} as const;
+
+function incidentEvents(horses: RaceHorse[], titan: TitanPlan | null): RaceEvent[] {
+  const events: RaceEvent[] = [];
+  if (titan) events.push({ time: titan.enterAt, horseId: titan.targetId, message: "거인 난입!" });
+  let grazed = false;
+  for (const horse of horses) {
+    const dismount = horse.dismount;
+    if (!dismount) continue;
+    const who = `${horse.number}번 ${horse.name}`;
+    if (dismount.cause === "collision") {
+      events.push({ time: dismount.time, horseId: horse.id, message: `${who}, 충돌! 기수 낙마` });
+    } else if (dismount.cause === "titan") {
+      events.push({ time: dismount.time, horseId: horse.id, message: `${who}, 거인에게 잡아먹혔습니다` });
+    } else if (!grazed) {
+      grazed = true;
+      events.push({ time: dismount.time, horseId: horse.id, message: "선두권이 풀을 뜯으러 갑니다" });
+    }
+    if (dismount.mode !== "run") {
+      const reveal = MODE_REVEAL[dismount.mode];
+      events.push({ time: Number((dismount.time + 0.8).toFixed(2)), horseId: horse.id, message: `${horse.number}번 ${reveal}` });
+    }
+  }
+  return events;
+}
+
+function buildEvents(horses: RaceHorse[], titan: TitanPlan | null): RaceEvent[] {
   const events: RaceEvent[] = [
     {
       time: 0,
@@ -506,6 +568,8 @@ function buildEvents(horses: RaceHorse[]): RaceEvent[] {
     });
   }
 
+  events.push(...incidentEvents(horses, titan));
+
   let leaderId = horses[0]?.id ?? "";
   const sampleCount = horses[0]?.samples.length ?? 0;
   for (let index = 1; index < sampleCount; index += 1) {
@@ -535,7 +599,7 @@ function buildEvents(horses: RaceHorse[]): RaceEvent[] {
   return events.sort((a, b) => a.time - b.time);
 }
 
-export function simulateRace(horses: HorseInput[], seed: number): RaceResult {
+export function simulateRace(horses: HorseInput[], seed: number, options: SimOptions = {}): RaceResult {
   if (horses.length < 1 || horses.length > MAX_HORSES) {
     throw new Error(`출전마는 1마리에서 ${MAX_HORSES}마리까지입니다.`);
   }
@@ -572,11 +636,15 @@ export function simulateRace(horses: HorseInput[], seed: number): RaceResult {
       cutTo: 0,
       cutUntil: 0,
       skillTargetId: "",
+      dismount: null,
     };
   });
 
   if (RACE_FEATURES.skills) scheduleSkills(runners, seed);
-  simulate(runners);
+  const incidentsOn = options.incidents ?? RACE_FEATURES.incidents;
+  const director = incidentsOn ? createDirector(seed, planIncidents(seed, options.force ?? null)) : null;
+  simulate(runners, director);
+  const incidents = director?.plan();
 
   const raced: RaceHorse[] = runners.map((runner) => {
     const skill = skillById(runner.input.skillId);
@@ -604,6 +672,8 @@ export function simulateRace(horses: HorseInput[], seed: number): RaceResult {
       cutTo: runner.cutTo,
       cutUntil: runner.cutUntil,
       skillTargetId: runner.skillTargetId,
+      dismount: incidents?.dismounts.get(runner.input.id) ?? null,
+      fate: incidents?.fates.get(runner.input.id) ?? null,
     };
   });
 
@@ -619,7 +689,8 @@ export function simulateRace(horses: HorseInput[], seed: number): RaceResult {
     duration,
     horses: raced,
     ranking,
-    events: buildEvents(raced),
+    events: buildEvents(raced, incidents?.titan ?? null),
+    titan: incidents?.titan ?? null,
   };
 }
 
